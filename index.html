@@ -461,40 +461,33 @@ textarea{resize:vertical;min-height:56px}
     <!-- DASH -->
     <div class="ppage active" id="pp-dash">
       <div class="cards4">
-        <div class="kcard"><div class="ki">👥</div><div class="kl">Clientes</div><div class="kv c-az" id="dash-clientes">24</div><div class="ks c-gr">↑ 3 novos</div></div>
-        <div class="kcard"><div class="ki">📋</div><div class="kl">Obrig. Pendentes</div><div class="kv c-or" id="dash-obrig">7</div><div class="ks c-rd">Venc. próximo</div></div>
-        <div class="kcard"><div class="ki">💳</div><div class="kl">Honorários/Mês</div><div class="kv c-gr">R$ 8.4k</div><div class="ks c-gr">22 pagos</div></div>
-        <div class="kcard"><div class="ki">🚨</div><div class="kl">Urgências</div><div class="kv c-rd" id="dash-urg">2</div><div class="ks c-or">Não lidas</div></div>
+        <div class="kcard"><div class="ki">👥</div><div class="kl">Clientes</div><div class="kv c-az" id="dash-clientes">0</div><div class="ks c-gr">cadastrados</div></div>
+        <div class="kcard"><div class="ki">📋</div><div class="kl">Obrig. Pendentes</div><div class="kv c-or" id="dash-obrig">0</div><div class="ks c-rd">em aberto</div></div>
+        <div class="kcard"><div class="ki">💳</div><div class="kl">Honorários Recebidos</div><div class="kv c-gr" id="dash-rec">R$ 0,00</div><div class="ks c-gr">pagos</div></div>
+        <div class="kcard"><div class="ki">🚨</div><div class="kl">Urgências</div><div class="kv c-rd" id="dash-urg">0</div><div class="ks c-or">enviadas</div></div>
       </div>
       <div class="chart2">
         <div class="cbox">
-          <div class="sec">📈 Receita Honorários 2025</div>
-          <div class="barchart">
-            <div class="bg2"><div class="bar2 r" style="height:55px"></div><div class="bl2">Jan</div></div>
-            <div class="bg2"><div class="bar2 r" style="height:62px"></div><div class="bl2">Fev</div></div>
-            <div class="bg2"><div class="bar2 r" style="height:70px"></div><div class="bl2">Mar</div></div>
-            <div class="bg2"><div class="bar2 r" style="height:68px"></div><div class="bl2">Abr</div></div>
-            <div class="bg2"><div class="bar2 r" style="height:78px"></div><div class="bl2">Mai</div></div>
-            <div class="bg2"><div class="bar2 r" style="height:85px"></div><div class="bl2">Jun</div></div>
+          <div class="sec">💰 Controle de Caixa (Honorários)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+            <div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:9px;padding:11px;text-align:center"><div style="font-size:9px;color:var(--cinza)">Recebido</div><div style="font-size:17px;font-weight:800;color:var(--verde)" id="dash-rec2">R$ 0,00</div></div>
+            <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:9px;padding:11px;text-align:center"><div style="font-size:9px;color:var(--cinza)">Pendente</div><div style="font-size:17px;font-weight:800;color:var(--laranja)" id="dash-pend">R$ 0,00</div></div>
+            <div style="background:rgba(51,51,255,.1);border:1px solid rgba(51,51,255,.2);border-radius:9px;padding:11px;text-align:center"><div style="font-size:9px;color:var(--cinza)">Total</div><div style="font-size:17px;font-weight:800;color:var(--azul-light)" id="dash-tot">R$ 0,00</div></div>
           </div>
         </div>
         <div class="cbox">
-          <div class="sec">💳 Honorários Jun</div>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
-            <div><div style="font-size:9px;color:var(--cinza)">Total a Receber</div><div style="font-size:18px;font-weight:800;color:var(--azul-light)">R$ 8.400</div></div>
-            <div><div style="font-size:9px;color:var(--cinza)">Pagos</div><div style="font-size:16px;font-weight:800;color:var(--verde)">R$ 7.350</div></div>
-            <div><div style="font-size:9px;color:var(--cinza)">Pendentes</div><div style="font-size:16px;font-weight:800;color:var(--laranja)">R$ 1.050</div></div>
+          <div class="sec">📋 Resumo</div>
+          <div style="margin-top:10px;font-size:12px;color:var(--cinza);line-height:2">
+            <div>Clientes cadastrados: <strong style="color:#fff" id="dash-resumo-cli">0</strong></div>
+            <div>Honorários lançados: <strong style="color:#fff" id="dash-resumo-hon">0</strong></div>
+            <div>Obrigações em aberto: <strong style="color:#fff" id="dash-resumo-ob">0</strong></div>
           </div>
         </div>
       </div>
-      <div class="sec">⏰ Últimas Atividades</div>
+      <div class="sec">⏰ Últimos Honorários Lançados</div>
       <div class="tbox"><table>
-        <thead><tr><th>Cliente</th><th>Tipo</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead>
-        <tbody>
-          <tr><td>Mercearia Silva ME</td><td>Honorário Jun</td><td>R$ 350,00</td><td><span class="tag tp">Pago</span></td><td><button class="btn-sm">Ver</button></td></tr>
-          <tr><td>Tech Soluções LTDA</td><td>DAS Jun</td><td>R$ 1.840,00</td><td><span class="tag tp">Pago</span></td><td><button class="btn-sm">Ver</button></td></tr>
-          <tr><td>Padaria Gostosa ME</td><td>Honorário Jun</td><td>R$ 280,00</td><td><span class="tag tn">Pendente</span></td><td><button class="btn-sm btn-az" onclick="notif('Honorário enviado!')">Cobrar</button></td></tr>
-        </tbody>
+        <thead><tr><th>Cliente</th><th>Referência</th><th>Valor</th><th>Status</th></tr></thead>
+        <tbody id="tb-dash"><tr><td colspan="4" style="color:var(--cinza)">Nenhum lançamento ainda. Cadastre/lance e aparece aqui.</td></tr></tbody>
       </table></div>
     </div>
 
@@ -1305,7 +1298,7 @@ async function carregarInformativos(){
   l.innerHTML='';
   inf.slice().reverse().forEach(x=>{
     const d=document.createElement('div');d.className='lcard';
-    d.innerHTML=`<div class="lcico lc-az">📰</div><div class="lcinfo"><strong>${esc(x.titulo)}</strong><span>${esc(x.cat)} · ${esc(x.publico||'Todos')} · ${esc(x.data||'')}</span></div><button class="btn-sm" onclick="excluirInformativo('${x.id}')">Excluir</button>`;
+    d.innerHTML=`<div class="lcico lc-az">📰</div><div class="lcinfo"><strong>${esc(x.titulo)}</strong><span>${esc(x.cat)} · ${esc(x.publico||'Todos')} · ${esc(x.data||'')}</span></div><button class="btn-sm" onclick="infoImagem('${x.id}')">🖼️ Imagem</button> <button class="btn-sm" onclick="infoPDF('${x.id}')">📄 PDF</button> <button class="btn-sm" onclick="excluirInformativo('${x.id}')">Excluir</button>`;
     l.appendChild(d);
   });
 }
@@ -1403,11 +1396,19 @@ function confirmarHonorario(){
 }
 
 /* ===================== DASHBOARD ===================== */
+function _num(v){v=(''+(v==null?'':v)).replace(/[^0-9,.-]/g,''); if(v.indexOf(',')>-1)v=v.replace(/\./g,'').replace(',','.'); return parseFloat(v)||0;}
+function _money(n){return 'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2});}
 async function atualizarDashboard(){
-  const cs=await dbGetAll('clientes'), os=await dbGetAll('obrigacoes'), us=await dbGetAll('urgencias');
-  setText('dash-clientes',cs.length);
-  setText('dash-obrig',os.filter(o=>o.status!=='Pago').length);
-  setText('dash-urg',us.length);
+  try{
+    const cs=await dbGetAll('clientes'), os=await dbGetAll('obrigacoes'), us=await dbGetAll('urgencias'), hs=await dbGetAll('honorarios');
+    var obAb=os.filter(function(o){return o.status!=='Pago';}).length;
+    var rec=0,pend=0; hs.forEach(function(h){var v=_num(h.valor); if(/pago/i.test(h.status||''))rec+=v; else pend+=v;});
+    setText('dash-clientes',cs.length); setText('dash-obrig',obAb); setText('dash-urg',us.length);
+    setText('dash-rec',_money(rec)); setText('dash-rec2',_money(rec)); setText('dash-pend',_money(pend)); setText('dash-tot',_money(rec+pend));
+    setText('dash-resumo-cli',cs.length); setText('dash-resumo-hon',hs.length); setText('dash-resumo-ob',obAb);
+    var tb=document.getElementById('tb-dash');
+    if(tb){ if(!hs.length){ tb.innerHTML='<tr><td colspan="4" style="color:var(--cinza)">Nenhum lançamento ainda. Cadastre/lance e aparece aqui.</td></tr>'; } else { tb.innerHTML=''; hs.slice().reverse().slice(0,6).forEach(function(h){ var sc=(/pago/i.test(h.status||''))?'tp':'tn'; var tr=document.createElement('tr'); tr.innerHTML='<td>'+esc(h.cliente||'')+'</td><td>'+esc(h.referencia||'')+'</td><td>R$ '+esc(h.valor||'')+'</td><td><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span></td>'; tb.appendChild(tr); }); } }
+  }catch(e){console.error('dash',e);}
 }
 
 /* ===================== NAVEGAÇÃO / UI ===================== */
@@ -1544,6 +1545,47 @@ async function imagemAgenda(id){
     x.fillStyle='#44446a'; x.font='13px Arial'; x.fillText('Aparat Contabilidade · Daniel de Andrade Silva · (16) 98869-9203 · CNPJ 56.938.548/0001-31',50,H-22);
     var a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='Agendamento_'+(String(d.cliente||'cliente').replace(/[^a-z0-9]/gi,'_'))+'.png'; document.body.appendChild(a); a.click(); a.remove();
     notif('🖼️ Imagem do agendamento gerada!');
+  }catch(e){ notif('Erro ao gerar imagem.','warn'); }
+}
+
+/* ===================== INFORMATIVO: imagem / PDF (com logo) ===================== */
+function _wrapTxt(ctx,text,maxw){ var words=String(text).split(' '),line='',out=[]; for(var i=0;i<words.length;i++){var t=line+words[i]+' '; if(ctx.measureText(t).width>maxw && line){out.push(line.trim());line=words[i]+' ';}else line=t;} if(line.trim())out.push(line.trim()); return out; }
+async function _getInfo(id){ try{ if(fdb){var s=await fdb.collection('informativos').doc(id).get(); return s.exists?s.data():null;} var a=await dbGetAll('informativos'); return a.find(function(x){return String(x.id)===String(id);})||null; }catch(e){return null;} }
+async function infoPDF(id){
+  var d=await _getInfo(id); if(!d){ notif('Informativo não encontrado.','warn'); return; }
+  try{
+    var JS=window.jspdf?window.jspdf.jsPDF:null; if(!JS){ notif('Gerador de PDF ainda carregando.','warn'); return; }
+    var doc=new JS({unit:'pt',format:'a4'});
+    doc.setFillColor(10,10,24); doc.rect(0,0,595,72,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('Aparat Contabilidade',40,40);
+    doc.setTextColor(120,140,255); doc.setFontSize(10); doc.text('Informativo',40,57);
+    doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    var ty=doc.splitTextToSize(String(d.titulo||''),515); doc.text(ty,40,110);
+    var y=110+ty.length*18+8; doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(110,110,110);
+    doc.text(String(d.cat||'')+' · '+String(d.publico||'Todos')+' · '+String(d.data||''),40,y); y+=26;
+    doc.setTextColor(25,25,25); doc.setFontSize(12); var mt=doc.splitTextToSize(String(d.msg||''),515); doc.text(mt,40,y);
+    doc.setTextColor(120,120,120); doc.setFontSize(9); doc.text('Aparat Contabilidade · Daniel de Andrade Silva · (16) 98869-9203 · CNPJ 56.938.548/0001-31',40,812);
+    doc.save('Informativo_'+(String(d.titulo||'aparat').replace(/[^a-z0-9]/gi,'_').slice(0,30))+'.pdf');
+    notif('📄 PDF do informativo gerado!');
+  }catch(e){ notif('Erro ao gerar PDF.','warn'); }
+}
+async function infoImagem(id){
+  var d=await _getInfo(id); if(!d){ notif('Informativo não encontrado.','warn'); return; }
+  try{
+    var W=900,H=560,c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d');
+    x.fillStyle='#0a0a18'; x.fillRect(0,0,W,H);
+    x.fillStyle='#12122a'; x.fillRect(0,0,W,90); x.fillStyle='#3333FF'; x.fillRect(0,90,W,4);
+    x.fillStyle='#ffffff'; x.beginPath(); x.moveTo(45,70); x.lineTo(70,24); x.lineTo(61,24); x.lineTo(45,54); x.lineTo(29,24); x.lineTo(20,24); x.closePath(); x.fill();
+    x.fillStyle='#ffffff'; x.font='bold 26px Arial'; x.fillText('Aparat Contabilidade',92,42);
+    x.fillStyle='#5577ff'; x.font='15px Arial'; x.fillText('Informativo · '+String(d.cat||''),92,67);
+    x.fillStyle='#ffffff'; x.font='bold 24px Arial';
+    var yy=150; _wrapTxt(x,String(d.titulo||''),800).forEach(function(ln){ x.fillText(ln,50,yy); yy+=30; });
+    x.fillStyle='#9090b8'; x.font='14px Arial'; x.fillText(String(d.publico||'Todos')+' · '+String(d.data||''),50,yy+2); yy+=34;
+    x.fillStyle='#e8e8ff'; x.font='18px Arial';
+    var mt=_wrapTxt(x,String(d.msg||''),800); for(var i=0;i<mt.length && yy<H-48;i++){ x.fillText(mt[i],50,yy); yy+=26; }
+    x.fillStyle='#44446a'; x.font='13px Arial'; x.fillText('Aparat Contabilidade · (16) 98869-9203 · CNPJ 56.938.548/0001-31',50,H-22);
+    var a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='Informativo_'+(String(d.titulo||'aparat').replace(/[^a-z0-9]/gi,'_').slice(0,30))+'.png'; document.body.appendChild(a); a.click(); a.remove();
+    notif('🖼️ Imagem do informativo gerada!');
   }catch(e){ notif('Erro ao gerar imagem.','warn'); }
 }
 
@@ -1805,9 +1847,9 @@ async function renderClientePortal(nome){
   }
   // Informativos (todos)
   const ci=document.getElementById('cli-inf');
-  try{ const inf=(await fdb.collection('informativos').get()).docs.map(d=>d.data());
+  try{ const inf=(await fdb.collection('informativos').get()).docs.map(function(dd){return Object.assign({id:dd.id},dd.data());});
     ci.innerHTML = inf.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum informativo.</div>';
-    inf.reverse().forEach(x=>{ci.innerHTML+='<div class="lcard"><div class="lcico lc-az">📰</div><div class="lcinfo"><strong>'+esc(x.titulo||'')+'</strong><span>'+esc(x.cat||'')+' · '+esc(x.data||'')+'</span></div></div>';});
+    inf.reverse().forEach(x=>{ci.innerHTML+='<div class="lcard"><div class="lcico lc-az">📰</div><div class="lcinfo"><strong>'+esc(x.titulo||'')+'</strong><span>'+esc(x.cat||'')+' · '+esc(x.data||'')+'</span></div><button class="btn-sm" onclick="infoImagem(\''+x.id+'\')">🖼️</button> <button class="btn-sm" onclick="infoPDF(\''+x.id+'\')">📄</button></div>';});
   }catch(_){ ci.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">—</div>'; }
   await renderSolicitacoesCliente();
   await renderArquivosCliente();
@@ -1838,12 +1880,22 @@ async function carregarHonorarios(){
   hs.slice().reverse().forEach(h=>{
     const sc=(/pago/i.test(h.status||''))?'tp':'tn';
     const pdf=h.arquivoData?('<a href="'+blobUrl(h.arquivoData)+'" target="_blank" style="font-size:10px;color:var(--azul-light)">📄 Ver PDF</a>'):'<span style="font-size:10px;color:#555">—</span>';
+    var pago=/pago/i.test(h.status||'');
+    var btnPago='<button class="btn-sm '+(pago?'':'btn-vd')+'" onclick="togglePago(\''+h.id+'\')">'+(pago?'↩ Pendente':'✔ Pago')+'</button>';
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(h.cliente||'')+'</td><td>'+esc(h.referencia||'')+'</td><td>R$ '+esc(h.valor||'')+'</td><td>'+fmtData(h.vencimento)+'</td><td>'+pdf+'</td><td><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span> <button class="btn-sm" onclick="editarHonorario(\''+h.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirHonorario(\''+h.id+'\')">Excluir</button></td>';
+    tr.innerHTML='<td>'+esc(h.cliente||'')+'</td><td>'+esc(h.referencia||'')+'</td><td>R$ '+esc(h.valor||'')+'</td><td>'+fmtData(h.vencimento)+'</td><td>'+pdf+'</td><td><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span> '+btnPago+' <button class="btn-sm" onclick="editarHonorario(\''+h.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirHonorario(\''+h.id+'\')">Excluir</button></td>';
     tb.appendChild(tr);
   });
+  atualizarDashboard();
 }
 async function excluirHonorario(id){ await dbDelete('honorarios',id); notif('Honorário removido.','info'); await carregarHonorarios(); }
+async function togglePago(id){
+  var hs=await dbGetAll('honorarios'); var h=hs.find(function(x){return String(x.id)===String(id);}); if(!h)return;
+  var novo=(/pago/i.test(h.status||''))?'Pendente':'Pago';
+  await dbUpdate('honorarios',id,{status:novo});
+  notif('Honorário marcado como '+novo+'.','info');
+  await carregarHonorarios();
+}
 async function editarHonorario(id){
   var hs=await dbGetAll('honorarios'); var h=hs.find(function(x){return String(x.id)===String(id);}); if(!h)return;
   setVal('hon-cli',h.cliente||''); setVal('hon-ref',h.referencia||''); setVal('hon-val',h.valor||''); setVal('hon-venc',h.vencimento||'');
