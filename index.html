@@ -328,6 +328,10 @@ textarea{resize:vertical;min-height:56px}
 
 /* ===== RESPONSIVO: celular abre versão mobile, computador a versão desktop ===== */
 @media (max-width:768px){
+  html,body{overflow-x:hidden;max-width:100%}
+  .pmain,.ppage,.cli-grid,.cli-left,.cli-right,.fbox,.fbox-light,.hon-card,.tbox,.wcard{max-width:100%;box-sizing:border-box}
+  body.foco .pmain{padding:10px 10px 28px}
+  .foco-bar{flex-wrap:wrap}
   .layout{min-height:auto}
   .painel.active{flex-direction:column}
   .sidebar{width:100%;min-height:auto;flex-direction:column;border-right:none;border-bottom:1px solid var(--border)}
@@ -1613,14 +1617,24 @@ function _focoBar(nome){
 function aplicarFocoAdmin(){
   var p=new URLSearchParams(location.search).get('p'); if(!p) return;
   document.body.classList.add('foco');
+  document.querySelectorAll('.foco-bar').forEach(function(b){b.remove();});
   pPage(p);
   var pg=document.getElementById('pp-'+p); if(pg){ pg.insertBefore(_focoBar(ABA_NOMES[p]||p), pg.firstChild); }
   document.title='Aparat · '+(ABA_NOMES[p]||p);
 }
+var CLI_NOMES={hon:'Honorários',obr:'Obrigações',age:'Agendamentos',doc:'Documentos',inf:'Informativos',notas:'Notas Fiscais'};
 function aplicarFocoCliente(){
   var c=new URLSearchParams(location.search).get('c'); if(!c) return;
-  var alvo=document.getElementById('cli-'+c);
-  if(alvo){ document.body.classList.add('foco'); setTimeout(function(){ alvo.scrollIntoView({behavior:'smooth',block:'start'}); alvo.style.outline='2px solid var(--azul)'; alvo.style.borderRadius='12px'; },300); document.title='Aparat · '+c; }
+  document.body.classList.add('foco');
+  document.querySelectorAll('.foco-bar').forEach(function(b){b.remove();});
+  // mostra somente a seção escolhida; esconde as demais
+  document.querySelectorAll('.cli-sec').forEach(function(s){ s.style.display=(s.id==='sec-'+c)?'':'none'; });
+  var right=document.querySelector('.cli-right'); if(right)right.style.display='none';
+  var at=document.querySelector('.cli-atalhos'); if(at)at.style.display='none';
+  var sb=document.querySelector('.segbadge'); if(sb)sb.style.display='none';
+  var alvo=document.getElementById('sec-'+c);
+  if(alvo){ alvo.parentNode.insertBefore(_focoBar(CLI_NOMES[c]||c), alvo); }
+  document.title='Aparat · '+(CLI_NOMES[c]||c);
 }
 function aPage(id){
   document.querySelectorAll('.apage').forEach(p=>p.classList.remove('active'));
@@ -1907,7 +1921,6 @@ async function handleAuth(user){
     _show('view-cliente',true);
     await renderClientePortal(nome||user.email);
     saudarUsuario((nome||'').split(' ')[0]);
-    aplicarFocoCliente();
   }
 }
 
@@ -1961,18 +1974,19 @@ async function renderClientePortal(nome){
     +'</div>'
     +'<div class="cli-grid">'
       +'<div class="cli-left">'
-        +'<div class="asec">💳 Honorários</div><div id="cli-hon"></div>'
-        +'<div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div>'
-        +'<div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div>'
-        +'<div class="asec" style="margin-top:12px">📄 Documentos</div><div id="cli-doc"></div>'
-        +'<div class="asec" style="margin-top:12px">📰 Informativos</div><div id="cli-inf"></div>'
-        +'<div class="asec" style="margin-top:12px">🧾 Notas Fiscais</div><div id="cli-notas"></div>'
-        +'<div class="fbox-light" style="margin-top:8px">'
-          +'<div class="asec2">📤 Enviar Nota Fiscal ao escritório</div>'
-          +'<div class="fg"><input id="cnf-num" type="text" placeholder="Número da NF (opcional)"/></div>'
-          +'<div class="fg"><input id="cnf-desc" type="text" placeholder="Descrição (opcional)"/></div>'
-          +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">PDF ou XML (máx. 900 KB)</label><input id="cnf-file" type="file" accept=".pdf,.xml,.png,.jpg,.jpeg"/></div>'
-          +'<button class="btn btn-az" style="width:100%;margin-top:8px" onclick="enviarNotaCliente()">📤 Enviar Nota Fiscal</button>'
+        +'<div class="cli-sec" id="sec-hon"><div class="asec">💳 Honorários</div><div id="cli-hon"></div></div>'
+        +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
+        +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
+        +'<div class="cli-sec" id="sec-doc"><div class="asec" style="margin-top:12px">📄 Documentos</div><div id="cli-doc"></div></div>'
+        +'<div class="cli-sec" id="sec-inf"><div class="asec" style="margin-top:12px">📰 Informativos</div><div id="cli-inf"></div></div>'
+        +'<div class="cli-sec" id="sec-notas"><div class="asec" style="margin-top:12px">🧾 Notas Fiscais</div><div id="cli-notas"></div>'
+          +'<div class="fbox-light" style="margin-top:8px">'
+            +'<div class="asec2">📤 Enviar Nota Fiscal ao escritório</div>'
+            +'<div class="fg"><input id="cnf-num" type="text" placeholder="Número da NF (opcional)"/></div>'
+            +'<div class="fg"><input id="cnf-desc" type="text" placeholder="Descrição (opcional)"/></div>'
+            +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">PDF ou XML (máx. 900 KB)</label><input id="cnf-file" type="file" accept=".pdf,.xml,.png,.jpg,.jpeg"/></div>'
+            +'<button class="btn btn-az" style="width:100%;margin-top:8px" onclick="enviarNotaCliente()">📤 Enviar Nota Fiscal</button>'
+          +'</div>'
         +'</div>'
       +'</div>'
       +'<div class="cli-right">'
@@ -2041,6 +2055,7 @@ async function renderClientePortal(nome){
     if(_bd){ if(_prev>=0 && _tot>_prev){ _bd.textContent='🔔 '+(_tot-_prev)+' novidade(s)'; _bd.style.display='inline-block'; } else { _bd.style.display='none'; } }
     localStorage.setItem(_key,String(_tot));
   }catch(e){}
+  aplicarFocoCliente();
 }
 
 /* ===================== ARQUIVOS (base64 no banco) ===================== */
