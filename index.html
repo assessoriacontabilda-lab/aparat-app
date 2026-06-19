@@ -68,6 +68,16 @@ body{background:#07071a;color:#fff;font-family:'Segoe UI',sans-serif;min-height:
 .sdot{width:6px;height:6px;background:var(--verde);border-radius:50%;display:inline-block;margin-right:4px}
 
 .pmain{flex:1;overflow-y:auto;padding:18px 22px;background:var(--escuro)}
+body.foco .sidebar{display:none!important}
+body.foco .switcher{display:none!important}
+.foco-bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:9px 13px;margin-bottom:15px}
+.foco-bar .fb-logo{width:26px;height:26px;border-radius:7px;background:#0a0a18;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:13px}
+.foco-bar b{color:#fff;font-size:14px}
+.foco-bar .fb-sub{color:var(--cinza);font-size:11px}
+.foco-bar .fb-x{margin-left:auto;background:rgba(255,80,80,.15);color:#ff7a7a;border:1px solid rgba(255,80,80,.3);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+.cli-atalhos{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.cli-atalhos button{background:var(--card);border:1px solid var(--border);color:#fff;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+.cli-atalhos button:hover{border-color:var(--azul);background:rgba(51,51,255,.12)}
 .ppage{display:none}.ppage.active{display:block}
 
 /* CARDS */
@@ -433,22 +443,23 @@ textarea{resize:vertical;min-height:56px}
   <div class="sidebar">
     <nav class="nav">
       <div class="nav-sec">Principal</div>
-      <div class="nav-item active" onclick="pPage('dash',this)"><span class="ni">📊</span>Dashboard</div>
-      <div class="nav-item" onclick="pPage('clientes',this)"><span class="ni">👥</span>Clientes</div>
-      <div class="nav-item" onclick="pPage('obrig',this)"><span class="ni">📋</span>Obrigações</div>
-      <div class="nav-item" onclick="pPage('honorarios',this)"><span class="ni">💳</span>Honorários</div>
+      <div class="nav-item active" onclick="navAba('dash',this)"><span class="ni">📊</span>Dashboard</div>
+      <div class="nav-item" onclick="navAba('clientes',this)"><span class="ni">👥</span>Clientes</div>
+      <div class="nav-item" onclick="navAba('obrig',this)"><span class="ni">📋</span>Obrigações</div>
+      <div class="nav-item" onclick="navAba('honorarios',this)"><span class="ni">💳</span>Honorários</div>
+      <div class="nav-item" onclick="navAba('notas',this)"><span class="ni">🧾</span>Notas Fiscais<span class="nav-dot" id="dot-notas"></span></div>
       <div class="nav-sec">Comunicação</div>
-      <div class="nav-item" onclick="pPage('agenda',this)"><span class="ni">📅</span>Agendamentos</div>
-      <div class="nav-item" onclick="pPage('urgencias',this)"><span class="ni">🚨</span>Urgências</div>
-      <div class="nav-item" onclick="pPage('informativos',this)"><span class="ni">📰</span>Informativos</div>
-      <div class="nav-item" onclick="pPage('solicitacoes',this)"><span class="ni">📨</span>Solicitações<span class="nav-dot" id="dot-solic"></span></div>
-      <div class="nav-item" onclick="pPage('recebidos',this)"><span class="ni">📥</span>Recebidos<span class="nav-dot" id="dot-recebidos"></span></div>
+      <div class="nav-item" onclick="navAba('agenda',this)"><span class="ni">📅</span>Agendamentos</div>
+      <div class="nav-item" onclick="navAba('urgencias',this)"><span class="ni">🚨</span>Urgências</div>
+      <div class="nav-item" onclick="navAba('informativos',this)"><span class="ni">📰</span>Informativos</div>
+      <div class="nav-item" onclick="navAba('solicitacoes',this)"><span class="ni">📨</span>Solicitações<span class="nav-dot" id="dot-solic"></span></div>
+      <div class="nav-item" onclick="navAba('recebidos',this)"><span class="ni">📥</span>Recebidos<span class="nav-dot" id="dot-recebidos"></span></div>
       <div class="nav-sec">Financeiro</div>
-      <div class="nav-item" onclick="pPage('financeiro',this)"><span class="ni">💰</span>Financeiro</div>
-      <div class="nav-item" onclick="pPage('docs',this)"><span class="ni">📄</span>Documentos</div>
+      <div class="nav-item" onclick="navAba('financeiro',this)"><span class="ni">💰</span>Financeiro</div>
+      <div class="nav-item" onclick="navAba('docs',this)"><span class="ni">📄</span>Documentos</div>
       <div class="nav-sec">Sistema</div>
-      <div class="nav-item" onclick="pPage('escritorio',this)"><span class="ni">🏢</span>Meu Escritório</div>
-      <div class="nav-item" onclick="pPage('seguranca',this)"><span class="ni">🔒</span>Segurança</div>
+      <div class="nav-item" onclick="navAba('escritorio',this)"><span class="ni">🏢</span>Meu Escritório</div>
+      <div class="nav-item" onclick="navAba('seguranca',this)"><span class="ni">🔒</span>Segurança</div>
     </nav>
     <div class="sidebar-foot">
       <span class="sdot"></span>Online · v1.0<br>
@@ -647,6 +658,44 @@ textarea{resize:vertical;min-height:56px}
               <td><span class="tag tn" id="hon-padaria-status">⏳ Pendente</span></td>
             </tr>
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NOTAS FISCAIS -->
+    <div class="ppage" id="pp-notas">
+      <div class="fbox">
+        <div class="ftitle">🧾 Nota Fiscal — Envio e Recebimento</div>
+        <div style="display:flex;gap:0;margin-bottom:14px;overflow:hidden;border-radius:10px;border:1px solid var(--border)">
+          <div style="flex:1;background:#0f0f28;padding:10px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:18px">🧾</div><div style="font-size:9px;font-weight:700;color:var(--azul-light);margin-top:3px">1. Emite/Recebe</div><div style="font-size:8px;color:var(--cinza)">a nota fiscal</div></div>
+          <div style="flex:1;background:#0f0f28;padding:10px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:18px">📎</div><div style="font-size:9px;font-weight:700;color:var(--azul-light);margin-top:3px">2. Anexa</div><div style="font-size:8px;color:var(--cinza)">PDF ou XML</div></div>
+          <div style="flex:1;background:#0f0f28;padding:10px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:18px">📤</div><div style="font-size:9px;font-weight:700;color:var(--azul-light);margin-top:3px">3. Registra</div><div style="font-size:8px;color:var(--cinza)">no sistema</div></div>
+          <div style="flex:1;background:#0f0f28;padding:10px 8px;text-align:center"><div style="font-size:18px">✔</div><div style="font-size:9px;font-weight:700;color:var(--azul-light);margin-top:3px">4. Fecha</div><div style="font-size:8px;color:var(--cinza)">quando concluída</div></div>
+        </div>
+        <div class="fgrid">
+          <div class="fg"><label>Cliente</label><select id="nf-cli"></select></div>
+          <div class="fg"><label>Tipo</label><select id="nf-tipo"><option value="Envio">📤 Envio ao cliente</option><option value="Recebimento">📥 Recebimento do cliente</option></select></div>
+          <div class="fg"><label>Número da NF</label><input id="nf-num" type="text" placeholder="Ex: 001234"/></div>
+          <div class="fg"><label>Valor (R$)</label><input id="nf-val" type="text" placeholder="1.500,00"/></div>
+          <div class="fg"><label>Data de emissão</label><input id="nf-data" type="date"/></div>
+          <div class="fg"><label>Descrição</label><input id="nf-desc" type="text" placeholder="Ex: Prestação de serviços"/></div>
+        </div>
+        <div style="border:2px dashed #3333FF55;border-radius:10px;padding:16px;text-align:center;cursor:pointer;margin:6px 0 10px;background:#0a0a20" onclick="document.getElementById('nf-file').click()">
+          <div style="font-size:28px">🧾</div>
+          <div style="font-size:12px;font-weight:700;color:var(--azul-light);margin-top:6px">Clique para anexar a Nota Fiscal (PDF ou XML)</div>
+          <input type="file" id="nf-file" accept=".pdf,.xml,.png,.jpg,.jpeg" style="display:none" onchange="nfSelecionou(this)"/>
+        </div>
+        <div id="nf-file-preview" style="display:none;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:9px;padding:10px 12px;margin-bottom:10px;align-items:center;gap:10px">
+          <div style="font-size:22px">📄</div><div style="flex:1"><div id="nf-file-name" style="font-size:11px;font-weight:700;color:#fff"></div><div id="nf-file-size" style="font-size:9px;color:var(--cinza)"></div></div><span style="color:var(--verde);font-size:18px">✔</span>
+        </div>
+        <button class="btn btn-az" id="nf-btn" onclick="enviarNota()" style="width:100%">📤 Registrar Nota Fiscal</button>
+      </div>
+
+      <div class="sec">🧾 Notas Fiscais Registradas</div>
+      <div class="tbox">
+        <table>
+          <thead><tr><th>Cliente</th><th>Tipo</th><th>Nº</th><th>Valor</th><th>Data</th><th>Arquivo</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="nf-tbody"><tr><td colspan="8" style="color:var(--cinza)">Nenhuma nota fiscal registrada.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1101,6 +1150,7 @@ function attachRealtime(){
   fdb.collection('solicitacoes').onSnapshot(()=>carregarSolicitacoes());
   fdb.collection('financeiro').onSnapshot(()=>carregarFinanceiro());
   fdb.collection('enviosCliente').onSnapshot(()=>carregarRecebidos(), ()=>{});
+  fdb.collection('notas').onSnapshot(()=>carregarNotas(), ()=>{});
 }
 
 /* ----- dados de demonstração (só MODO LOCAL, 1ª vez) ----- */
@@ -1159,7 +1209,7 @@ async function excluirCliente(id){await dbDelete('clientes',id);notif('Cliente r
 
 async function atualizarSelects(){
   const cs=await dbGetAll('clientes');
-  ['ob-cli','hon-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
+  ['ob-cli','hon-cli','nf-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;const v=s.value;s.innerHTML='';
     cs.forEach(c=>{const o=document.createElement('option');o.value=c.nome;o.textContent=c.nome;s.appendChild(o);});
     if(v)s.value=v;
@@ -1395,6 +1445,76 @@ function confirmarHonorario(){
   },1200);
 }
 
+/* ===================== NOTAS FISCAIS (escritório) ===================== */
+function nfSelecionou(input){
+  if(!input.files||!input.files[0])return;
+  var f=input.files[0];
+  setText('nf-file-name',f.name);
+  setText('nf-file-size',(f.size/1024).toFixed(0)+' KB selecionado');
+  var prev=document.getElementById('nf-file-preview'); if(prev)prev.style.display='flex';
+}
+var editNfId=null;
+async function enviarNota(){
+  var cli=val('nf-cli'), tipo=val('nf-tipo'), num=val('nf-num'), valr=val('nf-val'), data=val('nf-data'), desc=val('nf-desc');
+  if(!cli){notif('⚠ Selecione o cliente','warn');return;}
+  var fi=document.getElementById('nf-file');
+  var arquivoData='', arquivo='';
+  if(fi&&fi.files&&fi.files[0]){ arquivo=fi.files[0].name; try{ arquivoData=await lerArquivoBase64(fi.files[0]); }catch(e){ notif(e.message||'Erro no arquivo','warn'); return; } }
+  if(editNfId){
+    var upd={cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivo=arquivo;}
+    await dbUpdate('notas',editNfId,upd); editNfId=null;
+    var b=document.getElementById('nf-btn'); if(b)b.textContent='📤 Registrar Nota Fiscal';
+    notif('✏️ Nota fiscal atualizada!'); syncAnim('NF atualizada → '+cli);
+  } else {
+    await dbAdd('notas',{cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc,arquivo:arquivo,arquivoData:arquivoData,status:'Aberta',origem:'escritorio'});
+    notif(tipo==='Envio'?'📤 Nota fiscal enviada ao cliente!':'📥 Nota fiscal registrada!','info'); syncAnim('Nota fiscal → '+cli);
+  }
+  setVal('nf-num','');setVal('nf-val','');setVal('nf-desc','');
+  if(fi)fi.value=''; var prv=document.getElementById('nf-file-preview'); if(prv)prv.style.display='none';
+  await carregarNotas();
+}
+async function carregarNotas(){
+  var tb=document.getElementById('nf-tbody'); if(!tb)return;
+  var ns=[]; try{ ns=await dbGetAll('notas'); }catch(e){ tb.innerHTML='<tr><td colspan="8" style="color:var(--laranja)">⚠ Publique a regra de segurança de "notas" no Firebase para ativar esta aba.</td></tr>'; return; }
+  setDot('dot-notas',ns.length,'seen_notas');
+  if(!ns.length){tb.innerHTML='<tr><td colspan="8" style="color:var(--cinza)">Nenhuma nota fiscal registrada.</td></tr>';return;}
+  tb.innerHTML='';
+  ns.slice().reverse().forEach(function(n){
+    var fechada=/fechad/i.test(n.status||'');
+    var stag=fechada?'<span class="tag tp">✔ Fechada</span>':'<span class="tag tn">📂 Aberta</span>';
+    var ttag=n.tipo==='Recebimento'?'📥 Receb.':'📤 Envio';
+    var arq=n.arquivoData?('<span style="font-size:10px;color:var(--azul-light);cursor:pointer" onclick="abrirNotaArquivo(\''+n.id+'\')">📄 Ver</span>'):'<span style="font-size:10px;color:var(--cinza)">—</span>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(n.cliente||'')+'</td><td>'+ttag+'</td><td>'+esc(n.numero||'—')+'</td><td>'+(n.valor?('R$ '+esc(n.valor)):'—')+'</td><td>'+esc(n.data||'—')+'</td><td>'+arq+'</td><td>'+stag+'</td>'+
+      '<td style="white-space:nowrap"><span style="cursor:pointer;margin-right:7px" title="Editar" onclick="editarNota(\''+n.id+'\')">✏️</span>'+
+      '<span style="cursor:pointer;margin-right:7px" title="'+(fechada?'Reabrir':'Fechar')+'" onclick="fecharNota(\''+n.id+'\')">'+(fechada?'🔓':'✅')+'</span>'+
+      '<span style="cursor:pointer" title="Excluir" onclick="excluirNota(\''+n.id+'\')">🗑️</span></td>';
+    tb.appendChild(tr);
+  });
+}
+async function abrirNotaArquivo(id){
+  var ns=await dbGetAll('notas'); var n=ns.find(function(x){return String(x.id)===String(id);}); if(!n||!n.arquivoData){notif('Sem arquivo anexado.','warn');return;}
+  try{ window.open(blobUrl(n.arquivoData),'_blank'); }catch(e){ notif('Não foi possível abrir o arquivo.','warn'); }
+}
+async function editarNota(id){
+  var ns=await dbGetAll('notas'); var n=ns.find(function(x){return String(x.id)===String(id);}); if(!n)return;
+  setVal('nf-cli',n.cliente||''); setVal('nf-tipo',n.tipo||'Envio'); setVal('nf-num',n.numero||''); setVal('nf-val',n.valor||''); setVal('nf-data',n.data||''); setVal('nf-desc',n.descricao||'');
+  editNfId=id; var b=document.getElementById('nf-btn'); if(b)b.textContent='✏️ Salvar alterações';
+  var pg=document.getElementById('pp-notas'); if(pg)pg.scrollIntoView({behavior:'smooth'});
+  notif('Editando a nota. Faça as alterações e salve.','info');
+}
+async function fecharNota(id){
+  var ns=await dbGetAll('notas'); var n=ns.find(function(x){return String(x.id)===String(id);}); if(!n)return;
+  var fechada=/fechad/i.test(n.status||'');
+  await dbUpdate('notas',id,{status:fechada?'Aberta':'Fechada'});
+  notif(fechada?'Nota reaberta.':'✔ Nota fechada.','info');
+  await carregarNotas();
+}
+async function excluirNota(id){
+  if(!confirm('Excluir esta nota fiscal?'))return;
+  await dbDelete('notas',id); notif('🗑️ Nota excluída.','info'); await carregarNotas();
+}
+
 /* ===================== DASHBOARD ===================== */
 function _num(v){v=(''+(v==null?'':v)).replace(/[^0-9,.-]/g,''); if(v.indexOf(',')>-1)v=v.replace(/\./g,'').replace(',','.'); return parseFloat(v)||0;}
 function _money(n){return 'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2});}
@@ -1470,6 +1590,31 @@ function pPage(id,el){
   if(el)el.classList.add('active');
   if(id==='solicitacoes') marcarVisto('solicitacoes','seen_solic','dot-solic');
   if(id==='recebidos') marcarVisto('enviosCliente','seen_recebidos','dot-recebidos');
+  if(id==='notas') marcarVisto('notas','seen_notas','dot-notas');
+}
+/* ---- abrir cada função em nova aba focada (item 3) ---- */
+var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
+function navAba(id,el){
+  if(document.body.classList.contains('foco')){ return; } // já está em aba focada
+  try{ var w=window.open(location.pathname+'?p='+encodeURIComponent(id),'_blank'); if(!w){ pPage(id,el); } }
+  catch(e){ pPage(id,el); }
+}
+function _focoBar(nome){
+  var bar=document.createElement('div'); bar.className='foco-bar';
+  bar.innerHTML='<div class="fb-logo">A</div><div><b>Aparat · '+nome+'</b><div class="fb-sub">Aparat Contabilidade · Daniel de Andrade Silva</div></div><button class="fb-x" onclick="window.close()">✖ Fechar aba</button>';
+  return bar;
+}
+function aplicarFocoAdmin(){
+  var p=new URLSearchParams(location.search).get('p'); if(!p) return;
+  document.body.classList.add('foco');
+  pPage(p);
+  var pg=document.getElementById('pp-'+p); if(pg){ pg.insertBefore(_focoBar(ABA_NOMES[p]||p), pg.firstChild); }
+  document.title='Aparat · '+(ABA_NOMES[p]||p);
+}
+function aplicarFocoCliente(){
+  var c=new URLSearchParams(location.search).get('c'); if(!c) return;
+  var alvo=document.getElementById('cli-'+c);
+  if(alvo){ document.body.classList.add('foco'); setTimeout(function(){ alvo.scrollIntoView({behavior:'smooth',block:'start'}); alvo.style.outline='2px solid var(--azul)'; alvo.style.borderRadius='12px'; },300); document.title='Aparat · '+c; }
 }
 function aPage(id){
   document.querySelectorAll('.apage').forEach(p=>p.classList.remove('active'));
@@ -1743,6 +1888,7 @@ async function handleAuth(user){
     _show('view-app',false);
     await initAppAdmin();
     saudarUsuario('Daniel');
+    aplicarFocoAdmin();
   } else {
     CURRENT_ROLE='cliente';
     let nome='';
@@ -1755,6 +1901,7 @@ async function handleAuth(user){
     _show('view-cliente',true);
     await renderClientePortal(nome||user.email);
     saudarUsuario((nome||'').split(' ')[0]);
+    aplicarFocoCliente();
   }
 }
 
@@ -1768,6 +1915,7 @@ async function initAppAdmin(){
     await carregarUrgencias();
     await carregarInformativos();
     await carregarHonorarios();
+    await carregarNotas();
     await carregarDocs();
     await carregarSolicitacoes();
     await carregarFinanceiro();
@@ -1797,6 +1945,14 @@ async function renderClientePortal(nome){
   v.innerHTML='<div style="max-width:980px;margin:0 auto;padding:18px 16px 40px">'
     +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade <span id="cli-novidades" class="cli-badge" style="display:none"></span></p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
+    +'<div class="cli-atalhos">'
+      +'<button onclick="abrirCli(\'hon\')">💳 Honorários</button>'
+      +'<button onclick="abrirCli(\'obr\')">📋 Obrigações</button>'
+      +'<button onclick="abrirCli(\'age\')">📅 Agenda</button>'
+      +'<button onclick="abrirCli(\'doc\')">📄 Documentos</button>'
+      +'<button onclick="abrirCli(\'inf\')">📰 Informativos</button>'
+      +'<button onclick="abrirCli(\'notas\')">🧾 Notas Fiscais</button>'
+    +'</div>'
     +'<div class="cli-grid">'
       +'<div class="cli-left">'
         +'<div class="asec">💳 Honorários</div><div id="cli-hon"></div>'
@@ -1804,6 +1960,14 @@ async function renderClientePortal(nome){
         +'<div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div>'
         +'<div class="asec" style="margin-top:12px">📄 Documentos</div><div id="cli-doc"></div>'
         +'<div class="asec" style="margin-top:12px">📰 Informativos</div><div id="cli-inf"></div>'
+        +'<div class="asec" style="margin-top:12px">🧾 Notas Fiscais</div><div id="cli-notas"></div>'
+        +'<div class="fbox-light" style="margin-top:8px">'
+          +'<div class="asec2">📤 Enviar Nota Fiscal ao escritório</div>'
+          +'<div class="fg"><input id="cnf-num" type="text" placeholder="Número da NF (opcional)"/></div>'
+          +'<div class="fg"><input id="cnf-desc" type="text" placeholder="Descrição (opcional)"/></div>'
+          +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">PDF ou XML (máx. 900 KB)</label><input id="cnf-file" type="file" accept=".pdf,.xml,.png,.jpg,.jpeg"/></div>'
+          +'<button class="btn btn-az" style="width:100%;margin-top:8px" onclick="enviarNotaCliente()">📤 Enviar Nota Fiscal</button>'
+        +'</div>'
       +'</div>'
       +'<div class="cli-right">'
         +'<div class="asec">✅ A Realizar</div>'
@@ -1855,6 +2019,13 @@ async function renderClientePortal(nome){
     ci.innerHTML = inf.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum informativo.</div>';
     inf.reverse().forEach(x=>{ci.innerHTML+='<div class="lcard"><div class="lcico lc-az">📰</div><div class="lcinfo"><strong>'+esc(x.titulo||'')+'</strong><span>'+esc(x.cat||'')+' · '+esc(x.data||'')+'</span></div><button class="btn-sm" onclick="infoImagem(\''+x.id+'\')">🖼️</button> <button class="btn-sm" onclick="infoPDF(\''+x.id+'\')">📄</button></div>';});
   }catch(_){ ci.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">—</div>'; }
+  // Notas Fiscais do cliente
+  const cnf=document.getElementById('cli-notas');
+  if(cnf){ const nts=await getMine('notas',nome);
+    cnf.innerHTML = nts.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma nota fiscal.</div>';
+    nts.slice().reverse().forEach(function(n){ var fechada=/fechad/i.test(n.status||''); var sc=fechada?'tp':'tn'; var st=fechada?'✔ Fechada':'📂 Aberta'; var ttxt=n.tipo==='Envio'?'📥 Recebida do escritório':'📤 Enviada por você'; var arq=n.arquivoData?(' · <a href="'+blobUrl(n.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 abrir</a>'):'';
+      cnf.innerHTML+='<div class="lcard"><div class="lcico lc-pu">🧾</div><div class="lcinfo"><strong>NF '+esc(n.numero||'')+' · '+ttxt+'</strong><span>'+(n.valor?('R$ '+esc(n.valor)+' · '):'')+esc(n.descricao||'')+arq+'</span></div><span class="tag '+sc+'">'+st+'</span></div>'; });
+  }
   await renderSolicitacoesCliente();
   await renderArquivosCliente();
   try{
@@ -1980,6 +2151,23 @@ async function renderArquivosCliente(){
   });
 }
 async function excluirArquivoCliente(id){ await dbDelete('enviosCliente',id); notif('Arquivo removido.','info'); await renderArquivosCliente(); }
+/* ---- atalho do cliente: abrir seção em nova aba (item 3) ---- */
+function abrirCli(c){ try{ var w=window.open(location.pathname+'?c='+encodeURIComponent(c),'_blank'); if(!w){ var el=document.getElementById('cli-'+c); if(el)el.scrollIntoView({behavior:'smooth'}); } }catch(e){} }
+/* ---- cliente envia nota fiscal ao escritório (item 6) ---- */
+async function enviarNotaCliente(){
+  if(!CURRENT_CLIENTE){notif('Cadastro não identificado. Avise o escritório.','warn');return;}
+  var num=val('cnf-num'), desc=val('cnf-desc');
+  var fi=document.getElementById('cnf-file');
+  if((!fi||!fi.files||!fi.files[0]) && !num && !desc){notif('⚠ Anexe a nota ou informe o número/descrição','warn');return;}
+  var arquivoData='', arquivo='';
+  if(fi&&fi.files&&fi.files[0]){ arquivo=fi.files[0].name; try{ arquivoData=await lerArquivoBase64(fi.files[0]); }catch(e){ notif(e.message||'Erro no arquivo','warn'); return; } }
+  try{
+    await dbAdd('notas',{cliente:CURRENT_CLIENTE,tipo:'Recebimento',numero:num,valor:'',data:new Date().toLocaleDateString('pt-BR'),descricao:desc,arquivo:arquivo,arquivoData:arquivoData,status:'Aberta',origem:'cliente'});
+    setVal('cnf-num','');setVal('cnf-desc',''); if(fi)fi.value='';
+    notif('📤 Nota fiscal enviada ao escritório!');
+    await renderClientePortal(CURRENT_CLIENTE);
+  }catch(e){ notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); }
+}
 
 /* ----- recebidos (painel do escritório) ----- */
 async function carregarRecebidos(){
