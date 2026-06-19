@@ -1402,7 +1402,7 @@ async function atualizarDashboard(){
   try{
     const cs=await dbGetAll('clientes'), os=await dbGetAll('obrigacoes'), us=await dbGetAll('urgencias'), hs=await dbGetAll('honorarios');
     var obAb=os.filter(function(o){return o.status!=='Pago';}).length;
-    var rec=0,pend=0; hs.forEach(function(h){var v=_num(h.valor); if(/pago/i.test(h.status||''))rec+=v; else pend+=v;});
+    var rec=0,pend=0; hs.forEach(function(h){ if(/pago/i.test(h.status||'')){ rec += (h.valorRecebido!=null?Number(h.valorRecebido):_num(h.valor)); } else { pend += _num(h.valor); } });
     setText('dash-clientes',cs.length); setText('dash-obrig',obAb); setText('dash-urg',us.length);
     setText('dash-rec',_money(rec)); setText('dash-rec2',_money(rec)); setText('dash-pend',_money(pend)); setText('dash-tot',_money(rec+pend));
     setText('dash-resumo-cli',cs.length); setText('dash-resumo-hon',hs.length); setText('dash-resumo-ob',obAb);
@@ -1591,11 +1591,13 @@ async function infoImagem(id){
 
 /* ===================== ASSISTENTE (chat do avatar) ===================== */
 function _norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function saudacaoHora(){ var h; try{ h=parseInt(new Intl.DateTimeFormat('pt-BR',{hour:'numeric',hour12:false,timeZone:'America/Sao_Paulo'}).format(new Date()),10); }catch(e){ h=new Date().getHours(); } if(isNaN(h))h=new Date().getHours(); if(h<12)return'Bom dia'; if(h<18)return'Boa tarde'; return'Boa noite'; }
+function saudarUsuario(nome){ var s=document.getElementById('sync-msg'); if(s){ s.textContent=saudacaoHora()+(nome?(', '+nome):'')+'! 👋 Toque em mim para tirar dúvidas.'; } var bot=document.getElementById('aparat-bot'); if(bot){ bot.classList.remove('pop'); void bot.offsetWidth; bot.classList.add('pop'); } }
 function toggleChat(){
   var c=document.getElementById('apchat'); if(!c)return;
   var abrir=(c.style.display==='none'||!c.style.display);
   c.style.display=abrir?'flex':'none';
-  if(abrir && !c.dataset.init){ c.dataset.init='1'; botMsg('Olá! 😊 Sou o assistente da <b>Aparat Contabilidade</b>. Posso ajudar com o uso do app e dar orientações gerais de contabilidade. Como posso ajudar?'); mostrarChips(); }
+  if(abrir && !c.dataset.init){ c.dataset.init='1'; botMsg(saudacaoHora()+'! 😊 Sou o assistente da <b>Aparat Contabilidade</b>'+(CURRENT_CLIENTE?(', '+esc((CURRENT_CLIENTE||'').split(' ')[0])):'')+'. Posso ajudar com o uso do app e dar orientações gerais de contabilidade. Como posso ajudar?'); mostrarChips(); }
   if(abrir){ var i=document.getElementById('apchat-in'); if(i) i.focus(); }
 }
 function botMsg(t){ var m=document.getElementById('apchat-msgs'); if(!m)return; var d=document.createElement('div'); d.className='apmsg bot'; d.innerHTML=t; m.appendChild(d); m.scrollTop=m.scrollHeight; }
@@ -1654,8 +1656,8 @@ async function responderAssistente(q){
     return 'Posso te ensinar a usar tudo! 😊 Escolha um tema (ou pergunte do seu jeito):<br>• <b>Honorários</b> — ver e pagar o boleto<br>• <b>Obrigações/Guias</b> — DAS e vencimentos<br>• <b>Pagar boleto</b> — passo a passo<br>• <b>Enviar arquivos</b> — PDF/OFX (Setor Contábil)<br>• <b>Agendamentos</b> — salvar na agenda / PDF<br>• <b>Documentos</b> — abrir o que a Aparat enviou<br>• <b>Avisos</b> e <b>Falar com o Escritório</b><br>Ex.: "como pago meu boleto?" ou "como envio um arquivo?"';
   }
   if(nome){
-    try{ await dbAdd('solicitacoes',{cliente:nome, mensagem:'[Pergunta pelo assistente] '+q, status:'Nova', data:new Date().toLocaleString('pt-BR')}); }catch(e){}
-    return 'Boa pergunta! 😊 Essa eu vou perguntar ao <b>Daniel (contador)</b> e ele logo te envia a resposta aqui no app. Você acompanha em <b>📨 Minhas Solicitações</b>. 👍';
+    try{ await dbAdd('solicitacoes',{cliente:nome, tipo:'duvida-assistente', mensagem:'🤖 Daniel, o cliente '+nome+' está com uma dúvida que o assistente não soube responder: "'+q+'". → Entre em contato com o cliente '+nome+' para sanar a dúvida.', status:'Nova', data:new Date().toLocaleString('pt-BR')}); }catch(e){}
+    return 'Boa pergunta! 😊 Essa eu já encaminhei para o <b>Daniel (contador)</b> — ele vai entrar em contato com você para responder. Você também acompanha em <b>📨 Minhas Solicitações</b>. 👍';
   }
   return 'Essa eu encaminho para o <b>Daniel (contador)</b>. (No app do cliente a pergunta é enviada automaticamente; aqui no painel, fale pelo (16) 98869-9203.)';
 }
@@ -1740,6 +1742,7 @@ async function handleAuth(user){
     document.getElementById('view-painel').classList.add('active');
     _show('view-app',false);
     await initAppAdmin();
+    saudarUsuario('Daniel');
   } else {
     CURRENT_ROLE='cliente';
     let nome='';
@@ -1751,6 +1754,7 @@ async function handleAuth(user){
     document.querySelectorAll('.switcher').forEach(s=>s.style.display='none');
     _show('view-cliente',true);
     await renderClientePortal(nome||user.email);
+    saudarUsuario((nome||'').split(' ')[0]);
   }
 }
 
@@ -1791,7 +1795,7 @@ async function getAvisos(nome){
 async function renderClientePortal(nome){
   const v=document.getElementById('view-cliente'); if(!v)return;
   v.innerHTML='<div style="max-width:980px;margin:0 auto;padding:18px 16px 40px">'
-    +'<div class="wcard"><h3>Olá 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade <span id="cli-novidades" class="cli-badge" style="display:none"></span></p></div>'
+    +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade <span id="cli-novidades" class="cli-badge" style="display:none"></span></p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
     +'<div class="cli-grid">'
       +'<div class="cli-left">'
@@ -1882,8 +1886,9 @@ async function carregarHonorarios(){
     const pdf=h.arquivoData?('<a href="'+blobUrl(h.arquivoData)+'" target="_blank" style="font-size:10px;color:var(--azul-light)">📄 Ver PDF</a>'):'<span style="font-size:10px;color:#555">—</span>';
     var pago=/pago/i.test(h.status||'');
     var btnPago='<button class="btn-sm '+(pago?'':'btn-vd')+'" onclick="togglePago(\''+h.id+'\')">'+(pago?'↩ Pendente':'✔ Pago')+'</button>';
+    var recInfo=(pago)?(' <span style="color:var(--verde);font-size:9px">(rec. R$ '+esc((h.valorRecebido!=null?Number(h.valorRecebido):_num(h.valor)).toFixed(2).replace(".",","))+')</span> <button class="btn-sm" onclick="editarRecebido(\''+h.id+'\')">💲 Recebido</button>'):'';
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(h.cliente||'')+'</td><td>'+esc(h.referencia||'')+'</td><td>R$ '+esc(h.valor||'')+'</td><td>'+fmtData(h.vencimento)+'</td><td>'+pdf+'</td><td><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span> '+btnPago+' <button class="btn-sm" onclick="editarHonorario(\''+h.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirHonorario(\''+h.id+'\')">Excluir</button></td>';
+    tr.innerHTML='<td>'+esc(h.cliente||'')+'</td><td>'+esc(h.referencia||'')+'</td><td>R$ '+esc(h.valor||'')+recInfo+'</td><td>'+fmtData(h.vencimento)+'</td><td>'+pdf+'</td><td><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span> '+btnPago+' <button class="btn-sm" onclick="editarHonorario(\''+h.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirHonorario(\''+h.id+'\')">Excluir</button></td>';
     tb.appendChild(tr);
   });
   atualizarDashboard();
@@ -1891,9 +1896,25 @@ async function carregarHonorarios(){
 async function excluirHonorario(id){ await dbDelete('honorarios',id); notif('Honorário removido.','info'); await carregarHonorarios(); }
 async function togglePago(id){
   var hs=await dbGetAll('honorarios'); var h=hs.find(function(x){return String(x.id)===String(id);}); if(!h)return;
-  var novo=(/pago/i.test(h.status||''))?'Pendente':'Pago';
-  await dbUpdate('honorarios',id,{status:novo});
-  notif('Honorário marcado como '+novo+'.','info');
+  if(/pago/i.test(h.status||'')){
+    await dbUpdate('honorarios',id,{status:'Pendente'});
+    notif('Marcado como Pendente.','info');
+  } else {
+    var sug=_num(h.valor); var inp=prompt('Valor RECEBIDO (R$):', sug? sug.toFixed(2).replace('.',',') : '');
+    if(inp===null) return;
+    var rec=_num(inp);
+    await dbUpdate('honorarios',id,{status:'Pago', valorRecebido:rec});
+    notif('Pago — recebido '+_money(rec)+'.','info');
+  }
+  await carregarHonorarios();
+}
+async function editarRecebido(id){
+  var hs=await dbGetAll('honorarios'); var h=hs.find(function(x){return String(x.id)===String(id);}); if(!h)return;
+  var atual=(h.valorRecebido!=null?Number(h.valorRecebido):_num(h.valor));
+  var inp=prompt('Editar valor RECEBIDO (R$):', atual? atual.toFixed(2).replace('.',',') : '');
+  if(inp===null) return;
+  await dbUpdate('honorarios',id,{valorRecebido:_num(inp), status:'Pago'});
+  notif('Valor recebido atualizado.','info');
   await carregarHonorarios();
 }
 async function editarHonorario(id){
