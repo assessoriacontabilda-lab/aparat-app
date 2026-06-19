@@ -1460,14 +1460,20 @@ async function enviarNota(){
   var fi=document.getElementById('nf-file');
   var arquivoData='', arquivo='';
   if(fi&&fi.files&&fi.files[0]){ arquivo=fi.files[0].name; try{ arquivoData=await lerArquivoBase64(fi.files[0]); }catch(e){ notif(e.message||'Erro no arquivo','warn'); return; } }
-  if(editNfId){
-    var upd={cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivo=arquivo;}
-    await dbUpdate('notas',editNfId,upd); editNfId=null;
-    var b=document.getElementById('nf-btn'); if(b)b.textContent='📤 Registrar Nota Fiscal';
-    notif('✏️ Nota fiscal atualizada!'); syncAnim('NF atualizada → '+cli);
-  } else {
-    await dbAdd('notas',{cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc,arquivo:arquivo,arquivoData:arquivoData,status:'Aberta',origem:'escritorio'});
-    notif(tipo==='Envio'?'📤 Nota fiscal enviada ao cliente!':'📥 Nota fiscal registrada!','info'); syncAnim('Nota fiscal → '+cli);
+  try{
+    if(editNfId){
+      var upd={cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivo=arquivo;}
+      await dbUpdate('notas',editNfId,upd); editNfId=null;
+      var b=document.getElementById('nf-btn'); if(b)b.textContent='📤 Registrar Nota Fiscal';
+      notif('✏️ Nota fiscal atualizada!'); syncAnim('NF atualizada → '+cli);
+    } else {
+      await dbAdd('notas',{cliente:cli,tipo:tipo,numero:num,valor:valr,data:data,descricao:desc,arquivo:arquivo,arquivoData:arquivoData,status:'Aberta',origem:'escritorio'});
+      notif(tipo==='Envio'?'📤 Nota fiscal enviada ao cliente!':'📥 Nota fiscal registrada!','info'); syncAnim('Nota fiscal → '+cli);
+    }
+  }catch(e){
+    if((e.code||'').indexOf('permission')>-1||/insufficient|permission/i.test(e.message||'')){ notif('⚠ Publique a regra de "notas" no Firebase para liberar o envio.','warn'); }
+    else { notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); }
+    return;
   }
   setVal('nf-num','');setVal('nf-val','');setVal('nf-desc','');
   if(fi)fi.value=''; var prv=document.getElementById('nf-file-preview'); if(prv)prv.style.display='none';
@@ -2166,7 +2172,7 @@ async function enviarNotaCliente(){
     setVal('cnf-num','');setVal('cnf-desc',''); if(fi)fi.value='';
     notif('📤 Nota fiscal enviada ao escritório!');
     await renderClientePortal(CURRENT_CLIENTE);
-  }catch(e){ notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); }
+  }catch(e){ if((e.code||'').indexOf('permission')>-1||/insufficient|permission/i.test(e.message||'')){ notif('⚠ O escritório precisa publicar a regra de "notas" no Firebase.','warn'); } else { notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); } }
 }
 
 /* ----- recebidos (painel do escritório) ----- */
