@@ -730,7 +730,7 @@ textarea{resize:vertical;min-height:56px}
         </div>
         <div class="fg" style="margin-bottom:8px"><label>Título</label><input id="urg-titulo" type="text" placeholder="Título do aviso"/></div>
         <div class="fg" style="margin-bottom:10px"><label>Mensagem</label><textarea id="urg-msg" placeholder="Detalhe o aviso..."></textarea></div>
-        <button class="btn btn-az" onclick="enviarUrgencia()">🚨 Enviar Urgência</button>
+        <button class="btn btn-az" id="urg-btn" onclick="enviarUrgencia()">🚨 Enviar Urgência</button>
       </div>
       <div class="sec">🚨 Urgências Enviadas</div>
       <div id="lista-urgencias"></div>
@@ -1338,13 +1338,31 @@ async function addCalAgenda(id){
 }
 
 /* ===================== URGÊNCIAS ===================== */
+var editUrgId=null;
 async function enviarUrgencia(){
   const titulo=val('urg-titulo'),msg=val('urg-msg'),prio=val('urg-prio'),dest=val('urg-dest');
   if(!titulo||!msg){notif('⚠ Preencha título e mensagem','warn');return;}
-  await dbAdd('urgencias',{titulo,msg,prio,dest,data:new Date().toLocaleDateString('pt-BR')});
-  notif('🚨 Urgência enviada para os clientes!');
-  syncAnim('Urgência → '+dest);
+  if(editUrgId){
+    await dbUpdate('urgencias',editUrgId,{titulo:titulo,msg:msg,prio:prio,dest:dest});
+    editUrgId=null; var b=document.getElementById('urg-btn'); if(b)b.textContent='🚨 Enviar Urgência';
+    notif('✏️ Urgência atualizada!'); syncAnim('Urgência atualizada → '+dest);
+  } else {
+    await dbAdd('urgencias',{titulo,msg,prio,dest,data:new Date().toLocaleDateString('pt-BR')});
+    notif('🚨 Urgência enviada para os clientes!'); syncAnim('Urgência → '+dest);
+  }
   setVal('urg-titulo','');setVal('urg-msg','');
+  await carregarUrgencias(); await atualizarDashboard();
+}
+async function editarUrgencia(id){
+  var u=await dbGetAll('urgencias'); var x=u.find(function(o){return String(o.id)===String(id);}); if(!x)return;
+  setVal('urg-titulo',x.titulo||''); setVal('urg-msg',x.msg||''); setVal('urg-prio',x.prio||''); setVal('urg-dest',x.dest||'');
+  editUrgId=id; var b=document.getElementById('urg-btn'); if(b)b.textContent='✏️ Salvar alterações';
+  var pg=document.getElementById('pp-urgencias'); if(pg)pg.scrollIntoView({behavior:'smooth'});
+  notif('Editando a urgência. Altere e salve.','info');
+}
+async function excluirUrgencia(id){
+  if(!confirm('Excluir esta urgência?'))return;
+  await dbDelete('urgencias',id); notif('🗑️ Urgência excluída.','info');
   await carregarUrgencias(); await atualizarDashboard();
 }
 async function carregarUrgencias(){
@@ -1354,7 +1372,7 @@ async function carregarUrgencias(){
   l.innerHTML='';
   u.slice().reverse().forEach(x=>{
     const d=document.createElement('div');d.className='lcard';
-    d.innerHTML=`<div class="lcico lc-rd">🚨</div><div class="lcinfo"><strong>${esc(x.titulo)}</strong><span>${esc(x.dest)} · ${esc(x.prio)} · ${esc(x.data||'')}</span></div>`;
+    d.innerHTML=`<div class="lcico lc-rd">🚨</div><div class="lcinfo"><strong>${esc(x.titulo)}</strong><span>${esc(x.dest)} · ${esc(x.prio)} · ${esc(x.data||'')}</span></div><div style="white-space:nowrap"><span style="cursor:pointer;margin-right:9px" title="Editar" onclick="editarUrgencia('${x.id}')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirUrgencia('${x.id}')">🗑️</span></div>`;
     l.appendChild(d);
   });
 }
