@@ -2037,7 +2037,9 @@ async function renderClientePortal(nome){
         +'<div class="fbox-light">'
           +'<div class="asec2">🚨 Avisos</div><div id="cli-avi"></div>'
           +'<div class="asec2" style="margin-top:14px">✉️ Falar com o Escritório</div>'
-          +'<div class="fg"><textarea id="cli-sol-msg" placeholder="Sua mensagem / dúvida..."></textarea></div><button class="btn btn-az" style="width:100%;margin-top:8px" onclick="enviarSolicitacao()">✉️ Enviar Solicitação</button>'
+          +'<div class="fg"><textarea id="cli-sol-msg" placeholder="Sua mensagem / dúvida..."></textarea></div>'
+          +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">📎 Anexar imagem ou documento (opcional · máx. 900 KB)</label><input id="cli-sol-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.ofx"/></div>'
+          +'<button class="btn btn-az" id="cli-sol-btn" style="width:100%;margin-top:8px" onclick="enviarSolicitacao()">✉️ Enviar Solicitação</button>'
           +'<div id="cli-sol-lista" style="margin-top:8px"></div>'
           +'<div class="asec2" style="margin-top:14px">📥 Setor Contábil — Enviar Arquivos</div>'
           +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">PDF ou OFX (máx. 900 KB)</label><input id="cli-arq-file" type="file" accept=".pdf,.ofx"/></div><button class="btn btn-az" style="width:100%;margin-top:8px" onclick="enviarArquivoCliente()">📤 Enviar para a Contabilidade</button>'
@@ -2278,18 +2280,42 @@ async function renderSolicitacoesCliente(){
   if(!s.length){l.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma solicitação enviada.</div>';return;}
   l.innerHTML='';
   s.slice().reverse().forEach(x=>{const sc=(/resolv|conclu/i.test(x.status||''))?'tp':'tn';
-    l.innerHTML+='<div class="lcard"><div class="lcico lc-az">✉️</div><div class="lcinfo"><strong>'+esc(x.mensagem||'')+'</strong><span>'+esc(x.data||'')+'</span></div><span class="tag '+sc+'">'+esc(x.status||'Nova')+'</span></div>';});
+    var anexo=x.arquivoData?(' · <a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
+    l.innerHTML+='<div class="lcard"><div class="lcico lc-az">✉️</div><div class="lcinfo"><strong>'+esc(x.mensagem||'')+'</strong><span>'+esc(x.data||'')+anexo+'</span></div><span class="tag '+sc+'">'+esc(x.status||'Nova')+'</span><div style="white-space:nowrap;margin-left:6px"><span style="cursor:pointer;margin-right:8px" title="Editar" onclick="editarSolicitacaoCliente(\''+x.id+'\')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirSolicitacaoCliente(\''+x.id+'\')">🗑️</span></div></div>';});
 }
+var editSolId=null;
 async function enviarSolicitacao(){
   const msg=val('cli-sol-msg');
   if(!msg){notif('⚠ Escreva sua solicitação','warn');return;}
   if(!CURRENT_CLIENTE){notif('Não identifiquei seu cadastro. Avise o escritório.','warn');return;}
+  var fi=document.getElementById('cli-sol-file');
+  var arquivoData='',arquivoNome='';
+  if(fi&&fi.files&&fi.files[0]){ arquivoNome=fi.files[0].name; try{ arquivoData=await lerArquivoBase64(fi.files[0]); }catch(e){ notif(e.message||'Erro no arquivo','warn'); return; } }
   try{
-    await dbAdd('solicitacoes',{cliente:CURRENT_CLIENTE,mensagem:msg,status:'Nova',data:new Date().toLocaleString('pt-BR')});
-    setVal('cli-sol-msg','');
-    notif('✉️ Solicitação enviada ao escritório!');
+    if(editSolId){
+      var upd={mensagem:msg}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivoNome=arquivoNome;}
+      await dbUpdate('solicitacoes',editSolId,upd); editSolId=null;
+      var b=document.getElementById('cli-sol-btn'); if(b)b.textContent='✉️ Enviar Solicitação';
+      notif('✏️ Solicitação atualizada!');
+    } else {
+      await dbAdd('solicitacoes',{cliente:CURRENT_CLIENTE,mensagem:msg,status:'Nova',data:new Date().toLocaleString('pt-BR'),arquivoData:arquivoData,arquivoNome:arquivoNome});
+      notif('✉️ Solicitação enviada ao escritório!');
+    }
+    setVal('cli-sol-msg',''); if(fi)fi.value='';
     await renderSolicitacoesCliente();
-  }catch(e){ notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); }
+  }catch(e){ if((e.code||'').indexOf('permission')>-1||/permission|insufficient/i.test(e.message||'')){ notif('⚠ O escritório precisa publicar a regra atualizada no Firebase.','warn'); } else { notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); } }
+}
+async function editarSolicitacaoCliente(id){
+  var s=await getMine('solicitacoes',CURRENT_CLIENTE); var x=s.find(function(o){return String(o.id)===String(id);}); if(!x)return;
+  if(/resolv|conclu/i.test(x.status||'')){ notif('Esta solicitação já foi concluída.','info'); return; }
+  setVal('cli-sol-msg',x.mensagem||''); editSolId=id;
+  var b=document.getElementById('cli-sol-btn'); if(b)b.textContent='✏️ Salvar alteração';
+  notif('Editando. Altere a mensagem (e anexe um novo arquivo, se quiser) e salve.','info');
+}
+async function excluirSolicitacaoCliente(id){
+  if(!confirm('Excluir esta solicitação?'))return;
+  try{ await dbDelete('solicitacoes',id); notif('🗑️ Solicitação excluída.','info'); await renderSolicitacoesCliente(); }
+  catch(e){ if((e.code||'').indexOf('permission')>-1||/permission|insufficient/i.test(e.message||'')){ notif('⚠ O escritório precisa publicar a regra atualizada no Firebase.','warn'); } else { notif('Erro: '+(e.code||e.message||''),'warn'); } }
 }
 async function carregarSolicitacoes(){
   const tb=document.getElementById('tb-solic'); if(!tb)return;
@@ -2299,7 +2325,8 @@ async function carregarSolicitacoes(){
   tb.innerHTML='';
   s.slice().reverse().forEach(x=>{
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td>'+esc(x.mensagem||'')+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
+    var anexoO=x.arquivoData?('<br><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light);font-size:10px">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
+    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
     tb.appendChild(tr);
   });
 }
