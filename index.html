@@ -1155,6 +1155,32 @@ function attachRealtime(){
   fdb.collection('notas').onSnapshot(()=>carregarNotas(), ()=>{});
 }
 
+/* ----- LEMBRETE AUTOMÁTICO: extrato bancário PJ (todo dia 2) ----- */
+async function checarLembreteMensal(){
+  try{
+    if(!fdb) return;
+    var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(new Date());
+    var dia=parseInt(p.find(function(x){return x.type==='day';}).value,10);
+    var mes=p.find(function(x){return x.type==='month';}).value;
+    var ano=p.find(function(x){return x.type==='year';}).value;
+    if(dia<2) return; // só a partir do dia 2
+    var mesRef=ano+'-'+mes;
+    // já enviado neste mês? (filtro simples, sem índice composto)
+    var snap=await fdb.collection('urgencias').where('mesRef','==',mesRef).get();
+    var jaTem=snap.docs.some(function(d){return d.data().lembreteExtrato===true;});
+    if(jaTem) return;
+    await dbAdd('urgencias',{
+      dest:'Todos os Clientes', prio:'📄',
+      titulo:'Envio do Extrato Bancário PJ',
+      msg:'Olá! Lembrete mensal da Aparat Contabilidade: por favor, envie o extrato bancário da sua conta PJ (referente ao mês anterior) em PDF e também em OFX. O envio é feito aqui no app, na seção "📥 Setor Contábil — Enviar Arquivos". Qualquer dúvida, fale com a gente. Obrigado!',
+      data:new Date().toLocaleDateString('pt-BR'),
+      mesRef:mesRef, lembreteExtrato:true
+    });
+    notif('📣 Lembrete de extrato bancário enviado a todos os clientes!','info');
+    syncAnim('Lembrete mensal de extrato enviado');
+  }catch(e){ console.error('checarLembreteMensal',e); }
+}
+
 /* ----- dados de demonstração (só MODO LOCAL, 1ª vez) ----- */
 async function seedDemo(){
   if(CLOUD) return;
@@ -1940,6 +1966,7 @@ async function initAppAdmin(){
     await atualizarSelects();
     await atualizarDashboard();
     attachRealtime();
+    await checarLembreteMensal();
   }catch(e){console.error('Erro initAppAdmin',e);}
 }
 
