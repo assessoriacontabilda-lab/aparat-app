@@ -202,7 +202,20 @@ textarea{resize:vertical;min-height:56px}
 .asec{font-size:11px;font-weight:700;color:#fff;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between}
 .asec a{font-size:9px;color:var(--azul-light);cursor:pointer;font-weight:400}
 
-.lcard{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:10px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:.2s}
+.lcard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:.2s;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.lcard:active{transform:scale(.99)}
+/* ===== estilo app de banco (portal cliente) ===== */
+#view-cliente{scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
+.cli-top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;background:rgba(10,10,24,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:11px 16px}
+.cli-top img{width:42px;height:42px;border-radius:12px;flex:0 0 auto}
+.cli-top .ct-h{font-size:11px;color:var(--cinza)}
+.cli-top .ct-n{font-size:15px;font-weight:800;color:#fff;line-height:1.1}
+.botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;background:rgba(13,13,34,.98);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:6px 2px;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+.botnav button{flex:1;background:none;border:none;color:var(--cinza);font-size:9.5px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:5px 1px;transition:.15s}
+.botnav button .bn-i{font-size:19px;line-height:1}
+.botnav button.active{color:var(--azul-light)}
+body.foco .botnav{display:none}
+body.foco .cli-top{display:none}
 .lcard:active{transform:scale(.98)}
 .lcico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 .lc-az{background:rgba(51,51,255,.15)}.lc-gr{background:rgba(34,197,94,.12)}.lc-or{background:rgba(245,158,11,.12)}.lc-rd{background:rgba(239,68,68,.12)}.lc-pu{background:rgba(168,85,247,.12)}
@@ -2004,8 +2017,10 @@ async function getAvisos(nome){
 
 async function renderClientePortal(nome){
   const v=document.getElementById('view-cliente'); if(!v)return;
-  v.innerHTML='<div style="max-width:980px;margin:0 auto;padding:18px 16px 40px">'
-    +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade <span id="cli-novidades" class="cli-badge" style="display:none"></span></p></div>'
+  v.innerHTML='<div class="cli-top"><img src="icone-aparat.png" alt="Aparat"/><div><div class="ct-h">'+saudacaoHora()+' 👋</div><div class="ct-n">'+esc(nome)+'</div></div><span id="cli-novidades" class="cli-badge" style="display:none;margin-left:auto"></span></div>'
+    +'<div id="cli-topo"></div>'
+    +'<div style="max-width:980px;margin:0 auto;padding:14px 14px 96px">'
+    +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade</p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
     +'<div class="cli-atalhos">'
       +'<button onclick="abrirCli(\'hon\')">💳 Honorários</button>'
@@ -2032,7 +2047,7 @@ async function renderClientePortal(nome){
           +'</div>'
         +'</div>'
       +'</div>'
-      +'<div class="cli-right">'
+      +'<div class="cli-right" id="sec-sol">'
         +'<div class="asec">✅ A Realizar</div>'
         +'<div class="fbox-light">'
           +'<div class="asec2">🚨 Avisos</div><div id="cli-avi"></div>'
@@ -2048,6 +2063,13 @@ async function renderClientePortal(nome){
       +'</div>'
     +'</div>'
     +'<div style="text-align:center;padding:16px 0 4px;font-size:9px;color:#33335a">Aparat Contabilidade · '+CNPJ_TXT+' · (16) 98869-9203</div>'
+    +'</div>'
+    +'<div class="botnav">'
+      +'<button data-go="cli-topo" onclick="cliGo(\'cli-topo\',this)"><span class="bn-i">🏠</span>Início</button>'
+      +'<button data-go="sec-hon" onclick="cliGo(\'sec-hon\',this)"><span class="bn-i">💳</span>Honorários</button>'
+      +'<button data-go="sec-notas" onclick="cliGo(\'sec-notas\',this)"><span class="bn-i">🧾</span>Notas</button>'
+      +'<button data-go="sec-sol" onclick="cliGo(\'sec-sol\',this)"><span class="bn-i">✉️</span>Falar</button>'
+      +'<button data-go="sec-doc" onclick="cliGo(\'sec-doc\',this)"><span class="bn-i">📄</span>Docs</button>'
     +'</div>';
   // Honorários
   const hon=await getMine('honorarios',nome);
@@ -2100,6 +2122,7 @@ async function renderClientePortal(nome){
     if(_bd){ if(_prev>=0 && _tot>_prev){ _bd.textContent='🔔 '+(_tot-_prev)+' novidade(s)'; _bd.style.display='inline-block'; } else { _bd.style.display='none'; } }
     localStorage.setItem(_key,String(_tot));
   }catch(e){}
+  try{ var _v=document.getElementById('view-cliente'); if(_v && !_v.__spy){ _v.addEventListener('scroll',function(){ clearTimeout(window.__spyT); window.__spyT=setTimeout(_cliSpy,80); }); _v.__spy=true; } var _b0=document.querySelector('.botnav button'); if(_b0)_b0.classList.add('active'); }catch(e){}
   aplicarFocoCliente();
 }
 
@@ -2217,6 +2240,20 @@ async function renderArquivosCliente(){
   });
 }
 async function excluirArquivoCliente(id){ await dbDelete('enviosCliente',id); notif('Arquivo removido.','info'); await renderArquivosCliente(); }
+/* ---- barra inferior estilo app de banco ---- */
+function cliGo(id,btn){
+  var el=document.getElementById(id); var v=document.getElementById('view-cliente');
+  if(el&&v){ var top=el.offsetTop-(id==='cli-topo'?0:64); v.scrollTo({top:Math.max(0,top),behavior:'smooth'}); }
+  document.querySelectorAll('.botnav button').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+}
+function _cliSpy(){
+  var v=document.getElementById('view-cliente'); if(!v)return;
+  var btns=document.querySelectorAll('.botnav button'); if(!btns.length)return;
+  var y=v.scrollTop+90, best=btns[0];
+  btns.forEach(function(b){ var el=document.getElementById(b.getAttribute('data-go')); if(el&&el.offsetTop<=y)best=b; });
+  btns.forEach(function(b){b.classList.remove('active');}); best.classList.add('active');
+}
 /* ---- atalho do cliente: abrir seção em nova aba (item 3) ---- */
 function abrirCli(c){ try{ var w=window.open(location.pathname+'?c='+encodeURIComponent(c),'_blank'); if(!w){ var el=document.getElementById('cli-'+c); if(el)el.scrollIntoView({behavior:'smooth'}); } }catch(e){} }
 /* ---- cliente envia nota fiscal ao escritório (item 6) ---- */
