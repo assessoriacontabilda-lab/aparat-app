@@ -460,6 +460,7 @@ body.foco .cli-top{display:none}
       <div class="nav-sec">Principal</div>
       <div class="nav-item active" onclick="navAba('dash',this)"><span class="ni">📊</span>Dashboard</div>
       <div class="nav-item" onclick="navAba('clientes',this)"><span class="ni">👥</span>Clientes</div>
+      <div class="nav-item" onclick="navAba('dados',this)"><span class="ni">📑</span>Dados Cadastrais</div>
       <div class="nav-item" onclick="navAba('obrig',this)"><span class="ni">📋</span>Obrigações</div>
       <div class="nav-item" onclick="navAba('honorarios',this)"><span class="ni">💳</span>Honorários</div>
       <div class="nav-item" onclick="navAba('notas',this)"><span class="ni">🧾</span>Notas Fiscais<span class="nav-dot" id="dot-notas"></span></div>
@@ -673,6 +674,38 @@ body.foco .cli-top{display:none}
               <td><span class="tag tn" id="hon-padaria-status">⏳ Pendente</span></td>
             </tr>
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DADOS CADASTRAIS -->
+    <div class="ppage" id="pp-dados">
+      <div class="fbox">
+        <div class="ftitle">📑 Dados Cadastrais do Cliente</div>
+        <div style="background:#07071a;border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:10px;color:var(--cinza)">Você cadastra, edita e exclui aqui. O cliente vê estes dados no app dele (somente leitura, com botão copiar).</div>
+        <div class="fgrid">
+          <div class="fg"><label>Cliente</label><select id="dad-cli"></select></div>
+          <div class="fg"><label>Razão Social</label><input id="dad-razao" type="text" placeholder="Razão social"/></div>
+          <div class="fg"><label>Nome Fantasia</label><input id="dad-fant" type="text" placeholder="Nome fantasia"/></div>
+          <div class="fg"><label>CNPJ</label><input id="dad-cnpj" type="text" placeholder="00.000.000/0001-00"/></div>
+          <div class="fg"><label>Inscrição Estadual</label><input id="dad-ie" type="text" placeholder="IE (ou Isento)"/></div>
+          <div class="fg"><label>Inscrição Municipal</label><input id="dad-im" type="text" placeholder="IM"/></div>
+          <div class="fg"><label>E-mail</label><input id="dad-email" type="text" placeholder="email@empresa.com"/></div>
+          <div class="fg"><label>Telefone / WhatsApp</label><input id="dad-tel" type="text" placeholder="(16) 90000-0000"/></div>
+          <div class="fg"><label>Regime Tributário</label><input id="dad-regime" type="text" placeholder="Simples / Presumido / MEI"/></div>
+          <div class="fg"><label>CNAE / Atividade</label><input id="dad-cnae" type="text" placeholder="Atividade principal"/></div>
+          <div class="fg"><label>Data de Abertura</label><input id="dad-abertura" type="text" placeholder="dd/mm/aaaa"/></div>
+          <div class="fg"><label>Sócio / Responsável</label><input id="dad-socio" type="text" placeholder="Nome do sócio"/></div>
+        </div>
+        <div class="fg" style="margin-top:8px"><label>Endereço completo</label><input id="dad-end" type="text" placeholder="Rua, nº, bairro, cidade/UF, CEP"/></div>
+        <div class="fg" style="margin-top:8px"><label>Observações</label><textarea id="dad-obs" placeholder="Outras informações relevantes..."></textarea></div>
+        <button class="btn btn-az" id="dad-btn" onclick="salvarDados()" style="width:100%;margin-top:10px">💾 Salvar Dados Cadastrais</button>
+      </div>
+      <div class="sec">📑 Cadastros Registrados</div>
+      <div class="tbox">
+        <table>
+          <thead><tr><th>Cliente</th><th>CNPJ</th><th>IE</th><th>IM</th><th>E-mail</th><th>Ações</th></tr></thead>
+          <tbody id="dad-tbody"><tr><td colspan="6" style="color:var(--cinza)">Nenhum cadastro registrado.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1166,6 +1199,7 @@ function attachRealtime(){
   fdb.collection('financeiro').onSnapshot(()=>carregarFinanceiro());
   fdb.collection('enviosCliente').onSnapshot(()=>carregarRecebidos(), ()=>{});
   fdb.collection('notas').onSnapshot(()=>carregarNotas(), ()=>{});
+  fdb.collection('dados').onSnapshot(()=>carregarDados(), ()=>{});
 }
 
 /* ----- LEMBRETE AUTOMÁTICO: extrato bancário PJ (todo dia 2) ----- */
@@ -1250,7 +1284,7 @@ async function excluirCliente(id){await dbDelete('clientes',id);notif('Cliente r
 
 async function atualizarSelects(){
   const cs=await dbGetAll('clientes');
-  ['ob-cli','hon-cli','nf-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
+  ['ob-cli','hon-cli','nf-cli','dad-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;const v=s.value;s.innerHTML='';
     cs.forEach(c=>{const o=document.createElement('option');o.value=c.nome;o.textContent=c.nome;s.appendChild(o);});
     if(v)s.value=v;
@@ -1504,6 +1538,45 @@ function confirmarHonorario(){
   },1200);
 }
 
+/* ===================== DADOS CADASTRAIS (escritório edita) ===================== */
+var DAD_CAMPOS=['razao','fant','cnpj','ie','im','email','tel','regime','cnae','abertura','socio','end','obs'];
+var editDadId=null;
+async function salvarDados(){
+  var cli=val('dad-cli'); if(!cli){notif('⚠ Selecione o cliente','warn');return;}
+  var d={cliente:cli, razaoSocial:val('dad-razao'), fantasia:val('dad-fant'), cnpj:val('dad-cnpj'), ie:val('dad-ie'), im:val('dad-im'), email:val('dad-email'), telefone:val('dad-tel'), regime:val('dad-regime'), cnae:val('dad-cnae'), abertura:val('dad-abertura'), socio:val('dad-socio'), endereco:val('dad-end'), obs:val('dad-obs')};
+  try{
+    if(editDadId){ await dbUpdate('dados',editDadId,d); editDadId=null; var b=document.getElementById('dad-btn'); if(b)b.textContent='💾 Salvar Dados Cadastrais'; notif('✏️ Cadastro atualizado!'); }
+    else { await dbAdd('dados',d); notif('💾 Dados cadastrais salvos! O cliente já pode ver.'); }
+    syncAnim('Dados cadastrais → '+cli);
+    DAD_CAMPOS.forEach(function(c){setVal('dad-'+c,'');});
+    await carregarDados();
+  }catch(e){ if((e.code||'').indexOf('permission')>-1){ notif('⚠ Publique a regra de "dados" no Firebase.','warn'); } else { notif('Erro: '+(e.code||e.message||''),'warn'); } }
+}
+async function carregarDados(){
+  var tb=document.getElementById('dad-tbody'); if(!tb)return;
+  var ds=[]; try{ ds=await dbGetAll('dados'); }catch(e){ tb.innerHTML='<tr><td colspan="6" style="color:var(--laranja)">⚠ Publique a regra de "dados" no Firebase para ativar esta aba.</td></tr>'; return; }
+  if(!ds.length){tb.innerHTML='<tr><td colspan="6" style="color:var(--cinza)">Nenhum cadastro registrado.</td></tr>';return;}
+  tb.innerHTML='';
+  ds.slice().reverse().forEach(function(x){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td>'+esc(x.cnpj||'—')+'</td><td>'+esc(x.ie||'—')+'</td><td>'+esc(x.im||'—')+'</td><td>'+esc(x.email||'—')+'</td>'+
+      '<td style="white-space:nowrap"><span style="cursor:pointer;margin-right:8px" title="Editar" onclick="editarDados(\''+x.id+'\')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirDados(\''+x.id+'\')">🗑️</span></td>';
+    tb.appendChild(tr);
+  });
+}
+async function editarDados(id){
+  var ds=await dbGetAll('dados'); var x=ds.find(function(o){return String(o.id)===String(id);}); if(!x)return;
+  setVal('dad-cli',x.cliente||''); setVal('dad-razao',x.razaoSocial||''); setVal('dad-fant',x.fantasia||''); setVal('dad-cnpj',x.cnpj||''); setVal('dad-ie',x.ie||''); setVal('dad-im',x.im||''); setVal('dad-email',x.email||''); setVal('dad-tel',x.telefone||''); setVal('dad-regime',x.regime||''); setVal('dad-cnae',x.cnae||''); setVal('dad-abertura',x.abertura||''); setVal('dad-socio',x.socio||''); setVal('dad-end',x.endereco||''); setVal('dad-obs',x.obs||'');
+  editDadId=id; var b=document.getElementById('dad-btn'); if(b)b.textContent='✏️ Salvar alterações';
+  var pg=document.getElementById('pp-dados'); if(pg)pg.scrollIntoView({behavior:'smooth'});
+  notif('Editando o cadastro. Altere e salve.','info');
+}
+async function excluirDados(id){
+  if(!confirm('Excluir este cadastro?'))return;
+  await dbDelete('dados',id); notif('🗑️ Cadastro excluído.','info'); await carregarDados();
+}
+function copiarTexto(t){ try{ navigator.clipboard.writeText(t); notif('📋 Copiado!','info'); }catch(e){ notif('Copie manualmente: '+t,'info'); } }
+
 /* ===================== NOTAS FISCAIS (escritório) ===================== */
 function nfSelecionou(input){
   if(!input.files||!input.files[0])return;
@@ -1658,7 +1731,7 @@ function pPage(id,el){
   if(id==='notas') marcarVisto('notas','seen_notas','dot-notas');
 }
 /* ---- abrir cada função em nova aba focada (item 3) ---- */
-var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
+var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
 function navAba(id,el){
   if(document.body.classList.contains('foco')){ return; } // já está em aba focada
   try{ var w=window.open(location.pathname+'?p='+encodeURIComponent(id),'_blank'); if(!w){ pPage(id,el); } }
@@ -1677,7 +1750,7 @@ function aplicarFocoAdmin(){
   var pg=document.getElementById('pp-'+p); if(pg){ pg.insertBefore(_focoBar(ABA_NOMES[p]||p), pg.firstChild); }
   document.title='Aparat · '+(ABA_NOMES[p]||p);
 }
-var CLI_NOMES={hon:'Honorários',obr:'Obrigações',age:'Agendamentos',doc:'Documentos',inf:'Informativos',notas:'Notas Fiscais'};
+var CLI_NOMES={dados:'Meus Dados',hon:'Honorários',obr:'Obrigações',age:'Agendamentos',doc:'Documentos',inf:'Informativos',notas:'Notas Fiscais'};
 function aplicarFocoCliente(){
   var c=new URLSearchParams(location.search).get('c'); if(!c) return;
   document.body.classList.add('foco');
@@ -1990,6 +2063,7 @@ async function initAppAdmin(){
     await carregarInformativos();
     await carregarHonorarios();
     await carregarNotas();
+    await carregarDados();
     await carregarDocs();
     await carregarSolicitacoes();
     await carregarFinanceiro();
@@ -2023,6 +2097,7 @@ async function renderClientePortal(nome){
     +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade</p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
     +'<div class="cli-atalhos">'
+      +'<button onclick="abrirCli(\'dados\')">📑 Meus Dados</button>'
       +'<button onclick="abrirCli(\'hon\')">💳 Honorários</button>'
       +'<button onclick="abrirCli(\'obr\')">📋 Obrigações</button>'
       +'<button onclick="abrirCli(\'age\')">📅 Agenda</button>'
@@ -2032,7 +2107,8 @@ async function renderClientePortal(nome){
     +'</div>'
     +'<div class="cli-grid">'
       +'<div class="cli-left">'
-        +'<div class="cli-sec" id="sec-hon"><div class="asec">💳 Honorários</div><div id="cli-hon"></div></div>'
+        +'<div class="cli-sec" id="sec-dados"><div class="asec">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
+        +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon"></div></div>'
         +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
         +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
         +'<div class="cli-sec" id="sec-doc"><div class="asec" style="margin-top:12px">📄 Documentos</div><div id="cli-doc"></div></div>'
@@ -2066,6 +2142,7 @@ async function renderClientePortal(nome){
     +'</div>'
     +'<div class="botnav">'
       +'<button data-go="cli-topo" onclick="cliGo(\'cli-topo\',this)"><span class="bn-i">🏠</span>Início</button>'
+      +'<button data-go="sec-dados" onclick="cliGo(\'sec-dados\',this)"><span class="bn-i">📑</span>Dados</button>'
       +'<button data-go="sec-hon" onclick="cliGo(\'sec-hon\',this)"><span class="bn-i">💳</span>Honorários</button>'
       +'<button data-go="sec-notas" onclick="cliGo(\'sec-notas\',this)"><span class="bn-i">🧾</span>Notas</button>'
       +'<button data-go="sec-sol" onclick="cliGo(\'sec-sol\',this)"><span class="bn-i">✉️</span>Falar</button>'
@@ -2112,6 +2189,20 @@ async function renderClientePortal(nome){
     cnf.innerHTML = nts.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma nota fiscal.</div>';
     nts.slice().reverse().forEach(function(n){ var fechada=/fechad/i.test(n.status||''); var sc=fechada?'tp':'tn'; var st=fechada?'✔ Fechada':'📂 Aberta'; var ttxt=n.tipo==='Envio'?'📥 Recebida do escritório':'📤 Enviada por você'; var arq=n.arquivoData?(' · <a href="'+blobUrl(n.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 abrir</a>'):'';
       cnf.innerHTML+='<div class="lcard"><div class="lcico lc-pu">🧾</div><div class="lcinfo"><strong>NF '+esc(n.numero||'')+' · '+ttxt+'</strong><span>'+(n.valor?('R$ '+esc(n.valor)+' · '):'')+esc(n.descricao||'')+arq+'</span></div><span class="tag '+sc+'">'+st+'</span></div>'; });
+  }
+  // Dados Cadastrais (somente leitura + copiar)
+  const cdd=document.getElementById('cli-dados');
+  if(cdd){ var dd=await getMine('dados',nome); var x=dd[0];
+    if(!x){ cdd.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Seus dados cadastrais ainda não foram preenchidos pelo escritório.</div>'; }
+    else {
+      var campos=[['Razão Social',x.razaoSocial],['Nome Fantasia',x.fantasia],['CNPJ',x.cnpj],['Inscrição Estadual',x.ie],['Inscrição Municipal',x.im],['E-mail',x.email],['Telefone',x.telefone],['Regime',x.regime],['CNAE / Atividade',x.cnae],['Abertura',x.abertura],['Sócio / Responsável',x.socio],['Endereço',x.endereco],['Observações',x.obs]];
+      var h='<div class="lcard" style="flex-direction:column;align-items:stretch;gap:0;cursor:default">';
+      campos.forEach(function(c){ if(!c[1])return; var safe=esc(String(c[1])); var enc=encodeURIComponent(String(c[1]));
+        h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><div style="font-size:9px;color:var(--cinza)">'+c[0]+'</div><div style="font-size:12px;color:#fff;word-break:break-word">'+safe+'</div></div><button class="btn-sm" onclick="copiarTexto(decodeURIComponent(\''+enc+'\'))">📋 Copiar</button></div>';
+      });
+      h+='</div>';
+      cdd.innerHTML=h;
+    }
   }
   await renderSolicitacoesCliente();
   await renderArquivosCliente();
