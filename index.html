@@ -425,9 +425,9 @@ body.foco .cli-top{display:none}
   </div>
 </div>
 <div id="apchat" class="apchat" style="display:none">
-  <div class="apchat-head"><span>💬 Assistente Aparat</span><span class="apchat-x" onclick="toggleChat()">✕</span></div>
+  <div class="apchat-head"><span>💬 Assistente Aparat</span><span style="display:flex;gap:13px;align-items:center"><span id="voz-btn" title="Ativar/desativar voz do assistente" style="cursor:pointer;font-size:15px" onclick="toggleVoz()">🔊</span><span class="apchat-x" onclick="toggleChat()">✕</span></span></div>
   <div class="apchat-msgs" id="apchat-msgs"></div>
-  <div class="apchat-input"><input id="apchat-in" placeholder="Digite sua dúvida..." onkeydown="if(event.key==='Enter')enviarChat()"/><button onclick="enviarChat()">➤</button></div>
+  <div class="apchat-input"><input id="apchat-in" placeholder="Digite ou fale sua dúvida..." onkeydown="if(event.key==='Enter')enviarChat()"/><button id="mic-btn" title="Falar (microfone)" onclick="ouvirVoz()" style="padding:0 12px">🎤</button><button onclick="enviarChat()">➤</button></div>
 </div>
 <div id="aparat-bot" class="apbot">
   <div class="apbot-bubble" onclick="toggleChat()" style="cursor:pointer"><span id="sync-msg">Toque em mim 💬 para tirar dúvidas sobre o app ou contabilidade.</span></div>
@@ -1886,17 +1886,44 @@ async function infoImagem(id){
 function _norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
 function saudacaoHora(){ var h; try{ h=parseInt(new Intl.DateTimeFormat('pt-BR',{hour:'numeric',hour12:false,timeZone:'America/Sao_Paulo'}).format(new Date()),10); }catch(e){ h=new Date().getHours(); } if(isNaN(h))h=new Date().getHours(); if(h<12)return'Bom dia'; if(h<18)return'Boa tarde'; return'Boa noite'; }
 function saudarUsuario(nome){ var s=document.getElementById('sync-msg'); if(s){ s.textContent=saudacaoHora()+(nome?(', '+nome):'')+'! 👋 Toque em mim para tirar dúvidas.'; } var bot=document.getElementById('aparat-bot'); if(bot){ bot.classList.remove('pop'); void bot.offsetWidth; bot.classList.add('pop'); } }
+/* ===== VOZ DO ASSISTENTE (fala + microfone) ===== */
+if(typeof window.__voz==='undefined') window.__voz=true;
+function _stripHtml(h){ var d=document.createElement('div'); d.innerHTML=h||''; var t=(d.textContent||d.innerText||''); return t.replace(/ℹ️[\s\S]*$/,'').replace(/\s+/g,' ').trim(); }
+function falarTexto(h){
+  try{ if(!window.__voz||!('speechSynthesis' in window))return; var txt=_stripHtml(h); if(!txt)return;
+    speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(txt); u.lang='pt-BR'; u.rate=1.02; u.pitch=1;
+    var vs=speechSynthesis.getVoices(); var pt=vs.filter(function(v){return /pt[-_]?BR/i.test(v.lang);})[0]||vs.filter(function(v){return /^pt/i.test(v.lang);})[0]; if(pt)u.voice=pt;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function toggleVoz(){
+  window.__voz=!window.__voz; var b=document.getElementById('voz-btn'); if(b)b.textContent=window.__voz?'🔊':'🔇';
+  if(window.__voz){ falarTexto('Voz ativada.'); } else { try{speechSynthesis.cancel();}catch(e){} }
+  notif(window.__voz?'🔊 Voz do assistente ativada':'🔇 Voz desativada','info');
+}
+function ouvirVoz(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ notif('Para falar, use o app no Google Chrome.','warn'); return; }
+  try{ var rec=new SR(); rec.lang='pt-BR'; rec.interimResults=false; rec.maxAlternatives=1;
+    var mic=document.getElementById('mic-btn'); if(mic)mic.textContent='🔴';
+    rec.onresult=function(e){ var txt=e.results[0][0].transcript||''; var i=document.getElementById('apchat-in'); if(i){ i.value=txt; enviarChat(); } };
+    rec.onerror=function(){ notif('Não consegui ouvir. Toque no 🎤 e fale de novo.','warn'); };
+    rec.onend=function(){ var m=document.getElementById('mic-btn'); if(m)m.textContent='🎤'; };
+    rec.start();
+  }catch(e){ notif('Não foi possível ativar o microfone.','warn'); }
+}
+if('speechSynthesis' in window){ try{ speechSynthesis.onvoiceschanged=function(){}; }catch(e){} }
 function toggleChat(){
   var c=document.getElementById('apchat'); if(!c)return;
   var abrir=(c.style.display==='none'||!c.style.display);
   c.style.display=abrir?'flex':'none';
-  if(abrir && !c.dataset.init){ c.dataset.init='1'; botMsg(saudacaoHora()+'! 😊 Sou o assistente da <b>Aparat Contabilidade</b>'+(CURRENT_CLIENTE?(', '+esc((CURRENT_CLIENTE||'').split(' ')[0])):'')+'. Posso ajudar com o uso do app e dar orientações gerais de contabilidade. Como posso ajudar?'); mostrarChips(); }
+  if(abrir && !c.dataset.init){ c.dataset.init='1'; var _ola=saudacaoHora()+'! 😊 Sou o assistente da <b>Aparat Contabilidade</b>'+(CURRENT_CLIENTE?(', '+esc((CURRENT_CLIENTE||'').split(' ')[0])):'')+'. Posso ajudar com o uso do app e dar orientações gerais de contabilidade. Como posso ajudar?'; botMsg(_ola); falarTexto(_ola); mostrarChips(); }
   if(abrir){ var i=document.getElementById('apchat-in'); if(i) i.focus(); }
 }
 function botMsg(t){ var m=document.getElementById('apchat-msgs'); if(!m)return; var d=document.createElement('div'); d.className='apmsg bot'; d.innerHTML=t; m.appendChild(d); m.scrollTop=m.scrollHeight; }
 function userMsg(t){ var m=document.getElementById('apchat-msgs'); if(!m)return; var d=document.createElement('div'); d.className='apmsg user'; d.textContent=t; m.appendChild(d); m.scrollTop=m.scrollHeight; }
 function mostrarChips(){ var m=document.getElementById('apchat-msgs'); if(!m)return; var d=document.createElement('div'); d.className='apchat-chips'; ['Quanto devo de honorário?','Quando vence minha guia?','Como envio um arquivo?','Meus agendamentos'].forEach(function(c){ var b=document.createElement('span'); b.className='apchat-chip'; b.textContent=c; b.onclick=function(){ document.getElementById('apchat-in').value=c; enviarChat(); }; d.appendChild(b); }); m.appendChild(d); m.scrollTop=m.scrollHeight; }
-async function enviarChat(){ var inp=document.getElementById('apchat-in'); if(!inp)return; var q=(inp.value||'').trim(); if(!q)return; userMsg(q); inp.value=''; botMsg('<i>digitando...</i>'); var msgs=document.getElementById('apchat-msgs'); var r; try{ r=await responderAssistente(q); }catch(e){ r='Tive um probleminha aqui. Tente de novo ou fale com a Aparat: (16) 98869-9203.'; } var last=msgs.querySelector('.apmsg.bot:last-child'); if(last) last.innerHTML=r; else botMsg(r); msgs.scrollTop=msgs.scrollHeight; }
+async function enviarChat(){ var inp=document.getElementById('apchat-in'); if(!inp)return; var q=(inp.value||'').trim(); if(!q)return; userMsg(q); inp.value=''; botMsg('<i>digitando...</i>'); var msgs=document.getElementById('apchat-msgs'); var r; try{ r=await responderAssistente(q); }catch(e){ r='Tive um probleminha aqui. Tente de novo ou fale com a Aparat: (16) 98869-9203.'; } var last=msgs.querySelector('.apmsg.bot:last-child'); if(last) last.innerHTML=r; else botMsg(r); msgs.scrollTop=msgs.scrollHeight; falarTexto(r); }
 async function responderAssistente(q){
   var t=_norm(q); var nome=(typeof CURRENT_CLIENTE!=='undefined'&&CURRENT_CLIENTE)?CURRENT_CLIENTE:'';
   var disc='<br><span style="font-size:10px;color:#5566aa">ℹ️ Orientação geral e automática — não substitui a análise da Aparat para o seu caso.</span>';
