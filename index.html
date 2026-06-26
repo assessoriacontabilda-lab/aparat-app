@@ -421,7 +421,8 @@ body.foco .cli-top{display:none}
     <div class="fg" style="margin-bottom:10px"><label>Senha</label><input id="login-senha" type="password" placeholder="sua senha" onkeydown="if(event.key==='Enter')entrar()"/></div>
     <div id="login-erro" style="color:#ef4444;font-size:10px;margin-bottom:8px;min-height:13px"></div>
     <button class="btn btn-az" style="width:100%" onclick="entrar()">Entrar</button>
-    <div style="margin-top:12px;text-align:center;font-size:10px;color:#9090b8">Primeiro acesso do administrador?<br><a style="color:#5577ff;cursor:pointer" onclick="criarAdmin()">Criar minha conta de administrador</a></div>
+    <div style="margin-top:10px;text-align:center"><a style="color:#9aa3cc;cursor:pointer;font-size:11px" onclick="esqueciSenha()">🔑 Esqueci minha senha</a></div>
+    <div style="margin-top:10px;text-align:center;font-size:10px;color:#9090b8">Primeiro acesso do administrador?<br><a style="color:#5577ff;cursor:pointer" onclick="criarAdmin()">Criar minha conta de administrador</a></div>
   </div>
 </div>
 <div id="apchat" class="apchat" style="display:none">
@@ -537,6 +538,7 @@ body.foco .cli-top{display:none}
         <button class="btn btn-az" onclick="cadastrarCliente()">💾 Cadastrar Cliente</button>
       </div>
       <div class="sec">👥 Clientes Cadastrados <span id="cli-count" style="font-size:10px;color:var(--cinza);font-weight:400"></span></div>
+      <div class="fg" style="margin-bottom:8px"><input id="busca-cli" type="text" placeholder="🔎 Buscar cliente por nome, CNPJ, regime..." onkeyup="filtrarClientes()"/></div>
       <div class="tbox"><table>
         <thead><tr><th>Empresa</th><th>CNPJ</th><th>Regime</th><th>Honorário</th><th>Status</th><th>Ação</th></tr></thead>
         <tbody id="tb-clientes"></tbody>
@@ -893,9 +895,18 @@ body.foco .cli-top{display:none}
       <div class="segr"><div class="si">🛡️</div><div class="st"><strong>SSL/TLS Ativo</strong><span>Dados criptografados ponta a ponta</span></div><span class="sok">✔ Ativo</span></div>
       <div class="segr"><div class="si">🔐</div><div class="st"><strong>Autenticação 2FA</strong><span>Login protegido</span></div><span class="sok">✔ Ativo</span></div>
       <div class="segr"><div class="si">🦠</div><div class="st"><strong>Proteção contra Vírus</strong><span>Nenhuma ameaça detectada</span></div><span class="sok">✔ Seguro</span></div>
-      <div class="segr"><div class="si">💾</div><div class="st"><strong>Backup Automático</strong><span>Último backup: hoje às 04:00</span></div><span class="sok">✔ OK</span></div>
+      <div class="segr"><div class="si">💾</div><div class="st"><strong>Backup dos Dados</strong><span>Faça sua cópia de segurança no botão abaixo</span></div><span class="sok">⬇️ Manual</span></div>
       <div class="segr"><div class="si">📡</div><div class="st"><strong>Comunicação Criptografada</strong><span>E2E em todas as notificações</span></div><span class="sok">✔ Ativo</span></div>
       <div class="segr"><div class="si">🔄</div><div class="st"><strong>Sincronização em Tempo Real</strong><span>Escritório ↔ Cliente online</span></div><span class="sok">✔ Online</span></div>
+
+      <div class="sec" style="margin-top:18px">💾 Backup / Exportação dos Dados</div>
+      <div class="fbox">
+        <div style="font-size:11px;color:var(--cinza);margin-bottom:10px">Baixe uma cópia de segurança de todos os dados do sistema (clientes, honorários, obrigações, notas, cadastros etc.). Guarde o arquivo em local seguro. Recomendado fazer toda semana.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-az" onclick="exportarBackup('json')">⬇️ Backup completo (.json)</button>
+          <button class="btn" style="background:var(--card);border:1px solid var(--border);color:#fff" onclick="exportarBackup('csv')">📊 Exportar clientes/honorários (.csv)</button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -2023,6 +2034,44 @@ async function criarAdmin(){
   catch(e){ if(e.code==='auth/email-already-in-use'){ entrar(); } else { loginErro(msgAuth(e.code)); } }
 }
 function sair(){ if(auth) auth.signOut(); }
+/* ===== BACKUP / EXPORTAÇÃO (admin) ===== */
+function _csvv(v){ v=(v==null?'':String(v)).replace(/"/g,'""').replace(/;/g,','); return v; }
+function _baixarArq(blob,nome){ var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500); }
+async function exportarBackup(fmt){
+  if(CURRENT_ROLE!=='admin'){notif('Apenas o administrador.','warn');return;}
+  notif('Gerando backup...','info');
+  var cols=['clientes','dados','obrigacoes','honorarios','notas','agenda','urgencias','informativos','docs','solicitacoes','financeiro','enviosCliente'];
+  try{
+    var all={}; for(var i=0;i<cols.length;i++){ try{ all[cols[i]]=await dbGetAll(cols[i]); }catch(e){ all[cols[i]]=[]; } }
+    var stamp=new Date().toISOString().slice(0,10);
+    if(fmt==='json'){
+      var blob=new Blob([JSON.stringify({app:'Aparat Contabilidade',gerado:new Date().toLocaleString('pt-BR'),dados:all},null,2)],{type:'application/json'});
+      _baixarArq(blob,'backup-aparat-'+stamp+'.json');
+    } else {
+      var csv='CLIENTES\nNome;CNPJ;Regime;Honorário;E-mail\n';
+      (all.clientes||[]).forEach(function(c){ csv+=[c.nome,c.cnpj,c.regime,c.honorario,c.email].map(_csvv).join(';')+'\n'; });
+      csv+='\nHONORÁRIOS\nCliente;Referência;Valor;Vencimento;Status;Recebido\n';
+      (all.honorarios||[]).forEach(function(h){ csv+=[h.cliente,h.referencia,h.valor,h.vencimento,h.status,(h.valorRecebido!=null?h.valorRecebido:'')].map(_csvv).join(';')+'\n'; });
+      _baixarArq(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}),'clientes-honorarios-'+stamp+'.csv');
+    }
+    notif('✅ Backup gerado! Veja sua pasta Downloads.','success');
+  }catch(e){ notif('Erro ao gerar backup: '+(e.message||''),'warn'); }
+}
+/* ===== LGPD / privacidade ===== */
+function politicaPrivacidade(){
+  alert('POLÍTICA DE PRIVACIDADE — Aparat Contabilidade\n\nColetamos e tratamos seus dados (nome, CNPJ, e-mail, documentos e informações fiscais) exclusivamente para a prestação dos serviços de contabilidade contratados, conforme a Lei Geral de Proteção de Dados (LGPD - Lei 13.709/2018).\n\n• Seus dados são armazenados de forma segura e criptografada.\n• Você acessa apenas as suas próprias informações.\n• Não compartilhamos seus dados com terceiros, exceto quando exigido por obrigação legal (órgãos fiscais).\n• Você pode solicitar a qualquer momento acesso, correção ou exclusão dos seus dados.\n\nContato do responsável: Daniel de Andrade Silva — (16) 98869-9203.');
+}
+function aceitarLGPD(){ try{ localStorage.setItem('lgpd_ok','1'); }catch(e){} var b=document.getElementById('lgpd-bar'); if(b)b.remove(); notif('Obrigado! Consentimento registrado.','info'); }
+/* ===== busca de clientes ===== */
+function filtrarClientes(){ var q=(document.getElementById('busca-cli')||{}).value||''; q=q.toLowerCase(); var tb=document.getElementById('tb-clientes'); if(!tb)return; tb.querySelectorAll('tr').forEach(function(tr){ tr.style.display=(tr.textContent.toLowerCase().indexOf(q)>-1)?'':'none'; }); }
+async function esqueciSenha(){
+  if(!auth){ loginErro('Recuperação disponível só no modo nuvem.'); return; }
+  var email=val('login-email');
+  if(!email){ loginErro('Digite seu e-mail acima e toque em "Esqueci minha senha".'); var i=document.getElementById('login-email'); if(i)i.focus(); return; }
+  loginErro('Enviando link de recuperação...');
+  try{ await auth.sendPasswordResetEmail(email); loginErro(''); notif('📧 Enviamos um link para redefinir sua senha em '+email+'. Veja sua caixa de entrada (e o spam).','success'); }
+  catch(e){ loginErro(msgAuth(e.code)||'Não foi possível enviar. Confira o e-mail.'); }
+}
 
 async function criarAcessoCliente(){
   if(CURRENT_ROLE!=='admin'){notif('Apenas o administrador pode criar acessos.','warn');return;}
@@ -2165,8 +2214,10 @@ async function renderClientePortal(nome){
         +'</div>'
       +'</div>'
     +'</div>'
-    +'<div style="text-align:center;padding:16px 0 4px;font-size:9px;color:#33335a">Aparat Contabilidade · '+CNPJ_TXT+' · (16) 98869-9203</div>'
+    +'<div style="text-align:center;padding:16px 0 2px;font-size:9px;color:#33335a">Aparat Contabilidade · '+CNPJ_TXT+' · (16) 98869-9203</div>'
+    +'<div style="text-align:center;padding:0 0 4px;font-size:9px;color:#33335a">🔒 Tratamos seus dados conforme a LGPD · <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">Política de Privacidade</a></div>'
     +'</div>'
+    +((function(){try{return localStorage.getItem(\'lgpd_ok\')!=='1';}catch(e){return false;}})()? '<div id="lgpd-bar" style="position:fixed;left:0;right:0;bottom:58px;z-index:55;background:#12122a;border-top:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:11px;color:#cfd3ee"><span style="flex:1">Ao usar o app, você concorda com o tratamento dos seus dados conforme a <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">LGPD</a>.</span><button class="btn btn-az" style="padding:6px 14px" onclick="aceitarLGPD()">OK</button></div>':'')
     +'<div class="botnav">'
       +'<button data-go="cli-topo" onclick="cliGo(\'cli-topo\',this)"><span class="bn-i">🏠</span>Início</button>'
       +'<button data-go="sec-dados" onclick="cliGo(\'sec-dados\',this)"><span class="bn-i">📑</span>Dados</button>'
