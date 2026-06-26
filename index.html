@@ -2061,6 +2061,7 @@ async function exportarBackup(fmt){
 function politicaPrivacidade(){
   alert('POLÍTICA DE PRIVACIDADE — Aparat Contabilidade\n\nColetamos e tratamos seus dados (nome, CNPJ, e-mail, documentos e informações fiscais) exclusivamente para a prestação dos serviços de contabilidade contratados, conforme a Lei Geral de Proteção de Dados (LGPD - Lei 13.709/2018).\n\n• Seus dados são armazenados de forma segura e criptografada.\n• Você acessa apenas as suas próprias informações.\n• Não compartilhamos seus dados com terceiros, exceto quando exigido por obrigação legal (órgãos fiscais).\n• Você pode solicitar a qualquer momento acesso, correção ou exclusão dos seus dados.\n\nContato do responsável: Daniel de Andrade Silva — (16) 98869-9203.');
 }
+function _lgpdPendente(){ try{ return localStorage.getItem('lgpd_ok')!=='1'; }catch(e){ return false; } }
 function aceitarLGPD(){ try{ localStorage.setItem('lgpd_ok','1'); }catch(e){} var b=document.getElementById('lgpd-bar'); if(b)b.remove(); notif('Obrigado! Consentimento registrado.','info'); }
 /* ===== busca de clientes ===== */
 function filtrarClientes(){ var q=(document.getElementById('busca-cli')||{}).value||''; q=q.toLowerCase(); var tb=document.getElementById('tb-clientes'); if(!tb)return; tb.querySelectorAll('tr').forEach(function(tr){ tr.style.display=(tr.textContent.toLowerCase().indexOf(q)>-1)?'':'none'; }); }
@@ -2217,7 +2218,7 @@ async function renderClientePortal(nome){
     +'<div style="text-align:center;padding:16px 0 2px;font-size:9px;color:#33335a">Aparat Contabilidade · '+CNPJ_TXT+' · (16) 98869-9203</div>'
     +'<div style="text-align:center;padding:0 0 4px;font-size:9px;color:#33335a">🔒 Tratamos seus dados conforme a LGPD · <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">Política de Privacidade</a></div>'
     +'</div>'
-    +((function(){try{return localStorage.getItem(\'lgpd_ok\')!=='1';}catch(e){return false;}})()? '<div id="lgpd-bar" style="position:fixed;left:0;right:0;bottom:58px;z-index:55;background:#12122a;border-top:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:11px;color:#cfd3ee"><span style="flex:1">Ao usar o app, você concorda com o tratamento dos seus dados conforme a <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">LGPD</a>.</span><button class="btn btn-az" style="padding:6px 14px" onclick="aceitarLGPD()">OK</button></div>':'')
+    +(_lgpdPendente()? '<div id="lgpd-bar" style="position:fixed;left:0;right:0;bottom:58px;z-index:55;background:#12122a;border-top:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:11px;color:#cfd3ee"><span style="flex:1">Ao usar o app, você concorda com o tratamento dos seus dados conforme a <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">LGPD</a>.</span><button class="btn btn-az" style="padding:6px 14px" onclick="aceitarLGPD()">OK</button></div>':'')
     +'<div class="botnav">'
       +'<button data-go="cli-topo" onclick="cliGo(\'cli-topo\',this)"><span class="bn-i">🏠</span>Início</button>'
       +'<button data-go="sec-dados" onclick="cliGo(\'sec-dados\',this)"><span class="bn-i">📑</span>Dados</button>'
