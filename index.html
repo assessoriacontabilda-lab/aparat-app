@@ -20,7 +20,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --azul:#3333FF;--azul2:#2222cc;--azul-light:#5577ff;
+  --azul:#4f7cff;--azul2:#3a5bd9;--azul-light:#7fa0ff;
   --escuro:#0a0a18;--card:#12122a;--card2:#1a1a35;--border:#222248;
   --branco:#fff;--cinza:#9090b8;--verde:#22c55e;--vermelho:#ef4444;--laranja:#f59e0b;
 }
@@ -377,12 +377,7 @@ body.foco .cli-top{display:none}
 <div id="splash">
   <div class="sp-logo">
     <div class="sp-ring">
-      <svg width="68" height="68" viewBox="0 0 200 200">
-        <polygon points="100,18 158,155 130,155 100,78 70,155 42,155" fill="white"/>
-        <polygon points="76,118 124,118 116,140 84,140" fill="#07071a"/>
-        <path d="M 38,148 Q 82,178 132,132" stroke="#3333FF" stroke-width="12" fill="none" stroke-linecap="round"/>
-        <polygon points="126,118 140,135 118,138" fill="#3333FF"/>
-      </svg>
+      <img src="icone-aparat.png" width="80" height="80" style="border-radius:20px" alt="Aparat"/>
     </div>
   </div>
   <div style="margin-top:14px;font-size:20px;font-weight:800">Aparat Contabilidade</div>
@@ -394,12 +389,7 @@ body.foco .cli-top{display:none}
 <!-- TOP -->
 <div class="top-switch">
   <div class="ts-logo">
-    <svg width="26" height="26" viewBox="0 0 200 200">
-      <polygon points="100,18 158,155 130,155 100,78 70,155 42,155" fill="white"/>
-      <polygon points="76,118 124,118 116,140 84,140" fill="#0a0a18"/>
-      <path d="M 38,148 Q 82,178 132,132" stroke="#3333FF" stroke-width="12" fill="none" stroke-linecap="round"/>
-      <polygon points="126,118 140,135 118,138" fill="#3333FF"/>
-    </svg>
+    <img src="icone-aparat.png" width="30" height="30" style="border-radius:8px" alt="Aparat"/>
     <div><span>Aparat Contabilidade</span><small>Daniel de Andrade Silva · CRC</small></div>
   </div>
   <div class="switcher">
@@ -413,7 +403,7 @@ body.foco .cli-top{display:none}
 <div id="login-screen" style="position:fixed;inset:0;z-index:10000;background:linear-gradient(160deg,#07071a,#0d0d2e);display:none;align-items:center;justify-content:center;padding:20px">
   <div style="width:340px;max-width:92vw;background:#12122a;border:1px solid #222248;border-radius:16px;padding:24px">
     <div style="text-align:center;margin-bottom:16px">
-      <svg width="46" height="46" viewBox="0 0 200 200"><polygon points="100,18 158,155 130,155 100,78 70,155 42,155" fill="white"/><polygon points="76,118 124,118 116,140 84,140" fill="#0a0a18"/><path d="M 38,148 Q 82,178 132,132" stroke="#3333FF" stroke-width="12" fill="none" stroke-linecap="round"/><polygon points="126,118 140,135 118,138" fill="#3333FF"/></svg>
+      <img src="icone-aparat.png" width="58" height="58" style="border-radius:15px" alt="Aparat"/>
       <div style="font-size:18px;font-weight:800;margin-top:6px;color:#fff">Aparat Contabilidade</div>
       <div style="font-size:10px;color:#5577ff;letter-spacing:1px;text-transform:uppercase">Acesso ao sistema</div>
     </div>
@@ -462,6 +452,7 @@ body.foco .cli-top{display:none}
       <div class="nav-item active" onclick="navAba('dash',this)"><span class="ni">📊</span>Dashboard</div>
       <div class="nav-item" onclick="navAba('clientes',this)"><span class="ni">👥</span>Clientes</div>
       <div class="nav-item" onclick="navAba('dados',this)"><span class="ni">📑</span>Dados Cadastrais</div>
+      <div class="nav-item" onclick="navAba('faturamento',this)"><span class="ni">📈</span>Faturamento</div>
       <div class="nav-item" onclick="navAba('obrig',this)"><span class="ni">📋</span>Obrigações</div>
       <div class="nav-item" onclick="navAba('honorarios',this)"><span class="ni">💳</span>Honorários</div>
       <div class="nav-item" onclick="navAba('notas',this)"><span class="ni">🧾</span>Notas Fiscais<span class="nav-dot" id="dot-notas"></span></div>
@@ -676,6 +667,30 @@ body.foco .cli-top{display:none}
               <td><span class="tag tn" id="hon-padaria-status">⏳ Pendente</span></td>
             </tr>
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- FATURAMENTO -->
+    <div class="ppage" id="pp-faturamento">
+      <div class="fbox">
+        <div class="ftitle">📈 Controle de Faturamento — lançar mês</div>
+        <div style="background:#07071a;border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:10px;color:var(--cinza)">Lance o faturamento e a despesa de cada mês. O limite é automático pelo tipo (MEI R$ 81.000 · ME R$ 360.000 · EPP R$ 4.800.000). O cliente vê tudo e pode baixar o relatório com sua logo.</div>
+        <div class="fgrid">
+          <div class="fg"><label>Cliente</label><select id="fat-cli"></select></div>
+          <div class="fg"><label>Tipo da empresa</label><select id="fat-tipo"><option value="MEI">MEI — R$ 81.000</option><option value="ME">ME — R$ 360.000</option><option value="EPP">EPP — R$ 4.800.000</option></select></div>
+          <div class="fg"><label>Mês de referência</label><input id="fat-mes" type="month"/></div>
+          <div class="fg"><label>Faturamento do mês (R$)</label><input id="fat-fat" type="text" placeholder="0,00"/></div>
+          <div class="fg"><label>Despesas do mês (R$)</label><input id="fat-desp" type="text" placeholder="0,00"/></div>
+        </div>
+        <div class="fg" style="margin-top:8px"><label>Observações do mês (opcional)</label><input id="fat-obs" type="text" placeholder="Ex: pico de vendas, mês fraco..."/></div>
+        <button class="btn btn-az" id="fat-btn" onclick="salvarFaturamento()" style="width:100%;margin-top:10px">💾 Lançar / Salvar mês</button>
+      </div>
+      <div class="sec">📈 Lançamentos por Cliente</div>
+      <div class="tbox">
+        <table>
+          <thead><tr><th>Cliente</th><th>Tipo</th><th>Mês</th><th>Faturamento</th><th>Despesa</th><th>Resultado</th><th>Ações</th></tr></thead>
+          <tbody id="fat-tbody"><tr><td colspan="7" style="color:var(--cinza)">Nenhum lançamento.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -919,12 +934,7 @@ body.foco .cli-top{display:none}
     <div class="sbar"><span>09:41</span><span>📶🔋</span></div>
     <div class="aheader">
       <div class="alogo">
-        <svg width="24" height="24" viewBox="0 0 200 200">
-          <polygon points="100,18 158,155 130,155 100,78 70,155 42,155" fill="white"/>
-          <polygon points="76,118 124,118 116,140 84,140" fill="#0a0a18"/>
-          <path d="M 38,148 Q 82,178 132,132" stroke="#3333FF" stroke-width="12" fill="none" stroke-linecap="round"/>
-          <polygon points="126,118 140,135 118,138" fill="#3333FF"/>
-        </svg>
+        <img src="icone-aparat.png" width="26" height="26" style="border-radius:7px" alt="Aparat"/>
         <div><span>Aparat</span><small>Contabilidade</small></div>
       </div>
       <div class="aicons">
@@ -1211,6 +1221,7 @@ function attachRealtime(){
   fdb.collection('enviosCliente').onSnapshot(()=>carregarRecebidos(), ()=>{});
   fdb.collection('notas').onSnapshot(()=>carregarNotas(), ()=>{});
   fdb.collection('dados').onSnapshot(()=>carregarDados(), ()=>{});
+  fdb.collection('faturamento').onSnapshot(()=>carregarFaturamento(), ()=>{});
 }
 
 /* ----- LEMBRETE AUTOMÁTICO: extrato bancário PJ (todo dia 2) ----- */
@@ -1295,7 +1306,7 @@ async function excluirCliente(id){await dbDelete('clientes',id);notif('Cliente r
 
 async function atualizarSelects(){
   const cs=await dbGetAll('clientes');
-  ['ob-cli','hon-cli','nf-cli','dad-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
+  ['ob-cli','hon-cli','nf-cli','dad-cli','fat-cli','ag-cli','fin-cli','doc-cli','acc-cli'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;const v=s.value;s.innerHTML='';
     cs.forEach(c=>{const o=document.createElement('option');o.value=c.nome;o.textContent=c.nome;s.appendChild(o);});
     if(v)s.value=v;
@@ -1549,6 +1560,136 @@ function confirmarHonorario(){
   },1200);
 }
 
+/* ===================== FATURAMENTO ===================== */
+var FAT_LIMITES={MEI:81000,ME:360000,EPP:4800000};
+var editFatId=null;
+function _mesLabel(m){ if(!m)return''; var p=String(m).split('-'); var nm=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return (nm[parseInt(p[1],10)]||p[1])+'/'+(p[0]||''); }
+async function salvarFaturamento(){
+  var cli=val('fat-cli'); if(!cli){notif('⚠ Selecione o cliente','warn');return;}
+  var mes=val('fat-mes'); if(!mes){notif('⚠ Escolha o mês de referência','warn');return;}
+  var d={cliente:cli,tipo:val('fat-tipo'),mesRef:mes,faturamento:_num(val('fat-fat')),despesa:_num(val('fat-desp')),obs:val('fat-obs')};
+  try{
+    if(editFatId){ await dbUpdate('faturamento',editFatId,d); editFatId=null; var b=document.getElementById('fat-btn'); if(b)b.textContent='💾 Lançar / Salvar mês'; notif('✏️ Faturamento atualizado!'); }
+    else { await dbAdd('faturamento',d); notif('📈 Faturamento lançado!'); }
+    syncAnim('Faturamento → '+cli);
+    setVal('fat-fat','');setVal('fat-desp','');setVal('fat-obs','');
+    await carregarFaturamento();
+  }catch(e){ if((e.code||'').indexOf('permission')>-1){ notif('⚠ Publique a regra de "faturamento" no Firebase.','warn'); } else { notif('Erro: '+(e.code||e.message||''),'warn'); } }
+}
+async function carregarFaturamento(){
+  var tb=document.getElementById('fat-tbody'); if(!tb)return;
+  var fs=[]; try{ fs=await dbGetAll('faturamento'); }catch(e){ tb.innerHTML='<tr><td colspan="7" style="color:var(--laranja)">⚠ Publique a regra de "faturamento" no Firebase para ativar esta aba.</td></tr>'; return; }
+  if(!fs.length){tb.innerHTML='<tr><td colspan="7" style="color:var(--cinza)">Nenhum lançamento.</td></tr>';return;}
+  fs.sort(function(a,b){return (b.mesRef||'').localeCompare(a.mesRef||'');});
+  tb.innerHTML='';
+  fs.forEach(function(x){ var res=_num(x.faturamento)-_num(x.despesa);
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td>'+esc(x.tipo||'')+'</td><td>'+_mesLabel(x.mesRef)+'</td><td>'+_money(_num(x.faturamento))+'</td><td>'+_money(_num(x.despesa))+'</td><td style="color:'+(res>=0?'var(--verde)':'var(--vermelho)')+'">'+_money(res)+'</td>'+
+      '<td style="white-space:nowrap"><span style="cursor:pointer;margin-right:8px" title="Editar" onclick="editarFaturamento(\''+x.id+'\')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirFaturamento(\''+x.id+'\')">🗑️</span></td>';
+    tb.appendChild(tr);
+  });
+}
+async function editarFaturamento(id){
+  var fs=await dbGetAll('faturamento'); var x=fs.find(function(o){return String(o.id)===String(id);}); if(!x)return;
+  setVal('fat-cli',x.cliente||'');setVal('fat-tipo',x.tipo||'MEI');setVal('fat-mes',x.mesRef||'');setVal('fat-fat',String(x.faturamento||'').replace('.',','));setVal('fat-desp',String(x.despesa||'').replace('.',','));setVal('fat-obs',x.obs||'');
+  editFatId=id; var b=document.getElementById('fat-btn'); if(b)b.textContent='✏️ Salvar alterações';
+  var pg=document.getElementById('pp-faturamento'); if(pg)pg.scrollIntoView({behavior:'smooth'}); notif('Editando lançamento. Altere e salve.','info');
+}
+async function excluirFaturamento(id){ if(!confirm('Excluir este lançamento?'))return; await dbDelete('faturamento',id); notif('🗑️ Lançamento excluído.','info'); await carregarFaturamento(); }
+/* ---- cálculo do resumo de faturamento de um cliente (ano corrente) ---- */
+function _resumoFat(regs){
+  var ano=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',year:'numeric'}).format(new Date());
+  var doAno=regs.filter(function(r){return String(r.mesRef||'').slice(0,4)===ano;});
+  doAno.sort(function(a,b){return (a.mesRef||'').localeCompare(b.mesRef||'');});
+  var tipo=(doAno[doAno.length-1]||regs[regs.length-1]||{}).tipo||'MEI';
+  var limite=FAT_LIMITES[tipo]||81000;
+  var acumulado=0,despAno=0; doAno.forEach(function(r){acumulado+=_num(r.faturamento);despAno+=_num(r.despesa);});
+  var ultimo=doAno[doAno.length-1]||{}; var penultimo=doAno[doAno.length-2]||{};
+  var media=doAno.length?acumulado/doAno.length:0;
+  var pct=limite?Math.round(acumulado/limite*100):0;
+  // projeção: em quantos meses (no ritmo médio) atinge o limite
+  var restante=limite-acumulado; var proj='';
+  if(media>0){ if(restante<=0){ proj='Limite já atingido.'; } else { var meses=Math.ceil(restante/media); var dt=new Date(); dt.setMonth(dt.getMonth()+meses); proj='No ritmo atual, atinge o limite por volta de '+_mesLabel(dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'))+'.'; } }
+  else proj='Sem dados suficientes para projeção.';
+  return {ano:ano,tipo:tipo,limite:limite,acumulado:acumulado,despAno:despAno,media:media,pct:pct,ultimo:ultimo,penultimo:penultimo,proj:proj,meses:doAno};
+}
+function _fatCor(pct){ return pct>=100?'#ef4444':(pct>=80?'#f59e0b':'#34d27f'); }
+function _logoImg(){ return new Promise(function(res){ var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){res(img);}; img.onerror=function(){res(null);}; img.src='icone-aparat.png'; }); }
+async function renderFaturamentoCliente(nome){
+  var el=document.getElementById('cli-fat'); if(!el)return;
+  var regs=[]; try{ regs=await getMine('faturamento',nome); }catch(e){}
+  if(!regs.length){ el.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Seu controle de faturamento ainda não foi lançado pelo escritório.</div>'; return; }
+  var R=_resumoFat(regs); var u=R.ultimo||{}, p=R.penultimo||{};
+  var resMes=_num(u.faturamento)-_num(u.despesa); var cor=_fatCor(R.pct);
+  var alerta=R.pct>=100?('🔴 Limite ULTRAPASSADO! Fale com o escritório.'):(R.pct>=80?('⚠️ Atenção: você já usou '+R.pct+'% do limite ('+_money(R.limite)+').'):('✅ Dentro do limite ('+R.pct+'% usado).'));
+  var dif=_num(u.faturamento)-_num(p.faturamento);
+  var comp=p.mesRef?('Mês anterior ('+_mesLabel(p.mesRef)+'): '+_money(_num(p.faturamento))+' · '+(dif>=0?'▲ +':'▼ -')+_money(Math.abs(dif))):'Sem mês anterior para comparar.';
+  var maxv=Math.max.apply(null,R.meses.map(function(m){return _num(m.faturamento);}).concat([1]));
+  var bars=R.meses.slice(-6).map(function(m){ var h=Math.round(_num(m.faturamento)/maxv*68)+4; return '<div style="flex:1;text-align:center"><div style="background:var(--azul);height:'+h+'px;border-radius:4px"></div><div style="font-size:8px;color:#888;margin-top:3px">'+_mesLabel(m.mesRef).split('/')[0]+'</div></div>'; }).join('');
+  el.innerHTML=
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px">'
+     +'<div class="lcard" style="display:block;text-align:center;padding:10px;cursor:default"><div style="font-size:9px;color:var(--cinza)">Fat. '+_mesLabel(u.mesRef)+'</div><div style="font-size:13px;font-weight:800;color:var(--azul-light)">'+_money(_num(u.faturamento))+'</div></div>'
+     +'<div class="lcard" style="display:block;text-align:center;padding:10px;cursor:default"><div style="font-size:9px;color:var(--cinza)">Despesas</div><div style="font-size:13px;font-weight:800;color:var(--laranja)">'+_money(_num(u.despesa))+'</div></div>'
+     +'<div class="lcard" style="display:block;text-align:center;padding:10px;cursor:default"><div style="font-size:9px;color:var(--cinza)">Resultado</div><div style="font-size:13px;font-weight:800;color:'+(resMes>=0?'var(--verde)':'var(--vermelho)')+'">'+_money(resMes)+'</div></div>'
+    +'</div>'
+    +'<div class="lcard" style="display:block;padding:12px;margin-bottom:9px;cursor:default">'
+     +'<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:7px"><b>Limite anual — '+esc(R.tipo)+'</b><span style="color:var(--cinza)">'+_money(R.acumulado)+' / '+_money(R.limite)+'</span></div>'
+     +'<div style="height:13px;background:#0a0a18;border:1px solid var(--border);border-radius:9px;overflow:hidden"><div style="width:'+Math.min(100,R.pct)+'%;height:100%;background:'+cor+'"></div></div>'
+     +'<div style="margin-top:8px;font-size:11px;color:'+cor+'">'+alerta+'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px">'
+     +'<div class="lcard" style="display:block;padding:10px;cursor:default"><div style="font-size:9px;color:var(--cinza)">Total geral no ano</div><div style="font-size:14px;font-weight:800;color:var(--azul-light)">'+_money(R.acumulado)+'</div></div>'
+     +'<div class="lcard" style="display:block;padding:10px;cursor:default"><div style="font-size:9px;color:var(--cinza)">Média mensal</div><div style="font-size:14px;font-weight:800">'+_money(R.media)+'</div></div>'
+    +'</div>'
+    +'<div class="lcard" style="display:block;padding:12px;margin-bottom:9px;cursor:default"><div style="font-size:11px;font-weight:700;margin-bottom:8px">📊 Faturamento por mês</div><div style="display:flex;align-items:flex-end;gap:5px;height:82px">'+bars+'</div></div>'
+    +'<div class="lcard" style="display:block;padding:11px;margin-bottom:9px;cursor:default;font-size:11px;color:#cfd3ee">📌 <b>Comparativo:</b> '+comp+'<br>🔮 <b>Projeção:</b> '+esc(R.proj)+(u.obs?('<br>📝 <b>Obs:</b> '+esc(u.obs)):'')+'</div>'
+    +'<div style="display:flex;gap:7px"><button class="btn btn-az" style="flex:1" onclick="gerarFaturamentoPDF()">📄 Baixar PDF</button><button class="btn" style="flex:1;background:var(--card);border:1px solid var(--border);color:#fff" onclick="imagemFaturamento()">🖼️ Imagem</button></div>';
+}
+async function gerarFaturamentoPDF(){
+  var JS=window.jspdf?window.jspdf.jsPDF:null; if(!JS){ notif('Gerador de PDF ainda carregando.','warn'); return; }
+  var nome=CURRENT_CLIENTE||''; var regs=[]; try{ regs=await getMine('faturamento',nome); }catch(e){} if(!regs.length){notif('Sem dados de faturamento.','warn');return;}
+  var R=_resumoFat(regs); var u=R.ultimo||{};
+  var doc=new JS({unit:'pt',format:'a4'});
+  doc.setFillColor(79,124,255); doc.rect(0,0,595,72,'F');
+  var logo=await _logoImg(); try{ if(logo) doc.addImage(logo,'PNG',28,15,44,44); }catch(e){}
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.text('Aparat Contabilidade',84,34); doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('Controle de Faturamento',84,52);
+  doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Cliente: '+nome,30,108);
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); var y=140;
+  function ln(l,v){ doc.setTextColor(95,95,95); doc.text(l,30,y); doc.setTextColor(20,20,20); doc.text(String(v),270,y); y+=23; }
+  ln('Tipo / Limite anual:',R.tipo+' — '+_money(R.limite));
+  ln('Mês ('+_mesLabel(u.mesRef)+') faturamento:',_money(_num(u.faturamento)));
+  ln('Despesas do mês:',_money(_num(u.despesa)));
+  ln('Resultado do mês:',_money(_num(u.faturamento)-_num(u.despesa)));
+  ln('Total faturado no ano:',_money(R.acumulado));
+  ln('% do limite usado:',R.pct+'%');
+  ln('Média mensal:',_money(R.media));
+  y+=4; doc.setFont('helvetica','bold'); doc.text('Projeção:',30,y); y+=18; doc.setFont('helvetica','normal'); var pl=doc.splitTextToSize(R.proj||'',520); doc.text(pl,30,y); y+=pl.length*15+8;
+  if(u.obs){ doc.setFont('helvetica','bold'); doc.text('Observações:',30,y); y+=18; doc.setFont('helvetica','normal'); var ol=doc.splitTextToSize(String(u.obs),520); doc.text(ol,30,y); }
+  doc.setTextColor(120,120,120); doc.setFontSize(9); doc.text('Aparat Contabilidade · Daniel de Andrade Silva · (16) 98869-9203 · CNPJ 56.938.548/0001-31',30,812);
+  doc.save('faturamento-'+nome.replace(/\s+/g,'_')+'.pdf'); notif('📄 Relatório PDF gerado!','info');
+}
+async function imagemFaturamento(){
+  var nome=CURRENT_CLIENTE||''; var regs=[]; try{ regs=await getMine('faturamento',nome); }catch(e){} if(!regs.length){notif('Sem dados.','warn');return;}
+  var R=_resumoFat(regs); var u=R.ultimo||{};
+  var W=620,H=540,c=document.createElement('canvas'); c.width=W;c.height=H; var x=c.getContext('2d');
+  x.fillStyle='#0a0a18'; x.fillRect(0,0,W,H); x.fillStyle='#4f7cff'; x.fillRect(0,0,W,72);
+  var logo=await _logoImg(); try{ if(logo) x.drawImage(logo,16,13,46,46); }catch(e){}
+  x.fillStyle='#fff'; x.font='bold 22px Arial'; x.fillText('Aparat Contabilidade',78,35); x.font='13px Arial'; x.fillText('Controle de Faturamento',78,56);
+  x.fillStyle='#fff'; x.font='bold 17px Arial'; x.fillText(nome,20,108);
+  x.font='14px Arial'; var yy=144;
+  function ln(l,v,col){ x.fillStyle='#9aa3cc'; x.fillText(l,20,yy); x.fillStyle=col||'#fff'; x.fillText(String(v),320,yy); yy+=30; }
+  ln('Tipo / Limite:',R.tipo+' — '+_money(R.limite));
+  ln('Faturamento ('+_mesLabel(u.mesRef)+'):',_money(_num(u.faturamento)),'#7fa0ff');
+  ln('Despesas:',_money(_num(u.despesa)),'#f5b342');
+  ln('Resultado:',_money(_num(u.faturamento)-_num(u.despesa)),'#34d27f');
+  ln('Total no ano:',_money(R.acumulado),'#7fa0ff');
+  ln('% do limite:',R.pct+'%',_fatCor(R.pct));
+  x.fillStyle='#11112a'; x.fillRect(20,yy,W-40,18); x.fillStyle=_fatCor(R.pct); x.fillRect(20,yy,(W-40)*Math.min(1,R.pct/100),18); yy+=42;
+  x.fillStyle='#cfd3ee'; x.font='12px Arial'; x.fillText('Projeção: '+String(R.proj||'').slice(0,72),20,yy);
+  x.fillStyle='#44446a'; x.font='12px Arial'; x.fillText('Aparat Contabilidade · (16) 98869-9203 · CNPJ 56.938.548/0001-31',20,H-18);
+  var a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='faturamento-'+nome.replace(/\s+/g,'_')+'.png'; document.body.appendChild(a); a.click(); a.remove(); notif('🖼️ Imagem gerada!','info');
+}
+
 /* ===================== DADOS CADASTRAIS (escritório edita) ===================== */
 var DAD_CAMPOS=['razao','fant','cnpj','ie','im','email','tel','regime','cnae','abertura','socio','end','obs'];
 var editDadId=null;
@@ -1702,7 +1843,7 @@ async function montarPreviewApp(){
     +'<div class="phone" style="margin:4px auto 0">'
     +'<div class="notch"></div>'
     +'<div class="sbar"><span>09:41</span><span>📶🔋</span></div>'
-    +'<div class="aheader"><div class="alogo"><svg width="22" height="22" viewBox="0 0 200 200"><polygon points="100,18 158,155 130,155 100,78 70,155 42,155" fill="white"/><polygon points="76,118 124,118 116,140 84,140" fill="#0a0a18"/><path d="M 38,148 Q 82,178 132,132" stroke="#3333FF" stroke-width="12" fill="none" stroke-linecap="round"/></svg><div><span>Aparat</span><small>Contabilidade</small></div></div></div>'
+    +'<div class="aheader"><div class="alogo"><img src="icone-aparat.png" width="24" height="24" style="border-radius:7px"/><div><span>Aparat</span><small>Contabilidade</small></div></div></div>'
     +'<div class="acontent" style="padding:10px 11px"><div id="prev-portal"></div></div>'
     +'</div>'
     +'</div>';
@@ -1742,7 +1883,7 @@ function pPage(id,el){
   if(id==='notas') marcarVisto('notas','seen_notas','dot-notas');
 }
 /* ---- abrir cada função em nova aba focada (item 3) ---- */
-var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
+var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',faturamento:'Faturamento',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
 function navAba(id,el){
   if(document.body.classList.contains('foco')){ return; } // já está em aba focada
   try{ var w=window.open(location.pathname+'?p='+encodeURIComponent(id),'_blank'); if(!w){ pPage(id,el); } }
@@ -1750,7 +1891,7 @@ function navAba(id,el){
 }
 function _focoBar(nome){
   var bar=document.createElement('div'); bar.className='foco-bar';
-  bar.innerHTML='<div class="fb-logo">A</div><div><b>Aparat · '+nome+'</b><div class="fb-sub">Aparat Contabilidade · Daniel de Andrade Silva</div></div><button class="fb-x" onclick="window.close()">✖ Fechar aba</button>';
+  bar.innerHTML='<img src="icone-aparat.png" style="width:28px;height:28px;border-radius:7px;flex:0 0 auto"/><div><b>Aparat · '+nome+'</b><div class="fb-sub">Aparat Contabilidade · Daniel de Andrade Silva</div></div><button class="fb-x" onclick="window.close()">✖ Fechar aba</button>';
   return bar;
 }
 function aplicarFocoAdmin(){
@@ -1761,7 +1902,7 @@ function aplicarFocoAdmin(){
   var pg=document.getElementById('pp-'+p); if(pg){ pg.insertBefore(_focoBar(ABA_NOMES[p]||p), pg.firstChild); }
   document.title='Aparat · '+(ABA_NOMES[p]||p);
 }
-var CLI_NOMES={dados:'Meus Dados',hon:'Honorários',obr:'Obrigações',age:'Agendamentos',doc:'Documentos',inf:'Informativos',notas:'Notas Fiscais'};
+var CLI_NOMES={fat:'Faturamento',dados:'Meus Dados',hon:'Honorários',obr:'Obrigações',age:'Agendamentos',doc:'Documentos',inf:'Informativos',notas:'Notas Fiscais'};
 function aplicarFocoCliente(){
   var c=new URLSearchParams(location.search).get('c'); if(!c) return;
   document.body.classList.add('foco');
@@ -2141,6 +2282,7 @@ async function initAppAdmin(){
     await carregarHonorarios();
     await carregarNotas();
     await carregarDados();
+    await carregarFaturamento();
     await carregarDocs();
     await carregarSolicitacoes();
     await carregarFinanceiro();
@@ -2174,6 +2316,7 @@ async function renderClientePortal(nome){
     +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade</p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
     +'<div class="cli-atalhos">'
+      +'<button onclick="abrirCli(\'fat\')">📈 Faturamento</button>'
       +'<button onclick="abrirCli(\'dados\')">📑 Meus Dados</button>'
       +'<button onclick="abrirCli(\'hon\')">💳 Honorários</button>'
       +'<button onclick="abrirCli(\'obr\')">📋 Obrigações</button>'
@@ -2184,7 +2327,8 @@ async function renderClientePortal(nome){
     +'</div>'
     +'<div class="cli-grid">'
       +'<div class="cli-left">'
-        +'<div class="cli-sec" id="sec-dados"><div class="asec">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
+        +'<div class="cli-sec" id="sec-fat"><div class="asec">📈 Controle de Faturamento</div><div id="cli-fat"></div></div>'
+        +'<div class="cli-sec" id="sec-dados"><div class="asec" style="margin-top:12px">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
         +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon"></div></div>'
         +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
         +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
@@ -2221,11 +2365,10 @@ async function renderClientePortal(nome){
     +(_lgpdPendente()? '<div id="lgpd-bar" style="position:fixed;left:0;right:0;bottom:58px;z-index:55;background:#12122a;border-top:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:11px;color:#cfd3ee"><span style="flex:1">Ao usar o app, você concorda com o tratamento dos seus dados conforme a <a style="color:#5577ff;cursor:pointer" onclick="politicaPrivacidade()">LGPD</a>.</span><button class="btn btn-az" style="padding:6px 14px" onclick="aceitarLGPD()">OK</button></div>':'')
     +'<div class="botnav">'
       +'<button data-go="cli-topo" onclick="cliGo(\'cli-topo\',this)"><span class="bn-i">🏠</span>Início</button>'
-      +'<button data-go="sec-dados" onclick="cliGo(\'sec-dados\',this)"><span class="bn-i">📑</span>Dados</button>'
-      +'<button data-go="sec-hon" onclick="cliGo(\'sec-hon\',this)"><span class="bn-i">💳</span>Honorários</button>'
+      +'<button data-go="sec-fat" onclick="cliGo(\'sec-fat\',this)"><span class="bn-i">📈</span>Faturam.</button>'
+      +'<button data-go="sec-hon" onclick="cliGo(\'sec-hon\',this)"><span class="bn-i">💳</span>Honorár.</button>'
       +'<button data-go="sec-notas" onclick="cliGo(\'sec-notas\',this)"><span class="bn-i">🧾</span>Notas</button>'
       +'<button data-go="sec-sol" onclick="cliGo(\'sec-sol\',this)"><span class="bn-i">✉️</span>Falar</button>'
-      +'<button data-go="sec-doc" onclick="cliGo(\'sec-doc\',this)"><span class="bn-i">📄</span>Docs</button>'
     +'</div>';
   // Honorários
   const hon=await getMine('honorarios',nome);
@@ -2269,6 +2412,8 @@ async function renderClientePortal(nome){
     nts.slice().reverse().forEach(function(n){ var fechada=/fechad/i.test(n.status||''); var sc=fechada?'tp':'tn'; var st=fechada?'✔ Fechada':'📂 Aberta'; var ttxt=n.tipo==='Envio'?'📥 Recebida do escritório':'📤 Enviada por você'; var arq=n.arquivoData?(' · <a href="'+blobUrl(n.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 abrir</a>'):'';
       cnf.innerHTML+='<div class="lcard"><div class="lcico lc-pu">🧾</div><div class="lcinfo"><strong>NF '+esc(n.numero||'')+' · '+ttxt+'</strong><span>'+(n.valor?('R$ '+esc(n.valor)+' · '):'')+esc(n.descricao||'')+arq+'</span></div><span class="tag '+sc+'">'+st+'</span></div>'; });
   }
+  // Controle de Faturamento
+  try{ await renderFaturamentoCliente(nome); }catch(e){}
   // Dados Cadastrais (somente leitura + copiar)
   const cdd=document.getElementById('cli-dados');
   if(cdd){ var dd=await getMine('dados',nome); var x=dd[0];
