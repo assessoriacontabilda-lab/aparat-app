@@ -922,6 +922,16 @@ body.foco .cli-top{display:none}
           <button class="btn" style="background:var(--card);border:1px solid var(--border);color:#fff" onclick="exportarBackup('csv')">📊 Exportar clientes/honorários (.csv)</button>
         </div>
       </div>
+
+      <div class="sec" style="margin-top:18px">🧹 Limpeza Automática de Arquivos</div>
+      <div class="fbox">
+        <div style="font-size:11px;color:var(--cinza);margin-bottom:10px">Quando ativada, ao virar o mês os <b style="color:#fff">arquivos enviados pelos clientes</b> (extratos/recebidos) de meses anteriores são apagados automaticamente para liberar espaço. Faça o backup antes, se quiser guardar.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-az" onclick="setAutoclean(true)">✅ Ativar limpeza automática</button>
+          <button class="btn" style="background:var(--card);border:1px solid var(--border);color:#fff" onclick="setAutoclean(false)">🚫 Desativar</button>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--cinza)">Status atual: <b id="autoclean-st" style="color:#fff">—</b></div>
+      </div>
     </div>
 
   </div>
@@ -1209,6 +1219,7 @@ async function dbDelete(store,id){
 /* tempo real entre dispositivos (só na nuvem) */
 function attachRealtime(){
   if(!fdb) return;
+  pedirPermNotif();
   fdb.collection('clientes').onSnapshot(()=>{carregarClientes();atualizarSelects();atualizarDashboard();});
   fdb.collection('obrigacoes').onSnapshot(()=>{carregarObrigacoes();atualizarDashboard();});
   fdb.collection('agenda').onSnapshot(()=>carregarAgenda());
@@ -1216,14 +1227,24 @@ function attachRealtime(){
   fdb.collection('informativos').onSnapshot(()=>carregarInformativos());
   fdb.collection('honorarios').onSnapshot(()=>carregarHonorarios());
   fdb.collection('docs').onSnapshot(()=>carregarDocs());
-  fdb.collection('solicitacoes').onSnapshot(()=>carregarSolicitacoes());
   fdb.collection('financeiro').onSnapshot(()=>carregarFinanceiro());
-  fdb.collection('enviosCliente').onSnapshot(()=>carregarRecebidos(), ()=>{});
+  _watchNovos('solicitacoes','Solicitação',carregarSolicitacoes);
+  _watchNovos('enviosCliente','Arquivo do cliente',carregarRecebidos);
   fdb.collection('notas').onSnapshot(()=>carregarNotas(), ()=>{});
   fdb.collection('dados').onSnapshot(()=>carregarDados(), ()=>{});
   fdb.collection('faturamento').onSnapshot(()=>carregarFaturamento(), ()=>{});
 }
 
+/* ----- LIMPEZA AUTOMÁTICA de arquivos ao virar o mês (opcional) ----- */
+function setAutoclean(on){ localStorage.setItem('autoclean',on?'1':'0'); var b=document.getElementById('autoclean-st'); if(b)b.textContent=on?'Ativado ✅':'Desativado'; notif(on?'🧹 Limpeza automática ATIVADA: ao virar o mês, arquivos de clientes de meses anteriores serão apagados.':'Limpeza automática DESATIVADA. Nenhum arquivo será apagado automaticamente.','info'); }
+async function limparArquivosMes(){
+  try{ if(localStorage.getItem('autoclean')!=='1'||!fdb)return;
+    var now=new Date(), curM=now.getMonth()+1, curY=now.getFullYear();
+    var a=await dbGetAll('enviosCliente'); var n=0;
+    for(var i=0;i<a.length;i++){ var d=(a[i].data||'').slice(0,10).split('/'); var mm=parseInt(d[1],10), yy=parseInt(d[2],10); if(yy && (yy<curY||(yy===curY&&mm<curM))){ try{ await dbDelete('enviosCliente',a[i].id); n++; }catch(e){} } }
+    if(n){ notif('🧹 '+n+' arquivo(s) de meses anteriores foram limpos para liberar espaço.','info'); try{ await carregarRecebidos(); }catch(e){} }
+  }catch(e){}
+}
 /* ----- LEMBRETE AUTOMÁTICO: extrato bancário PJ (todo dia 2) ----- */
 async function checarLembreteMensal(){
   try{
@@ -1895,6 +1916,7 @@ function pPage(id,el){
   if(id==='solicitacoes') marcarVisto('solicitacoes','seen_solic','dot-solic');
   if(id==='recebidos') marcarVisto('enviosCliente','seen_recebidos','dot-recebidos');
   if(id==='notas') marcarVisto('notas','seen_notas','dot-notas');
+  if(id==='seguranca'){ var _ac=document.getElementById('autoclean-st'); if(_ac)_ac.textContent=(localStorage.getItem('autoclean')==='1')?'Ativado':'Desativado'; }
 }
 /* ---- abrir cada função em nova aba focada (item 3) ---- */
 var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',faturamento:'Faturamento',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
@@ -2056,29 +2078,39 @@ function saudarUsuario(nome){ var s=document.getElementById('sync-msg'); if(s){ 
 if(typeof window.__voz==='undefined') window.__voz=true;
 function _stripHtml(h){ var d=document.createElement('div'); d.innerHTML=h||''; var t=(d.textContent||d.innerText||''); return t.replace(/ℹ️[\s\S]*$/,'').replace(/\s+/g,' ').trim(); }
 function falarTexto(h){
-  try{ if(!window.__voz||!('speechSynthesis' in window))return; var txt=_stripHtml(h); if(!txt)return;
+  try{ if(!window.__voz||!('speechSynthesis' in window))return; var txt=_stripHtml(h);
+    try{ txt=txt.replace(/[\u{1F000}-\u{1FFFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2600}-\u{26FF}️‍]/gu,''); }catch(_){ txt=txt.replace(/[^\w\sÀ-ÿ.,;:!?%$()\/\-]/g,''); }
+    txt=txt.replace(/\s+/g,' ').trim(); if(!txt)return;
     speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(txt); u.lang='pt-BR'; u.rate=1.02; u.pitch=1;
     var vs=speechSynthesis.getVoices(); var pt=vs.filter(function(v){return /pt[-_]?BR/i.test(v.lang);})[0]||vs.filter(function(v){return /^pt/i.test(v.lang);})[0]; if(pt)u.voice=pt;
-    speechSynthesis.speak(u);
+    speechSynthesis.speak(u); setTimeout(function(){ try{ speechSynthesis.resume(); }catch(e){} },120);
   }catch(e){}
+}
+var __rec=null;
+function ouvirVoz(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ notif('Para falar, use o app no Google Chrome (no iPhone use o ditado do teclado 🎤).','warn'); return; }
+  if(__rec){ try{__rec.abort();}catch(e){} __rec=null; var mm=document.getElementById('mic-btn'); if(mm)mm.textContent='🎤'; return; }
+  try{ try{ speechSynthesis.cancel(); }catch(e){}
+    __rec=new SR(); __rec.lang='pt-BR'; __rec.interimResults=false; __rec.maxAlternatives=1; __rec.continuous=false;
+    var mic=document.getElementById('mic-btn'); if(mic)mic.textContent='🔴';
+    notif('🎤 Pode falar...','info');
+    __rec.onresult=function(e){ var txt=(e.results[0][0].transcript||'').trim(); var i=document.getElementById('apchat-in'); if(i&&txt){ i.value=txt; enviarChat(); } };
+    __rec.onerror=function(ev){ var c=ev&&ev.error; if(c==='not-allowed'||c==='service-not-allowed'){ notif('Permita o uso do microfone no navegador (cadeado → Microfone → Permitir).','warn'); } else if(c==='no-speech'){ notif('Não ouvi nada. Toque no 🎤 e fale.','warn'); } else { notif('Microfone indisponível agora. Tente de novo.','warn'); } };
+    __rec.onend=function(){ __rec=null; var m=document.getElementById('mic-btn'); if(m)m.textContent='🎤'; };
+    __rec.start();
+  }catch(e){ __rec=null; notif('Não foi possível ativar o microfone.','warn'); }
 }
 function toggleVoz(){
   window.__voz=!window.__voz; var b=document.getElementById('voz-btn'); if(b)b.textContent=window.__voz?'🔊':'🔇';
   if(window.__voz){ falarTexto('Voz ativada.'); } else { try{speechSynthesis.cancel();}catch(e){} }
   notif(window.__voz?'🔊 Voz do assistente ativada':'🔇 Voz desativada','info');
 }
-function ouvirVoz(){
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ notif('Para falar, use o app no Google Chrome.','warn'); return; }
-  try{ var rec=new SR(); rec.lang='pt-BR'; rec.interimResults=false; rec.maxAlternatives=1;
-    var mic=document.getElementById('mic-btn'); if(mic)mic.textContent='🔴';
-    rec.onresult=function(e){ var txt=e.results[0][0].transcript||''; var i=document.getElementById('apchat-in'); if(i){ i.value=txt; enviarChat(); } };
-    rec.onerror=function(){ notif('Não consegui ouvir. Toque no 🎤 e fale de novo.','warn'); };
-    rec.onend=function(){ var m=document.getElementById('mic-btn'); if(m)m.textContent='🎤'; };
-    rec.start();
-  }catch(e){ notif('Não foi possível ativar o microfone.','warn'); }
-}
 if('speechSynthesis' in window){ try{ speechSynthesis.onvoiceschanged=function(){}; }catch(e){} }
+/* ===== NOTIFICAÇÕES (app aberto ou em 2º plano) ===== */
+function pedirPermNotif(){ try{ if('Notification' in window && Notification.permission==='default'){ Notification.requestPermission(); } }catch(e){} }
+function notificarPush(titulo,corpo){ try{ if('Notification' in window && Notification.permission==='granted'){ var n=new Notification(titulo,{body:corpo,icon:'icone-aparat.png',badge:'icone-aparat.png'}); n.onclick=function(){ try{window.focus();}catch(e){} n.close(); }; setTimeout(function(){try{n.close();}catch(e){}},9000); } }catch(e){} }
+function _watchNovos(col,titulo,render){ if(!fdb)return; var primed=false,last=0; fdb.collection(col).onSnapshot(function(s){ if(primed && s.size>last){ notificarPush('Aparat — '+titulo, (s.size-last>1)?((s.size-last)+' novos itens recebidos'):'Novo item recebido de cliente'); } last=s.size; primed=true; if(render)render(); }, function(){}); }
 function toggleChat(){
   var c=document.getElementById('apchat'); if(!c)return;
   var abrir=(c.style.display==='none'||!c.style.display);
@@ -2108,8 +2140,27 @@ async function responderAssistente(q){
     if(nome){ try{ var os2=await getMine('obrigacoes',nome); if(os2.length){ var lin=os2.slice(0,4).map(function(o){return '• '+esc(o.tipo||'')+' — R$ '+esc(o.valor||'')+' (vence '+fmtData(o.vencimento)+')';}).join('<br>'); return 'Suas guias/obrigações:<br>'+lin+disc; } return 'Você não tem guias em aberto no portal agora.'+disc; }catch(e){} }
     return 'O DAS é a guia do Simples Nacional/MEI. As suas guias ficam em <b>📋 Suas Obrigações</b>.'+disc;
   }
-  if(has('arquivo','enviar arq','ofx','extrato','mandar arq','anexar','upload')){
-    return 'Enviar arquivo (PDF ou OFX) ao escritório, passo a passo:<br>1) No seu portal, vá em <b>📥 Setor Contábil — Enviar Arquivos</b>.<br>2) Toque em <b>Escolher arquivo</b> e selecione o PDF ou OFX (até 900 KB).<br>3) Toque em <b>📤 Enviar para a Contabilidade</b>.<br>Pronto! Ele aparece na sua lista e chega para a Aparat. 👍';
+  if(has('arquivo','enviar arq','ofx','extrato','mandar arq','anexar','upload','enviar documento','enviar pdf','como envio','como mandar','mandar documento')){
+    return 'Você tem <b>3 formas</b> de enviar documentos/arquivos para a Aparat:<br><br>'
+     +'<b>1) 📥 Setor Contábil — Enviar Arquivos</b> (ideal para extrato): role até essa seção, toque em <b>Escolher arquivo</b>, selecione o PDF ou OFX e toque em <b>📤 Enviar para a Contabilidade</b>.<br><br>'
+     +'<b>2) ✉️ Falar com o Escritório</b>: escreva uma mensagem e use o campo <b>📎 Anexar imagem ou documento</b> para mandar junto (PDF, foto, Word, Excel).<br><br>'
+     +'<b>3) 🧾 Notas Fiscais → Enviar Nota Fiscal</b>: para mandar uma nota fiscal (PDF/XML) ao escritório.<br><br>'
+     +'Dica: fotos grandes são otimizadas automaticamente. PDFs devem ter até ~700 KB; se for maior, comprima (ex.: ilovepdf.com) ou fale com a Aparat.';
+  }
+  if(has('faturamento','fatura','limite','quanto faturei','quanto vendi','despesa','lucro do mes','controle de fatur')){
+    return 'No <b>📈 Controle de Faturamento</b> você acompanha, por mês, o seu <b>faturamento</b>, <b>despesas</b> e <b>resultado</b>, além do <b>limite anual</b> (MEI R$ 81.000 · ME R$ 360.000) com alerta quando chega perto. Use o seletor <b>📅 Ver mês</b> para escolher o mês, veja o comparativo e a projeção, e baixe em <b>PDF</b> ou <b>imagem</b>. Quem lança os valores é a Aparat.'+disc;
+  }
+  if(has('meus dados','dados cadastrais','cnpj','inscricao','razao social','meu cadastro','ie','im')){
+    return 'Em <b>📑 Meus Dados Cadastrais</b> ficam seu CNPJ, Inscrição Estadual e Municipal, e-mail, regime e endereço. É só leitura, mas cada informação tem o botão <b>📋 Copiar</b>. Para corrigir algum dado, fale com a Aparat.';
+  }
+  if(has('nota fiscal','nota','nfe','nfse','emitir nota')){
+    return 'Na seção <b>🧾 Notas Fiscais</b> você vê as notas que a Aparat te enviou e pode <b>enviar uma nota</b> (PDF/XML) para o escritório. Para <b>emissão</b> de nota nova, fale com a Aparat: (16) 98869-9203.'+disc;
+  }
+  if(has('voz','audio','falar com voz','microfone','ouvir')){
+    return 'O assistente fala as respostas em voz alta (botão <b>🔊</b> no topo do chat liga/desliga) e você pode falar sua pergunta tocando no <b>🎤</b>. Na 1ª vez o navegador pede permissão do microfone — é só permitir (funciona melhor no Google Chrome).';
+  }
+  if(has('como funciona','o que tem','o que da pra fazer','menu','aba','navegar','usar o app','tutorial')){
+    return 'Este app tem, na barra de baixo e nos atalhos: <b>📈 Faturamento</b> (acompanhar vendas e limite), <b>💳 Honorários</b> (boletos), <b>📋 Obrigações</b> (guias/impostos), <b>📅 Agendamentos</b>, <b>📄 Documentos</b>, <b>📰 Informativos</b>, <b>🧾 Notas Fiscais</b>, <b>📑 Meus Dados</b> e <b>✉️ Falar com o Escritório</b> (mensagens e anexos). Me diga sobre qual delas quer ajuda!';
   }
   if(has('agenda','reuniao','agendamento','horario','compromisso')){
     return 'Agendamentos, passo a passo:<br>1) Veja seus compromissos em <b>📅 Agendamentos</b> (tipo, data e hora).<br>2) Toque em <b>📅 Agenda</b> para salvar no calendário do seu celular.<br>3) Toque em <b>📄 PDF</b> para baixar o comprovante.';
@@ -2305,6 +2356,7 @@ async function initAppAdmin(){
     await atualizarDashboard();
     attachRealtime();
     await checarLembreteMensal();
+    await limparArquivosMes();
   }catch(e){console.error('Erro initAppAdmin',e);}
 }
 
@@ -2457,11 +2509,25 @@ async function renderClientePortal(nome){
 
 /* ===================== ARQUIVOS (base64 no banco) ===================== */
 function lerArquivoBase64(file){
-  return new Promise((res,rej)=>{
-    if(file.size > 900*1024){ rej(new Error('Arquivo muito grande (máx. 900 KB). Comprima o PDF.')); return; }
-    const r=new FileReader();
-    r.onload=()=>res(r.result);
-    r.onerror=()=>rej(new Error('Falha ao ler o arquivo'));
+  return new Promise(function(res,rej){
+    var LIM=700*1024; // teto seguro p/ caber no registro do banco (~1MB)
+    // imagem grande: comprime automaticamente para caber
+    if(file && /^image\//.test(file.type||'') && file.size>LIM){
+      var fr=new FileReader();
+      fr.onload=function(){ var img=new Image(); img.onload=function(){ try{
+        var mx=1400; var sc=Math.min(1,mx/Math.max(img.width,img.height));
+        var c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+        var x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+        var q=0.85, out=c.toDataURL('image/jpeg',q);
+        while(out.length>LIM*1.34 && q>0.4){ q-=0.1; out=c.toDataURL('image/jpeg',q); }
+        notif('🖼️ Imagem otimizada para envio.','info'); res(out);
+      }catch(e){ rej(new Error('Falha ao comprimir a imagem.')); } }; img.onerror=function(){rej(new Error('Falha ao ler a imagem.'));}; img.src=fr.result; };
+      fr.onerror=function(){rej(new Error('Falha ao ler o arquivo'));}; fr.readAsDataURL(file); return;
+    }
+    if(file && file.size>LIM){ rej(new Error('Arquivo acima de 700 KB. PDFs grandes exigem o Firebase Storage (plano pago) — fale com a Aparat. Dica: comprima o PDF (ex: ilovepdf.com) e tente de novo.')); return; }
+    var r=new FileReader();
+    r.onload=function(){res(r.result);};
+    r.onerror=function(){rej(new Error('Falha ao ler o arquivo'));};
     r.readAsDataURL(file);
   });
 }
