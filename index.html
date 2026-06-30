@@ -864,7 +864,8 @@ body.foco .cli-top{display:none}
         <div class="fg" style="margin-bottom:10px"><label>Arquivo (PDF/imagem · máx. 900 KB)</label><input id="doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png"/></div>
         <button class="btn btn-az" id="doc-btn" onclick="enviarDoc()">📤 Enviar Documento</button>
       </div>
-      <div class="sec">📄 Documentos Enviados</div>
+      <div class="sec">📄 Documentos Enviados (separados por cliente)</div>
+      <div class="fg" style="margin-bottom:8px"><select id="doc-filtro" onchange="carregarDocs()"><option value="">Todos os clientes</option></select></div>
       <div id="lista-docs"></div>
     </div>
 
@@ -2582,10 +2583,25 @@ async function editarHonorario(id){
 async function carregarDocs(){
   const l=document.getElementById('lista-docs'); if(!l)return;
   const ds=await dbGetAll('docs');
+  // popula o filtro de clientes
+  var filtro=document.getElementById('doc-filtro');
+  if(filtro){ var atual=filtro.value; var nomes=[]; ds.forEach(function(d){ if(d.cliente && nomes.indexOf(d.cliente)<0) nomes.push(d.cliente); }); nomes.sort();
+    filtro.innerHTML='<option value="">Todos os clientes</option>'+nomes.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('');
+    if(atual)filtro.value=atual;
+  }
   if(!ds.length){l.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum documento enviado.</div>';return;}
+  var sel=(filtro&&filtro.value)||'';
+  // agrupa por cliente
+  var grupos={}; ds.slice().reverse().forEach(function(d){ var c=d.cliente||'(sem cliente)'; if(sel && c!==sel) return; (grupos[c]=grupos[c]||[]).push(d); });
+  var clientes=Object.keys(grupos).sort();
+  if(!clientes.length){ l.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum documento para este cliente.</div>'; return; }
   l.innerHTML='';
-  ds.slice().reverse().forEach(d=>{
-    l.innerHTML+='<div class="docca"><div class="dico">📄</div><div class="dinf"><strong>'+esc(d.nome||'')+'</strong><span>'+esc(d.cliente||'')+' · '+esc(d.tipo||'')+' · '+esc(d.data||'')+'</span></div><a class="btndl" href="'+blobUrl(d.arquivoData)+'" target="_blank" style="text-decoration:none">Abrir</a> <button class="btn-sm" onclick="editarDoc(\''+d.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirDoc(\''+d.id+'\')">Excluir</button></div>';
+  clientes.forEach(function(c){
+    var bloco='<div style="margin:10px 0 4px;font-size:12px;font-weight:800;color:var(--azul-light);border-bottom:1px solid var(--border);padding-bottom:5px">👤 '+esc(c)+' <span style="color:var(--cinza);font-weight:400;font-size:10px">('+grupos[c].length+' doc)</span></div>';
+    grupos[c].forEach(function(d){
+      bloco+='<div class="docca"><div class="dico">📄</div><div class="dinf"><strong>'+esc(d.nome||'')+'</strong><span>'+esc(d.tipo||'')+' · '+esc(d.data||'')+'</span></div><a class="btndl" href="'+blobUrl(d.arquivoData)+'" target="_blank" style="text-decoration:none">Abrir</a> <button class="btn-sm" onclick="editarDoc(\''+d.id+'\')">Editar</button> <button class="btn-sm" onclick="excluirDoc(\''+d.id+'\')">Excluir</button></div>';
+    });
+    l.innerHTML+=bloco;
   });
 }
 async function excluirDoc(id){ await dbDelete('docs',id); notif('Documento removido.','info'); await carregarDocs(); }
