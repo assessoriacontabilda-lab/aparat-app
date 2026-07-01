@@ -2133,11 +2133,12 @@ async function initPush(role,nome){
     try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){}
   }catch(e){ console.error('initPush',e); }
 }
-function _limparBolinha(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} }
+function _limparBolinha(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} try{ navigator.serviceWorker&&navigator.serviceWorker.ready.then(function(r){ if(r&&r.getNotifications) r.getNotifications().then(function(ns){ns.forEach(function(n){n.close();});}); if(navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('limpar-bolinha'); if(r&&r.active) r.active.postMessage('limpar-bolinha'); }); }catch(e){} }
 window.addEventListener('focus', _limparBolinha);
 window.addEventListener('load', _limparBolinha);
 window.addEventListener('pageshow', _limparBolinha);
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) _limparBolinha(); });
+_limparBolinha(); setTimeout(_limparBolinha,800); setTimeout(_limparBolinha,2500);
 async function ativarNotificacoes(){
   if(!('Notification' in window)){ notif('Este navegador não suporta notificações. Use o Google Chrome.','warn'); return; }
   if(Notification.permission==='denied'){ notif('⚠ Notificações BLOQUEADAS. Toque no 🔒 cadeado do navegador → Notificações → Permitir, e tente de novo.','warn'); return; }

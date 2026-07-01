@@ -16,4 +16,5 @@ messaging.onBackgroundMessage(function(payload){
   self.registration.showNotification(t, { body:b, icon:'icone-aparat.png', badge:'icone-aparat.png', tag:'aparat' });
   try{ if(self.navigator && self.navigator.setAppBadge) self.navigator.setAppBadge(1); }catch(e){}
 });
-self.addEventListener('notificationclick', function(e){ e.notification.close(); e.waitUntil(clients.matchAll({type:'window'}).then(function(cl){ for(var i=0;i<cl.length;i++){ if('focus' in cl[i]) return cl[i].focus(); } if(clients.openWindow) return clients.openWindow('./'); })); });
+self.addEventListener('notificationclick', function(e){ e.notification.close(); try{ if(self.navigator && self.navigator.clearAppBadge) self.navigator.clearAppBadge(); }catch(err){} e.waitUntil(clients.matchAll({type:'window'}).then(function(cl){ for(var i=0;i<cl.length;i++){ if('focus' in cl[i]) return cl[i].focus(); } if(clients.openWindow) return clients.openWindow('./'); })); });
+self.addEventListener('message', function(e){ if(e.data==='limpar-bolinha'){ try{ if(self.navigator && self.navigator.clearAppBadge) self.navigator.clearAppBadge(); }catch(err){} } });
