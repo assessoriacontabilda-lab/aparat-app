@@ -2116,7 +2116,19 @@ function toggleVoz(){
 if('speechSynthesis' in window){ try{ speechSynthesis.onvoiceschanged=function(){}; }catch(e){} }
 /* ===== NOTIFICAÇÕES (app aberto ou em 2º plano) ===== */
 function pedirPermNotif(){ try{ if('Notification' in window && Notification.permission==='default'){ Notification.requestPermission(); } }catch(e){} }
-function notificarPush(titulo,corpo){ try{ if('Notification' in window && Notification.permission==='granted'){ var n=new Notification(titulo,{body:corpo,icon:'icone-aparat.png',badge:'icone-aparat.png'}); n.onclick=function(){ try{window.focus();}catch(e){} n.close(); }; setTimeout(function(){try{n.close();}catch(e){}},9000); } }catch(e){} }
+function notificarPush(titulo,corpo){
+  try{
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    try{ if(navigator.setAppBadge) navigator.setAppBadge(1); }catch(e){}
+    var opts={body:corpo,icon:'icone-aparat.png',badge:'icone-aparat.png',tag:'aparat'};
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
+      navigator.serviceWorker.getRegistration().then(function(reg){
+        if(reg && reg.showNotification){ reg.showNotification(titulo,opts); }
+        else { try{ var n=new Notification(titulo,opts); setTimeout(function(){try{n.close();}catch(e){}},9000); }catch(e){} }
+      }).catch(function(){ try{ new Notification(titulo,opts); }catch(e){} });
+    } else { try{ var n2=new Notification(titulo,opts); setTimeout(function(){try{n2.close();}catch(e){}},9000); }catch(e){} }
+  }catch(e){}
+}
 function _watchNovos(col,titulo,render){ if(!fdb)return; var primed=false,last=0; fdb.collection(col).onSnapshot(function(s){ if(primed && s.size>last){ notificarPush('Aparat — '+titulo, (s.size-last>1)?((s.size-last)+' novos itens recebidos'):'Novo item recebido de cliente'); try{ if(navigator.setAppBadge) navigator.setAppBadge(1); }catch(e){} } last=s.size; primed=true; if(render)render(); }, function(){}); }
 /* ===== PUSH com app fechado (Firebase Cloud Messaging) ===== */
 var VAPID_KEY='BFg07SrC1YtVALbsk_OvR9eFdFg6JnEI3zud53vKOHEJXfi75CeVX4hdAU-ZqMabvuN7gAn9a9F5wVjR-64JUjY';
