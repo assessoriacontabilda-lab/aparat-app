@@ -371,6 +371,7 @@ body.foco .cli-top{display:none}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -2111,7 +2112,23 @@ if('speechSynthesis' in window){ try{ speechSynthesis.onvoiceschanged=function()
 /* ===== NOTIFICAÇÕES (app aberto ou em 2º plano) ===== */
 function pedirPermNotif(){ try{ if('Notification' in window && Notification.permission==='default'){ Notification.requestPermission(); } }catch(e){} }
 function notificarPush(titulo,corpo){ try{ if('Notification' in window && Notification.permission==='granted'){ var n=new Notification(titulo,{body:corpo,icon:'icone-aparat.png',badge:'icone-aparat.png'}); n.onclick=function(){ try{window.focus();}catch(e){} n.close(); }; setTimeout(function(){try{n.close();}catch(e){}},9000); } }catch(e){} }
-function _watchNovos(col,titulo,render){ if(!fdb)return; var primed=false,last=0; fdb.collection(col).onSnapshot(function(s){ if(primed && s.size>last){ notificarPush('Aparat — '+titulo, (s.size-last>1)?((s.size-last)+' novos itens recebidos'):'Novo item recebido de cliente'); } last=s.size; primed=true; if(render)render(); }, function(){}); }
+function _watchNovos(col,titulo,render){ if(!fdb)return; var primed=false,last=0; fdb.collection(col).onSnapshot(function(s){ if(primed && s.size>last){ notificarPush('Aparat — '+titulo, (s.size-last>1)?((s.size-last)+' novos itens recebidos'):'Novo item recebido de cliente'); try{ if(navigator.setAppBadge) navigator.setAppBadge(1); }catch(e){} } last=s.size; primed=true; if(render)render(); }, function(){}); }
+/* ===== PUSH com app fechado (Firebase Cloud Messaging) ===== */
+var VAPID_KEY='BFg07SrC1YtVALbsk_OvR9eFdFg6JnEI3zud53vKOHEJXfi75CeVX4hdAU-ZqMabvuN7gAn9a9F5wVjR-64JUjY';
+async function initPush(role,nome){
+  try{
+    if(!fdb || !('serviceWorker' in navigator) || typeof firebase==='undefined' || !firebase.messaging) return;
+    if(!('Notification' in window)) return;
+    if(Notification.permission!=='granted'){ var p=await Notification.requestPermission(); if(p!=='granted') return; }
+    var reg=await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    var msg=firebase.messaging();
+    var token=await msg.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
+    if(token){ try{ await fdb.collection('tokens').doc(token.substring(0,60)).set({token:token,role:role||'',cliente:nome||'',email:(auth&&auth.currentUser?auth.currentUser.email:''),ts:Date.now()}); }catch(e){} }
+    msg.onMessage(function(payload){ var n=payload.notification||{}; notificarPush(n.title||'Aparat Contabilidade', n.body||'Você tem uma novidade.'); try{ if(navigator.setAppBadge) navigator.setAppBadge(1); }catch(e){} });
+    try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){}
+  }catch(e){ console.error('initPush',e); }
+}
+window.addEventListener('focus', function(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} });
 function toggleChat(){
   var c=document.getElementById('apchat'); if(!c)return;
   var abrir=(c.style.display==='none'||!c.style.display);
@@ -2321,6 +2338,7 @@ async function handleAuth(user){
     await initAppAdmin();
     saudarUsuario('Daniel');
     aplicarFocoAdmin();
+    initPush('admin','Daniel');
   } else {
     CURRENT_ROLE='cliente';
     let nome='';
@@ -2333,6 +2351,7 @@ async function handleAuth(user){
     _show('view-cliente',true);
     await renderClientePortal(nome||user.email);
     saudarUsuario((nome||'').split(' ')[0]);
+    initPush('cliente',nome||user.email);
   }
 }
 
