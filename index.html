@@ -908,6 +908,11 @@ body.foco .cli-top{display:none}
 
     <!-- SEGURANÇA -->
     <div class="ppage" id="pp-seguranca">
+      <div class="sec">🔔 Notificações</div>
+      <div class="fbox">
+        <div style="font-size:11px;color:var(--cinza);margin-bottom:10px">Toque para ativar as notificações e a bolinha neste aparelho. Faça também no celular, abrindo o app instalado.</div>
+        <button class="btn btn-az" id="btn-notif" onclick="ativarNotificacoes()">🔔 Ativar notificações neste aparelho</button>
+      </div>
       <div class="sec">🔒 Status do Sistema</div>
       <div class="segr"><div class="si">🛡️</div><div class="st"><strong>SSL/TLS Ativo</strong><span>Dados criptografados ponta a ponta</span></div><span class="sok">✔ Ativo</span></div>
       <div class="segr"><div class="si">🔐</div><div class="st"><strong>Autenticação 2FA</strong><span>Login protegido</span></div><span class="sok">✔ Ativo</span></div>
@@ -2129,6 +2134,17 @@ async function initPush(role,nome){
   }catch(e){ console.error('initPush',e); }
 }
 window.addEventListener('focus', function(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} });
+async function ativarNotificacoes(){
+  if(!('Notification' in window)){ notif('Este navegador não suporta notificações. Use o Google Chrome.','warn'); return; }
+  if(Notification.permission==='denied'){ notif('⚠ Notificações BLOQUEADAS. Toque no 🔒 cadeado do navegador → Notificações → Permitir, e tente de novo.','warn'); return; }
+  try{ var p=await Notification.requestPermission(); }catch(e){ var p='denied'; }
+  if(p!=='granted'){ notif('Permissão não concedida. Quando aparecer o pedido, toque em Permitir.','warn'); return; }
+  var role=(typeof CURRENT_ROLE!=='undefined'&&CURRENT_ROLE==='admin')?'admin':'cliente';
+  var nome=(role==='admin')?'Daniel':(typeof CURRENT_CLIENTE!=='undefined'?CURRENT_CLIENTE:'');
+  await initPush(role,nome);
+  notif('🔔 Notificações ativadas neste aparelho! Faça um teste.','success');
+  var b=document.getElementById('btn-notif'); if(b)b.textContent='🔔 Notificações ativadas ✔';
+}
 function toggleChat(){
   var c=document.getElementById('apchat'); if(!c)return;
   var abrir=(c.style.display==='none'||!c.style.display);
@@ -2401,6 +2417,7 @@ async function renderClientePortal(nome){
     +'<div style="max-width:980px;margin:0 auto;padding:14px 14px 96px">'
     +'<div class="wcard"><h3>'+saudacaoHora()+' 👋</h3><h2>'+esc(nome)+'</h2><p>Seus dados contábeis em tempo real · Aparat Contabilidade</p></div>'
     +'<div class="segbadge"><span>🔒</span><span>Conexão segura · você vê apenas os seus dados</span></div>'
+    +'<button class="btn btn-az" id="btn-notif" style="width:100%;margin-bottom:10px" onclick="ativarNotificacoes()">🔔 Ativar notificações neste aparelho</button>'
     +'<div class="cli-atalhos">'
       +'<button onclick="abrirCli(\'fat\')">📈 Faturamento</button>'
       +'<button onclick="abrirCli(\'dados\')">📑 Meus Dados</button>'
