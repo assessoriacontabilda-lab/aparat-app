@@ -2133,7 +2133,11 @@ async function initPush(role,nome){
     try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){}
   }catch(e){ console.error('initPush',e); }
 }
-window.addEventListener('focus', function(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} });
+function _limparBolinha(){ try{ if(navigator.clearAppBadge) navigator.clearAppBadge(); }catch(e){} }
+window.addEventListener('focus', _limparBolinha);
+window.addEventListener('load', _limparBolinha);
+window.addEventListener('pageshow', _limparBolinha);
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) _limparBolinha(); });
 async function ativarNotificacoes(){
   if(!('Notification' in window)){ notif('Este navegador não suporta notificações. Use o Google Chrome.','warn'); return; }
   if(Notification.permission==='denied'){ notif('⚠ Notificações BLOQUEADAS. Toque no 🔒 cadeado do navegador → Notificações → Permitir, e tente de novo.','warn'); return; }
