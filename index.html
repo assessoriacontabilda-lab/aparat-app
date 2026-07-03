@@ -204,6 +204,9 @@ textarea{resize:vertical;min-height:56px}
 
 .lcard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:.2s;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .lcard:active{transform:scale(.99)}
+@keyframes neonpulse{0%,100%{box-shadow:0 0 6px rgba(79,124,255,.75),0 0 13px rgba(79,124,255,.45)}50%{box-shadow:0 0 13px rgba(79,124,255,1),0 0 24px rgba(79,124,255,.7)}}
+.neon-novo{border:2px solid #4f7cff !important;animation:neonpulse 1.25s ease-in-out infinite}
+.tag-novo{display:inline-block;background:#4f7cff;color:#fff;font-size:8px;font-weight:800;border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;box-shadow:0 0 8px rgba(79,124,255,.9);letter-spacing:.5px}
 /* ===== estilo app de banco (portal cliente) ===== */
 #view-cliente{scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
 .cli-top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;background:rgba(10,10,24,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:11px 16px}
@@ -1808,7 +1811,7 @@ async function enviarNota(){
 async function carregarNotas(){
   var tb=document.getElementById('nf-tbody'); if(!tb)return;
   var ns=[]; try{ ns=await dbGetAll('notas'); }catch(e){ tb.innerHTML='<tr><td colspan="8" style="color:var(--laranja)">⚠ Publique a regra de segurança de "notas" no Firebase para ativar esta aba.</td></tr>'; return; }
-  setDot('dot-notas',ns.length,'seen_notas');
+  _seedVistos('notas',ns); setDot('dot-notas',ns.length,'seen_notas');
   if(!ns.length){tb.innerHTML='<tr><td colspan="8" style="color:var(--cinza)">Nenhuma nota fiscal registrada.</td></tr>';return;}
   tb.innerHTML='';
   ns.slice().reverse().forEach(function(n){
@@ -1816,8 +1819,9 @@ async function carregarNotas(){
     var stag=fechada?'<span class="tag tp">✔ Fechada</span>':'<span class="tag tn">📂 Aberta</span>';
     var ttag=n.tipo==='Recebimento'?'📥 Receb.':'📤 Envio';
     var arq=n.arquivoData?('<span style="font-size:10px;color:var(--azul-light);cursor:pointer" onclick="abrirNotaArquivo(\''+n.id+'\')">📄 Ver</span>'):'<span style="font-size:10px;color:var(--cinza)">—</span>';
-    var tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(n.cliente||'')+'</td><td>'+ttag+'</td><td>'+esc(n.numero||'—')+'</td><td>'+(n.valor?('R$ '+esc(n.valor)):'—')+'</td><td>'+esc(n.data||'—')+'</td><td>'+arq+'</td><td>'+stag+'</td>'+
+    var tr=document.createElement('tr'); var novoN=(n.origem==='cliente')&&_ehNovo('notas',n.id);
+    if(novoN){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'notas',n.id); }; }
+    tr.innerHTML='<td>'+esc(n.cliente||'')+(novoN?'<span class="tag-novo">NOVO</span>':'')+'</td><td>'+ttag+'</td><td>'+esc(n.numero||'—')+'</td><td>'+(n.valor?('R$ '+esc(n.valor)):'—')+'</td><td>'+esc(n.data||'—')+'</td><td>'+arq+'</td><td>'+stag+'</td>'+
       '<td style="white-space:nowrap"><span style="cursor:pointer;margin-right:7px" title="Editar" onclick="editarNota(\''+n.id+'\')">✏️</span>'+
       '<span style="cursor:pointer;margin-right:7px" title="'+(fechada?'Reabrir':'Fechar')+'" onclick="fecharNota(\''+n.id+'\')">'+(fechada?'🔓':'✅')+'</span>'+
       '<span style="cursor:pointer" title="Excluir" onclick="excluirNota(\''+n.id+'\')">🗑️</span></td>';
@@ -2125,6 +2129,14 @@ function notificarPush(titulo,corpo){
     } else { try{ var n2=new Notification(titulo,opts); setTimeout(function(){try{n2.close();}catch(e){}},9000); }catch(e){} }
   }catch(e){}
 }
+/* ===== marcação NEON de itens novos ===== */
+function _vistos(col){ try{ return JSON.parse(localStorage.getItem('vistos_'+col)||'[]'); }catch(e){ return []; } }
+function _ehNovo(col,id){ if(!id) return false; return _vistos(col).indexOf(String(id))<0; }
+function _marcarVistos(col,ids){ try{ var v=_vistos(col); (ids||[]).forEach(function(i){ if(v.indexOf(String(i))<0) v.push(String(i)); }); localStorage.setItem('vistos_'+col, JSON.stringify(v.slice(-800))); }catch(e){} }
+function _neonAttrs(col,id,base){ base=base||'lcard'; return _ehNovo(col,id) ? (' class="'+base+' neon-novo" onclick="_verNovo(this,\''+col+'\',\''+id+'\')"') : (' class="'+base+'"'); }
+function _tagNovo(col,id){ return _ehNovo(col,id) ? '<span class="tag-novo">NOVO</span>' : ''; }
+function _verNovo(el,col,id){ _marcarVistos(col,[id]); if(el){ el.classList.remove('neon-novo'); var t=el.querySelector('.tag-novo'); if(t)t.remove(); } }
+function _seedVistos(col,arr){ try{ if(localStorage.getItem('vistos_'+col)===null) _marcarVistos(col,(arr||[]).map(function(x){return x.id;})); }catch(e){} }
 function _watchNovos(col,titulo,render){ if(!fdb)return; var primed=false,last=0; fdb.collection(col).onSnapshot(function(s){ if(primed && s.size>last){ notificarPush('Aparat — '+titulo, (s.size-last>1)?((s.size-last)+' novos itens recebidos'):'Novo item recebido de cliente'); try{ if(navigator.setAppBadge) navigator.setAppBadge(1); }catch(e){} } last=s.size; primed=true; if(render)render(); }, function(){}); }
 /* ===== PUSH com app fechado (Firebase Cloud Messaging) ===== */
 var VAPID_KEY='BFg07SrC1YtVALbsk_OvR9eFdFg6JnEI3zud53vKOHEJXfi75CeVX4hdAU-ZqMabvuN7gAn9a9F5wVjR-64JUjY';
@@ -2487,17 +2499,17 @@ async function renderClientePortal(nome){
       +'<button data-go="sec-sol" onclick="cliGo(\'sec-sol\',this)"><span class="bn-i">✉️</span>Falar</button>'
     +'</div>';
   // Honorários
-  const hon=await getMine('honorarios',nome);
+  const hon=await getMine('honorarios',nome); _seedVistos('honorarios',hon);
   const ch=document.getElementById('cli-hon');
   ch.innerHTML = hon.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum honorário lançado.</div>';
   hon.forEach(h=>{const sc=(/pago/i.test(h.status||''))?'tp':'tn'; const pdf=h.arquivoData?(' · <a href="'+blobUrl(h.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 baixar</a>'):'';
-    ch.innerHTML+='<div class="lcard"><div class="lcico lc-pu">💳</div><div class="lcinfo"><strong>Honorário '+esc(h.referencia||'')+'</strong><span>R$ '+esc(h.valor||'')+' · venc. '+fmtData(h.vencimento)+pdf+'</span></div><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span></div>';});
+    ch.innerHTML+='<div'+_neonAttrs('honorarios',h.id)+'><div class="lcico lc-pu">💳</div><div class="lcinfo"><strong>Honorário '+esc(h.referencia||'')+_tagNovo('honorarios',h.id)+'</strong><span>R$ '+esc(h.valor||'')+' · venc. '+fmtData(h.vencimento)+pdf+'</span></div><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span></div>';});
   // Obrigações
-  const obr=await getMine('obrigacoes',nome);
+  const obr=await getMine('obrigacoes',nome); _seedVistos('obrigacoes',obr);
   const co=document.getElementById('cli-obr');
   co.innerHTML = obr.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma obrigação no momento.</div>';
   obr.forEach(o=>{const sc=o.status==='Pago'?'tp':o.status==='A Pagar'?'ta':'tn';
-    co.innerHTML+='<div class="lcard"><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'Guia')+'</strong><span>R$ '+esc(o.valor||'')+' · venc. '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
+    co.innerHTML+='<div'+_neonAttrs('obrigacoes',o.id)+'><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'Guia')+_tagNovo('obrigacoes',o.id)+'</strong><span>R$ '+esc(o.valor||'')+' · venc. '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
   // Agendamentos do cliente
   var cag=document.getElementById('cli-age');
   if(cag){ var ags=await getMine('agenda',nome);
@@ -2511,9 +2523,9 @@ async function renderClientePortal(nome){
   avi.forEach(a=>{ca.innerHTML+='<div class="ubanner"><div class="ubh"><span>'+esc(a.prio||'🔔')+'</span><span>'+esc(a.dest||'')+'</span></div><div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:3px">'+esc(a.titulo||'')+'</div><div class="ubbody">'+esc(a.msg||'')+'</div><div class="ubdata">Aparat Contabilidade · '+esc(a.data||'')+'</div></div>';});
   // Documentos do cliente
   const cd=document.getElementById('cli-doc');
-  if(cd){ const docs=await getMine('docs',nome);
+  if(cd){ const docs=await getMine('docs',nome); _seedVistos('docs',docs);
     cd.innerHTML = docs.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum documento.</div>';
-    docs.slice().reverse().forEach(d=>{cd.innerHTML+='<div class="docca"><div class="dico">📄</div><div class="dinf"><strong>'+esc(d.nome||'')+'</strong><span>'+esc(d.tipo||'')+' · '+esc(d.data||'')+'</span></div><a class="btndl" href="'+blobUrl(d.arquivoData)+'" target="_blank" style="text-decoration:none">Abrir</a></div>';});
+    docs.slice().reverse().forEach(d=>{cd.innerHTML+='<div'+_neonAttrs('docs',d.id,'docca')+'><div class="dico">📄</div><div class="dinf"><strong>'+esc(d.nome||'')+_tagNovo('docs',d.id)+'</strong><span>'+esc(d.tipo||'')+' · '+esc(d.data||'')+'</span></div><a class="btndl" href="'+blobUrl(d.arquivoData)+'" target="_blank" style="text-decoration:none">Abrir</a></div>';});
   }
   // Informativos (todos)
   const ci=document.getElementById('cli-inf');
@@ -2523,10 +2535,11 @@ async function renderClientePortal(nome){
   }catch(_){ ci.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">—</div>'; }
   // Notas Fiscais do cliente
   const cnf=document.getElementById('cli-notas');
-  if(cnf){ const nts=await getMine('notas',nome);
+  if(cnf){ const nts=await getMine('notas',nome); _seedVistos('notas',nts);
     cnf.innerHTML = nts.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma nota fiscal.</div>';
     nts.slice().reverse().forEach(function(n){ var fechada=/fechad/i.test(n.status||''); var sc=fechada?'tp':'tn'; var st=fechada?'✔ Fechada':'📂 Aberta'; var ttxt=n.tipo==='Envio'?'📥 Recebida do escritório':'📤 Enviada por você'; var arq=n.arquivoData?(' · <a href="'+blobUrl(n.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 abrir</a>'):'';
-      cnf.innerHTML+='<div class="lcard"><div class="lcico lc-pu">🧾</div><div class="lcinfo"><strong>NF '+esc(n.numero||'')+' · '+ttxt+'</strong><span>'+(n.valor?('R$ '+esc(n.valor)+' · '):'')+esc(n.descricao||'')+arq+'</span></div><span class="tag '+sc+'">'+st+'</span></div>'; });
+      var _atr=(n.origem!=='cliente')?_neonAttrs('notas',n.id):' class="lcard"'; var _tg=(n.origem!=='cliente')?_tagNovo('notas',n.id):'';
+      cnf.innerHTML+='<div'+_atr+'><div class="lcico lc-pu">🧾</div><div class="lcinfo"><strong>NF '+esc(n.numero||'')+' · '+ttxt+_tg+'</strong><span>'+(n.valor?('R$ '+esc(n.valor)+' · '):'')+esc(n.descricao||'')+arq+'</span></div><span class="tag '+sc+'">'+st+'</span></div>'; });
   }
   // Controle de Faturamento
   try{ await renderFaturamentoCliente(nome); }catch(e){}
@@ -2736,12 +2749,13 @@ async function enviarNotaCliente(){
 async function carregarRecebidos(){
   var tb=document.getElementById('tb-recebidos'); if(!tb)return;
   var a=[]; try{ a=await dbGetAll('enviosCliente'); }catch(e){ tb.innerHTML='<tr><td colspan="5" style="color:var(--laranja)">⚠ Publique a regra de segurança de "enviosCliente" no Firebase para ativar esta aba.</td></tr>'; return; }
-  setDot('dot-recebidos',a.length,'seen_recebidos');
+  _seedVistos('enviosCliente',a); setDot('dot-recebidos',a.length,'seen_recebidos');
   if(!a.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--cinza)">Nenhum arquivo recebido.</td></tr>';return;}
   tb.innerHTML='';
   a.slice().reverse().forEach(function(x){
-    var tr=document.createElement('tr');
-    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light)">'+esc(x.nome||'arquivo')+'</a></td><td>'+esc(x.tipo||'')+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm" onclick="excluirRecebido(\''+x.id+'\')">Excluir</button></td>';
+    var tr=document.createElement('tr'); var novo=_ehNovo('enviosCliente',x.id);
+    if(novo){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'enviosCliente',x.id); }; }
+    tr.innerHTML='<td>'+esc(x.cliente||'')+(novo?'<span class="tag-novo">NOVO</span>':'')+'</td><td><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light)">'+esc(x.nome||'arquivo')+'</a></td><td>'+esc(x.tipo||'')+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm" onclick="excluirRecebido(\''+x.id+'\')">Excluir</button></td>';
     tb.appendChild(tr);
   });
 }
@@ -2817,13 +2831,14 @@ async function excluirSolicitacaoCliente(id){
 async function carregarSolicitacoes(){
   const tb=document.getElementById('tb-solic'); if(!tb)return;
   const s=await dbGetAll('solicitacoes');
-  setDot('dot-solic',s.length,'seen_solic');
+  _seedVistos('solicitacoes',s); setDot('dot-solic',s.length,'seen_solic');
   if(!s.length){tb.innerHTML='<tr><td colspan="4" style="color:var(--cinza)">Nenhuma solicitação recebida.</td></tr>';return;}
   tb.innerHTML='';
   s.slice().reverse().forEach(x=>{
     const tr=document.createElement('tr');
     var anexoO=x.arquivoData?('<br><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light);font-size:10px">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
-    tr.innerHTML='<td>'+esc(x.cliente||'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
+    var novoS=_ehNovo('solicitacoes',x.id); if(novoS){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'solicitacoes',x.id); }; }
+    tr.innerHTML='<td>'+esc(x.cliente||'')+(novoS?'<span class="tag-novo">NOVO</span>':'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
     tb.appendChild(tr);
   });
 }
