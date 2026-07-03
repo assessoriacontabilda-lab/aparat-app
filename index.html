@@ -1927,11 +1927,7 @@ function pPage(id,el){
 }
 /* ---- abrir cada função em nova aba focada (item 3) ---- */
 var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',faturamento:'Faturamento',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
-function navAba(id,el){
-  if(document.body.classList.contains('foco')){ return; } // já está em aba focada
-  try{ var w=window.open(location.pathname+'?p='+encodeURIComponent(id),'_blank'); if(!w){ pPage(id,el); } }
-  catch(e){ pPage(id,el); }
-}
+function navAba(id,el){ pPage(id,el); }
 function _focoBar(nome){
   var bar=document.createElement('div'); bar.className='foco-bar';
   bar.innerHTML='<img src="icone-aparat.png" style="width:28px;height:28px;border-radius:7px;flex:0 0 auto"/><div><b>Aparat · '+nome+'</b><div class="fb-sub">Aparat Contabilidade · Daniel de Andrade Silva</div></div><button class="fb-x" onclick="window.close()">✖ Fechar aba</button>';
@@ -2719,7 +2715,7 @@ function _cliSpy(){
   btns.forEach(function(b){b.classList.remove('active');}); best.classList.add('active');
 }
 /* ---- atalho do cliente: abrir seção em nova aba (item 3) ---- */
-function abrirCli(c){ try{ var w=window.open(location.pathname+'?c='+encodeURIComponent(c),'_blank'); if(!w){ var el=document.getElementById('cli-'+c); if(el)el.scrollIntoView({behavior:'smooth'}); } }catch(e){} }
+function abrirCli(c){ try{ var el=document.getElementById('sec-'+c); var v=document.getElementById('view-cliente'); if(el&&v){ var top=el.offsetTop-64; v.scrollTo({top:Math.max(0,top),behavior:'smooth'}); } else if(el){ el.scrollIntoView({behavior:'smooth'}); } }catch(e){} }
 /* ---- cliente envia nota fiscal ao escritório (item 6) ---- */
 async function enviarNotaCliente(){
   if(!CURRENT_CLIENTE){notif('Cadastro não identificado. Avise o escritório.','warn');return;}
