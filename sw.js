@@ -1,12 +1,4 @@
-const CACHE = 'aparat-v1';
-self.addEventListener('install', function(e){ self.skipWaiting(); });
-self.addEventListener('activate', function(e){ self.clients.claim(); });
-self.addEventListener('fetch', function(e){
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    fetch(e.request).then(function(r){
-      try { var cp = r.clone(); caches.open(CACHE).then(function(c){ c.put(e.request, cp); }); } catch(_){}
-      return r;
-    }).catch(function(){ return caches.match(e.request); })
-  );
-});
+const CACHE='aparat-v2';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;e.respondWith(fetch(r).then(res=>{const c=res.clone();caches.open(CACHE).then(x=>x.put(r,c)).catch(()=>{});return res;}).catch(()=>caches.match(r)));});
