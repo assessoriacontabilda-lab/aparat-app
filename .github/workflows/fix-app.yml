@@ -1,0 +1,37 @@
+name: Fix instalarApp SyntaxError
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-app.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch index.html
+        run: |
+          python3 - << 'PYEOF'
+          with open('index.html','r',encoding='utf-8') as f:
+              c=f.read()
+          broken="(function(){var m=document.getElementById('aparat-install-modal')"
+          if broken in c:
+              i=c.index(broken)
+              e=c.index('})()',i)+4
+              fix="notif('Para instalar: no Android toque nos 3 pontinhos e escolha Adicionar a tela inicial. No iPhone toque em Compartilhar depois Adicionar a Tela de Inicio. No PC clique no icone de instalacao na barra do Chrome','info');"
+              c=c[:i]+fix+c[e:]
+              open('index.html','w',encoding='utf-8').write(c)
+              print('FIXED OK')
+          else:
+              print('Pattern not found - may already be fixed')
+          PYEOF
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "fix: corrigir SyntaxError no instalarApp"
+          git push
