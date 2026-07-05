@@ -9,7 +9,7 @@
 <link rel="icon" href="icone-aparat.png"/>
 <link rel="apple-touch-icon" href="icone-aparat.png"/>
 <meta name="theme-color" content="#3333FF"/>
-<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>h
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Aparat"/>
@@ -3044,7 +3044,7 @@ window.addEventListener('appinstalled',function(){
   notif('✅ App instalado com sucesso!');
 });
 async function instalarApp(){
-  if(!_deferredInstall){notif('Para instalar: no Android toque nos 3 pontinhos e escolha Adicionar a tela inicial. No iPhone toque em Compartilhar depois Adicionar a Tela de Inicio. No PC clique no icone de instalacao na barra do Chrome','info');return;}
+  if(!_deferredInstall){(function(){var m=document.getElementById('aparat-install-modal');if(m){m.style.display='flex';return;}m=document.createElement('div');m.id='aparat-install-modal';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';m.innerHTML='<div style="background:#0e0e2a;border:2px solid #3333FF;border-radius:18px;padding:22px;max-width:320px;width:100%;color:#fff;font-family:sans-serif;text-align:center"><img src=\"icone-aparat.png\" style=\"width:64px;height:64px;border-radius:16px;margin-bottom:10px\"><div style=\"font-size:18px;font-weight:800;color:#3333FF;margin-bottom:4px\">Instalar Aparat</div><div style=\"font-size:12px;color:#aaa;margin-bottom:18px\">Siga os passos no Chrome Android</div><div style=\"text-align:left;display:flex;flex-direction:column;gap:10px\"><div style=\"background:#1a1a3e;border-radius:10px;padding:11px;display:flex;gap:10px;align-items:center\"><span style=\"background:#3333FF;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0\">1</span><span style=\"font-size:13px\">Toque nos <b>3 pontinhos ⋮</b> no canto superior do Chrome</span></div><div style=\"background:#1a1a3e;border-radius:10px;padding:11px;display:flex;gap:10px;align-items:center\"><span style=\"background:#3333FF;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0\">2</span><span style=\"font-size:13px\">Selecione <b>\"Adicionar à tela inicial\"</b></span></div><div style=\"background:#1a1a3e;border-radius:10px;padding:11px;display:flex;gap:10px;align-items:center\"><span style=\"background:#3333FF;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0\">3</span><span style=\"font-size:13px\">Toque em <b>\"Adicionar\"</b> para confirmar</span></div></div><button onclick=\"document.getElementById(\'aparat-install-modal\').style.display=\'none\'\" style=\"width:100%;margin-top:16px;background:#3333FF;border:none;color:#fff;padding:13px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer\">Entendi ✓</button></div>';document.body.appendChild(m);})()return;}
   _deferredInstall.prompt();
   const r=await _deferredInstall.userChoice;
   _deferredInstall=null;
