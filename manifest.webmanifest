@@ -1,8 +1,9 @@
 {
+  "id": "aparat-app-pwa-2026",
   "name": "Aparat Contabilidade",
   "short_name": "Aparat",
   "description": "App da Aparat Contabilidade.",
-  "start_url": "./",
+  "start_url": "./?app=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
