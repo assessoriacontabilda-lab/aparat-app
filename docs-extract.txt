@@ -1,0 +1,123 @@
+=== MARKER: ap-docs at 86287 ===
+="lcico lc-az">📰</div><div class="lcinfo"><strong>Tabela Simples atualizada</strong><span>Simples Nacional · Jun/2025</span></div></div>
+      </div>
+
+      <!-- DOCS -->
+      <div class="apage" id="ap-docs">
+        <div class="segbadge"><span>🔒</span><span>Documentos criptografados</span></div>
+        <div class="asec">📄 Documentos</div>
+        <div class="docca"><div class="dico">📄</div><div class="dinf"><strong>Honorário Jun/2025.pdf</strong><span>Boleto · 98 KB · 01/06/2025</span><span class="tag tp" style="font-size:8px;margin-top:2px">Pago ✔</span></div><button class="btndl">Abrir</button></div>
+        <div class="docca"><div class="dico">📄</div><div class="dinf"><strong>DAS Jun/2
+=== END ===
+
+=== MARKER: navAba('docs at 37853 ===
+/span></div>
+      <div class="nav-sec">Financeiro</div>
+      <div class="nav-item" onclick="navAba('financeiro',this)"><span class="ni">💰</span>Financeiro</div>
+      <div class="nav-item" onclick="navAba('docs',this)"><span class="ni">📄</span>Documentos</div>
+      <div class="nav-sec">Sistema</div>
+      <div class="nav-item" onclick="navAba('escritorio',this)"><span class="ni">🏢</span>Meu Escritório</div>
+      <div class="nav-item" onclick="navAba('seguranca',this)"><span class="ni">🔒</span>Segurança</div>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="sdot"></span>Online · v1.0<br>
+      <span style="font-size:8px;color:#333355">CNPJ 56.938.548/0001-31</span>
+    </div>
+
+=== END ===
+
+=== MARKER: Documentos Seguros at 64228 ===
+formativos Publicados</div>
+      <div id="lista-informativos"></div>
+    </div>
+
+    <!-- DOCUMENTOS SEGUROS -->
+    <div class="painel-section" id="sec-docs-seguros">
+      <div class="sec-title">🔒 Documentos Seguros</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="ds-tab-btn-links" onclick="dsTab('links')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--azul);color:#fff">📂 Arquivos</button>
+        <button id="ds-tab-btn-prev" onclick="dsTab('prev')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--card2);color:va
+=== END ===
+
+=== MARKER: docs-seguro at 64182 ===
+tton>
+      </div>
+      <div class="sec">📰 Informativos Publicados</div>
+      <div id="lista-informativos"></div>
+    </div>
+
+    <!-- DOCUMENTOS SEGUROS -->
+    <div class="painel-section" id="sec-docs-seguros">
+      <div class="sec-title">🔒 Documentos Seguros</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="ds-tab-btn-links" onclick="dsTab('links')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--azul);color:#fff">📂 Arquivos</button>
+        <button id="ds-tab-btn-prev" onclick="dsTab('prev')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;fo
+=== END ===
+
+=== MARKER: firebase.storage at 232436 ===
+put){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>15*1024*1024){notif('Arquivo muito grande (máx 15 MB)');return;}
+  notif('⏳ Enviando arquivo...','info');
+  try{
+    const storage=firebase.storage();
+    const ext=file.name.split('.').pop();
+    const ref=storage.ref('documentos/'+uid+'/'+docKey+'_'+Date.now()+'.'+ext);
+    await ref.put(file);
+    const url=await ref.getDownloadURL();
+    const upd={};upd[docKey]=url;upd.updated=new Date().toISOString();
+    await firebase.firestore().doc('documentos_seguros/'+uid).set(upd,{merge:true});
+    notif('✅ Arquivo enviado!');
+    carregarDocsSeguro();
+  }catch(e){notif('Erro ao enviar: '+e.message);}
+}
+var _deferredInstall=nul
+=== END ===
+
+=== JS: storage at 880 ===
+ app funciona em MODO LOCAL (salva no aparelho).│
+   └──────────────────────────────────────────────────────────────────────┘ */
+const firebaseConfig = {
+  apiKey: "AIzaSyB5uHbMeK9OWUVYaaLv7oQr7NeHZDsVsMQ",
+  authDomain: "aparat-contabilidade.firebaseapp.com",
+  projectId: "aparat-contabilidade",
+  storageBucket: "aparat-contabilidade.firebasestorage.app",
+  messagingSenderId: "657898871170",
+  appId: "1:657898871170:web:26cbb9c9eaf2929bddd79b",
+  measurementId: "G-YPK7P20WSH"
+};
+const CLOUD = !String(firebaseConfig.projectId).includes("COLE_AQUI") && typeof firebase !== "undefined";
+let fdb = null;
+
+const DB_NAME='AparatDB', DB_VERSION=1, STORES=['clientes','obrigacoes','urgencias','agenda','informativos','honorarios','docs','financeiro'];
+let db;
+const val=id=>{const e=document.getElementById(id);return e?(''+e.value).trim():'';};
+const setVal=(id,v)=>{const e=document.getElementById(i
+=== END ===
+
+=== JS: firebase.storage at 142444 ===
+lank');
+  }catch(e){notif('Erro: '+e.message);}
+}
+async function dsUploadArquivo(uid,docId,docKey,input){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>15*1024*1024){notif('Arquivo muito grande (máx 15 MB)');return;}
+  notif('⏳ Enviando arquivo...','info');
+  try{
+    const storage=firebase.storage();
+    const ext=file.name.split('.').pop();
+    const ref=storage.ref('documentos/'+uid+'/'+docKey+'_'+Date.now()+'.'+ext);
+    await ref.put(file);
+    const url=await ref.getDownloadURL();
+    const upd={};upd[docKey]=url;upd.updated=new Date().toISOString();
+    await firebase.firestore().doc('documentos_seguros/'+uid).set(upd,{merge:true});
+    notif('✅ Arquivo enviado!');
+    carregarDocsSeguro();
+  }catch(e){notif('Erro ao enviar: '+e.message);}
+}
+var _deferredInstall=null;
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();_deferredInstall=
+=== END ===
