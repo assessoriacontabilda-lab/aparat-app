@@ -1,8 +1,8 @@
-/* APARAT - Documentos Seguros (arquivos grandes) + Instalacao - v2 */
+/* APARAT - Documentos Seguros (por UID) + Instalacao - v3 */
 (function () {
   "use strict";
   if (window.__APARAT_FIX__) return;
-  window.__APARAT_FIX__ = "v2";
+  window.__APARAT_FIX__ = "v3";
 
   // Auto-atualizacao: evita ficar preso numa versao antiga em cache.
   (function () {
@@ -19,8 +19,8 @@
   })();
 
   var ADMIN_EMAIL = "assessoriacontabil.da@gmail.com";
-  var MAX_BYTES = 15 * 1024 * 1024;   // 15 MB por arquivo
-  var CHUNK = 700000;                 // ~700 KB por parte (limite do Firestore e 1 MB/doc)
+  var MAX_BYTES = 15 * 1024 * 1024;
+  var CHUNK = 700000;
   var TYPES = [
     { key: "cnpj", label: "🪪 Cartão CNPJ" },
     { key: "certidao", label: "📜 Certidão de Inteiro Teor" },
@@ -29,16 +29,13 @@
 
   function fs() { return firebase.firestore(); }
   function col() { return fs().collection("docseg"); }
+  function uidAtual() { var u = firebase.auth && firebase.auth().currentUser; return u ? u.uid : null; }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  function sanitize(s) { return String(s || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60); }
-  function toast(msg) {
-    try { if (typeof window.notif === "function") { window.notif(msg, "info"); return; } } catch (e) {}
-    try { console.log("[aparat]", msg); } catch (e) {}
-  }
+  function sanitize(s) { return String(s || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 80); }
   function typeByKey(k) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].key === k) return TYPES[i]; return null; }
   function typeByText(t) {
     t = (t || "").toLowerCase();
@@ -61,93 +58,85 @@
     for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     return new Blob([arr], { type: m });
   }
-  function openData(dataUrl) {
-    try { var url = URL.createObjectURL(dataUrlToBlob(dataUrl)); window.open(url, "_blank"); }
-    catch (e) { downloadData(dataUrl, "documento"); }
-  }
-  function downloadData(dataUrl, nome) {
+  function openData(d) { try { window.open(URL.createObjectURL(dataUrlToBlob(d)), "_blank"); } catch (e) { downloadData(d, "documento"); } }
+  function downloadData(d, nome) {
     try {
-      var url = URL.createObjectURL(dataUrlToBlob(dataUrl));
+      var url = URL.createObjectURL(dataUrlToBlob(d));
       var a = document.createElement("a"); a.href = url; a.download = nome || "documento";
       document.body.appendChild(a); a.click(); a.remove();
-    } catch (e) { alert("Não foi possível baixar o arquivo."); }
+    } catch (e) { alert("Não foi possível baixar."); }
   }
 
-  /* --------- montar/gravar/apagar em partes --------- */
-  function baseId(name, key) { return sanitize(name) + "__" + key; }
+  function baseId(uid, key) { return "seg_" + sanitize(uid) + "_" + key; }
 
-  async function buildDataUrl(name, key) {
-    var meta = await col().doc(baseId(name, key)).get();
-    if (!meta.exists) return null;
-    var m = meta.data();
-    if (m.arquivoData) return m.arquivoData;           // compatibilidade (arquivo pequeno antigo)
-    var n = m.partes || 0, ids = [];
-    for (var i = 0; i < n; i++) ids.push(baseId(name, key) + "__p" + i);
+  // Reconstroi o arquivo a partir do documento-mestre (inline OU em partes)
+  async function buildFromMeta(meta) {
+    if (!meta) return null;
+    if (meta.arquivoData) return meta.arquivoData;            // formato antigo (inline)
+    if (meta.data && !meta.partes) return meta.data;          // alternativo
+    var n = meta.partes || 0;
+    if (!n) return null;
+    var base = meta.__id;
+    var ids = []; for (var i = 0; i < n; i++) ids.push(base + "__p" + i);
     var docs = await Promise.all(ids.map(function (id) { return col().doc(id).get(); }));
     var s = ""; docs.forEach(function (d) { if (d.exists) s += (d.data().data || ""); });
     return s || null;
   }
 
-  async function deleteDocSet(name, key) {
-    var base = baseId(name, key);
-    var meta = await col().doc(base).get();
-    var dels = [col().doc(base).delete()];
-    if (meta.exists) {
-      var n = meta.data().partes || 0;
-      for (var i = 0; i < n; i++) dels.push(col().doc(base + "__p" + i).delete());
-    }
+  // Apaga TODOS os docs (mestre + partes) de um dono/tipo, qualquer que seja o id
+  async function deleteDocSet(ownerUid, key) {
+    var snap = await col().where("cliente", "==", ownerUid).get();
+    var dels = [];
+    snap.forEach(function (d) { if (d.data().tipoKey === key) dels.push(d.ref.delete()); });
     await Promise.all(dels);
   }
 
-  async function uploadDoc(name, t, file) {
-    if (file.size > MAX_BYTES) {
-      alert("Arquivo muito grande (" + Math.round(file.size / 1024 / 1024 * 10) / 10 + " MB). O limite é 15 MB.");
-      return;
-    }
-    var btnMsg = t.label + " (" + Math.round(file.size / 1024) + " KB)";
-    toast("Enviando " + btnMsg + "...");
+  async function uploadDoc(ownerUid, ownerNome, t, file) {
+    if (file.size > MAX_BYTES) { alert("Arquivo muito grande. Limite 15 MB."); return; }
     try {
       var dataUrl = await readAsDataURL(file);
-      await deleteDocSet(name, t.key);
+      await deleteDocSet(ownerUid, t.key);
+      var base = baseId(ownerUid, t.key);
       var parts = [];
       for (var i = 0; i < dataUrl.length; i += CHUNK) parts.push(dataUrl.slice(i, i + CHUNK));
       await Promise.all(parts.map(function (p, k) {
-        return col().doc(baseId(name, t.key) + "__p" + k).set({
-          cliente: name, tipoKey: t.key, parte: k, chunk: true, data: p
-        });
+        return col().doc(base + "__p" + k).set({ cliente: ownerUid, tipoKey: t.key, parte: k, chunk: true, data: p });
       }));
-      await col().doc(baseId(name, t.key)).set({
-        cliente: name, tipo: t.label, tipoKey: t.key, meta: true,
+      await col().doc(base).set({
+        cliente: ownerUid, clienteNome: ownerNome || "", tipo: t.label, tipoKey: t.key, meta: true,
         arquivoNome: file.name, mime: file.type || "application/octet-stream",
         tamanho: file.size, partes: parts.length,
         criadoEm: firebase.firestore.FieldValue.serverTimestamp()
       });
-      alert(t.label + " enviado para " + name + " com sucesso!");
+      alert(t.label + " enviado para " + (ownerNome || "o cliente") + " com sucesso!");
       officeRender();
-    } catch (e) {
-      alert("Erro ao enviar: " + (e.code || e.message || e));
-    }
+    } catch (e) { alert("Erro ao enviar: " + (e.code || e.message || e)); }
   }
 
-  /* --------- ESCRITORIO --------- */
+  /* ---------- ESCRITORIO ---------- */
+  function selectedNome() {
+    var sel = document.getElementById("docs-cli-sel");
+    if (!sel || sel.selectedIndex < 0) return "";
+    var o = sel.options[sel.selectedIndex]; return o ? o.textContent : "";
+  }
+
   function fillClientSelect() {
     var sel = document.getElementById("docs-cli-sel");
     if (!sel) return;
-    // Usa o NOME DO LOGIN do cliente (usuarios.clienteNome) para garantir
-    // que o cliente encontre o documento no app dele.
     fs().collection("usuarios").get().then(function (snap) {
-      var nomes = [];
+      var lista = [];
       snap.forEach(function (d) {
         var x = d.data();
-        if (x && x.clienteNome && x.role !== "admin" && x.email !== ADMIN_EMAIL) nomes.push(x.clienteNome);
+        if (x && x.clienteNome && x.role !== "admin" && x.email !== ADMIN_EMAIL) {
+          lista.push({ uid: d.id, nome: x.clienteNome });
+        }
       });
-      var vistos = {}, unicos = [];
-      nomes.forEach(function (n) { if (!vistos[n]) { vistos[n] = 1; unicos.push(n); } });
-      nomes = unicos;
-      nomes.sort(function (a, b) { return a.localeCompare(b); });
+      lista.sort(function (a, b) { return a.nome.localeCompare(b.nome); });
       var cur = sel.value;
       sel.innerHTML = '<option value="">Toque para selecionar...</option>';
-      nomes.forEach(function (n) { var o = document.createElement("option"); o.value = n; o.textContent = n; sel.appendChild(o); });
+      lista.forEach(function (it) {
+        var o = document.createElement("option"); o.value = it.uid; o.textContent = it.nome; sel.appendChild(o);
+      });
       if (cur) sel.value = cur;
     }).catch(function (e) { console.warn("[aparat-fix] usuarios", e); });
   }
@@ -156,15 +145,16 @@
     var sel = document.getElementById("docs-cli-sel");
     var box = document.getElementById("docs-lista");
     if (!sel || !box) return;
-    var name = sel.value;
-    if (!name) {
+    var uid = sel.value;
+    if (!uid) {
       box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:10px">Selecione um cliente para ver e enviar os documentos seguros.</div>';
       return;
     }
+    var nome = selectedNome();
     box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:10px">Carregando...</div>';
-    col().where("cliente", "==", name).where("meta", "==", true).get().then(function (snap) {
+    col().where("cliente", "==", uid).where("meta", "==", true).get().then(function (snap) {
       var map = {};
-      snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.id = d.id; map[x.tipoKey] = x; });
+      snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.__id = d.id; map[x.tipoKey] = x; });
       var html = "";
       TYPES.forEach(function (t) {
         var doc = map[t.key];
@@ -186,28 +176,27 @@
       });
       box.innerHTML = html;
       [].forEach.call(box.querySelectorAll("button[data-act]"), function (b) {
-        b.onclick = function () { officeAction(b.getAttribute("data-act"), b.getAttribute("data-k"), name, map[b.getAttribute("data-k")]); };
+        b.onclick = function () { officeAction(b.getAttribute("data-act"), b.getAttribute("data-k"), uid, nome, map[b.getAttribute("data-k")]); };
       });
     }).catch(function (e) {
       box.innerHTML = '<div style="color:#ef4444;font-size:12px;padding:10px">Erro ao carregar: ' + esc(e.code || e.message) + "</div>";
     });
   }
 
-  function officeAction(act, key, name, doc) {
+  function officeAction(act, key, uid, nome, doc) {
     var t = typeByKey(key);
-    if (act === "enviar") { pickFile(function (f) { uploadDoc(name, t, f); }); return; }
+    if (act === "enviar") { pickFile(function (f) { uploadDoc(uid, nome, t, f); }); return; }
     if (!doc) return;
     if (act === "ver" || act === "baixar") {
-      toast("Abrindo arquivo...");
-      buildDataUrl(name, key).then(function (du) {
-        if (!du) { alert("Arquivo não encontrado."); return; }
-        if (act === "ver") openData(du); else downloadData(du, doc.arquivoNome);
+      buildFromMeta(doc).then(function (d) {
+        if (!d) { alert("Arquivo não encontrado."); return; }
+        if (act === "ver") openData(d); else downloadData(d, doc.arquivoNome);
       });
       return;
     }
     if (act === "excluir") {
-      if (!confirm("Excluir " + t.label + " de " + name + "?")) return;
-      deleteDocSet(name, key).then(function () { alert("Documento excluído."); officeRender(); })
+      if (!confirm("Excluir " + t.label + " de " + (nome || "cliente") + "?")) return;
+      deleteDocSet(uid, key).then(function () { alert("Documento excluído."); officeRender(); })
         .catch(function (e) { alert("Erro ao excluir: " + (e.code || e.message)); });
     }
   }
@@ -224,43 +213,35 @@
     var ifr = document.getElementById("ds-iframe");
     var sel = document.getElementById("docs-cli-sel");
     if (!prev || !ifr) return;
-    var name = sel ? sel.value : "";
+    var uid = sel ? sel.value : "";
     var t = typeByText(prev.options[prev.selectedIndex] ? prev.options[prev.selectedIndex].textContent : "");
-    if (!name) { alert("Selecione um cliente na aba 📂 Arquivos primeiro."); return; }
+    if (!uid) { alert("Selecione um cliente na aba 📂 Arquivos primeiro."); return; }
     if (!t) { ifr.removeAttribute("src"); return; }
-    buildDataUrl(name, t.key).then(function (du) {
-      if (!du) { ifr.src = "about:blank"; alert("Nenhum " + t.label + " enviado para " + name + "."); return; }
-      try { ifr.src = URL.createObjectURL(dataUrlToBlob(du)); } catch (e) { ifr.src = du; }
+    col().where("cliente", "==", uid).where("meta", "==", true).get().then(function (snap) {
+      var meta = null; snap.forEach(function (d) { var x = d.data(); if (x.tipoKey === t.key) { x.__id = d.id; meta = x; } });
+      if (!meta) { ifr.src = "about:blank"; alert("Nenhum " + t.label + " enviado para este cliente."); return; }
+      buildFromMeta(meta).then(function (d) {
+        if (!d) { ifr.src = "about:blank"; return; }
+        try { ifr.src = URL.createObjectURL(dataUrlToBlob(d)); } catch (e) { ifr.src = d; }
+      });
     });
   }
 
-  /* --------- CLIENTE --------- */
-  var IDENT = { role: null, name: null, email: null };
-  function loadIdentity(cb) {
-    var u = firebase.auth && firebase.auth().currentUser;
-    if (!u) { IDENT = { role: null, name: null, email: null }; cb(IDENT); return; }
-    fs().collection("usuarios").doc(u.uid).get().then(function (d) {
-      var data = d.exists ? d.data() : {};
-      IDENT = { role: data.role || (u.email === ADMIN_EMAIL ? "admin" : "cliente"), name: data.clienteNome || null, email: u.email };
-      cb(IDENT);
-    }).catch(function () {
-      IDENT = { role: u.email === ADMIN_EMAIL ? "admin" : "cliente", name: null, email: u.email }; cb(IDENT);
-    });
-  }
-
+  /* ---------- CLIENTE ---------- */
   function clientRender() {
     var box = document.getElementById("lista-docs-cliente");
     if (!box) return;
-    if (!IDENT.name) { box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Faça login para ver seus documentos.</div>'; return; }
+    var uid = uidAtual();
+    if (!uid) { box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Faça login para ver seus documentos.</div>'; return; }
     box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Carregando...</div>';
-    col().where("cliente", "==", IDENT.name).where("meta", "==", true).get().then(function (snap) {
-      var docs = []; snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.id = d.id; docs.push(x); });
+    col().where("cliente", "==", uid).where("meta", "==", true).get().then(function (snap) {
+      var docs = []; snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.__id = d.id; docs.push(x); });
       if (!docs.length) { box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Nenhum documento disponível ainda.</div>'; return; }
       var html = "";
       docs.forEach(function (doc, i) {
         html += '<div style="background:#12122a;border:1px solid #222248;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">'
           + '<div style="font-size:22px">📄</div>'
-          + '<div style="flex:1;min-width:0"><div style="font-weight:700;color:#fff;font-size:12px">' + esc(doc.tipo) + "</div>"
+          + '<div style="flex:1;min-width:0"><div style="font-weight:700;color:#fff;font-size:12px">' + esc(doc.tipo || "Documento") + "</div>"
           + '<div style="font-size:10px;color:#9090b8;overflow:hidden;text-overflow:ellipsis">' + esc(doc.arquivoNome || "") + "</div></div>"
           + '<button data-i="' + i + '" data-act="ver" style="background:#3a5bd9;color:#fff;border:0;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">👁 Ver</button>'
           + '<button data-i="' + i + '" data-act="baixar" style="background:#22c55e;color:#fff;border:0;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">⬇ Baixar</button>'
@@ -270,10 +251,9 @@
       [].forEach.call(box.querySelectorAll("button[data-act]"), function (b) {
         b.onclick = function () {
           var doc = docs[+b.getAttribute("data-i")]; var act = b.getAttribute("data-act");
-          toast("Abrindo...");
-          buildDataUrl(IDENT.name, doc.tipoKey).then(function (du) {
-            if (!du) { alert("Arquivo não encontrado."); return; }
-            if (act === "ver") openData(du); else downloadData(du, doc.arquivoNome);
+          buildFromMeta(doc).then(function (d) {
+            if (!d) { alert("Arquivo não encontrado."); return; }
+            if (act === "ver") openData(d); else downloadData(d, doc.arquivoNome);
           });
         };
       });
@@ -282,7 +262,7 @@
     });
   }
 
-  /* --------- INSTALACAO --------- */
+  /* ---------- INSTALACAO ---------- */
   function setupInstall() {
     window.addEventListener("beforeinstallprompt", function (e) {
       e.preventDefault(); window.__bip = e;
@@ -294,21 +274,21 @@
       if (standalone) { alert("O app já está instalado neste aparelho."); return; }
       if (window.__bip) {
         window.__bip.prompt();
-        window.__bip.userChoice.then(function (c) { window.__bip = null; if (c && c.outcome === "accepted") alert("App instalado! Procure o ícone Aparat na tela inicial."); });
+        window.__bip.userChoice.then(function (c) { window.__bip = null; if (c && c.outcome === "accepted") alert("App instalado!"); });
         return;
       }
       var ua = navigator.userAgent || "";
       if (/iPhone|iPad|iPod/i.test(ua)) {
-        alert("Para instalar no iPhone/iPad:\n\n1. Toque no botão Compartilhar (quadrado com seta para cima).\n2. Escolha \"Adicionar à Tela de Início\".\n3. Confirme em \"Adicionar\".");
+        alert("iPhone/iPad:\n1. Botão Compartilhar.\n2. \"Adicionar à Tela de Início\".\n3. Adicionar.");
       } else if (/Android/i.test(ua)) {
-        alert("Para instalar no Android:\n\n1. Toque nos 3 pontinhos (⋮) do navegador.\n2. Escolha \"Instalar aplicativo\" (se aparecer \"Adicionar à tela inicial\", feche o app, abra de novo e tente de novo).\n3. Confirme.");
+        alert("Android:\n1. Toque nos 3 pontinhos (⋮).\n2. \"Instalar aplicativo\".\n3. Confirmar.");
       } else {
-        alert("Para instalar no computador: clique no ícone de instalar na barra de endereço do Chrome, ou menu ⋮ > \"Instalar Aparat Contabilidade\".");
+        alert("PC: clique no ícone de instalar na barra de endereço do Chrome.");
       }
     };
   }
 
-  /* --------- INIT --------- */
+  /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     setupInstall();
@@ -322,17 +302,15 @@
     window.carregarDocsCliente = clientRender;
     var nb = document.getElementById("nb-docs");
     if (nb) nb.addEventListener("click", function () { setTimeout(clientRender, 350); });
-    loadIdentity(function (id) {
-      if (id.role === "admin" || !id.role) fillClientSelect();
-      if (id.role && id.role !== "admin") clientRender();
-    });
-    firebase.auth().onAuthStateChanged(function () {
-      loadIdentity(function (id) {
-        if (id.role === "admin" || !id.role) fillClientSelect();
-        if (id.role && id.role !== "admin") clientRender();
-      });
-    });
-    console.log("[aparat-fix] v2 carregado");
+
+    function afterAuth() {
+      var u = firebase.auth().currentUser;
+      var isAdmin = u && (u.email === ADMIN_EMAIL);
+      if (isAdmin) fillClientSelect(); else if (u) clientRender();
+    }
+    afterAuth();
+    firebase.auth().onAuthStateChanged(afterAuth);
+    console.log("[aparat-fix] v3 (UID) carregado");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
