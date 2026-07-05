@@ -1,0 +1,155 @@
+name: Fix Documentos Seguros Completo
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-docs.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply all fixes
+        run: |
+          python3 - << 'PYEOF'
+          with open('index.html','r',encoding='utf-8') as f:
+              c=f.read()
+
+          # Fix 1: Add firebase-storage-compat.js SDK
+          auth_tag='firebase-auth-compat.js"></script>'
+          if auth_tag in c and 'firebase-storage-compat' not in c:
+              stor='<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>'
+              c=c.replace(auth_tag,auth_tag+'\n'+stor,1)
+              print('1 OK: storage SDK adicionado')
+          else:
+              print('1 SKIP: ja presente ou nao encontrado')
+
+          # Fix 2: Replace carregarDocsSeguro with version that has View/Delete/Download
+          f1='async function carregarDocsSeguro(){'
+          f2='async function salvarDocsSeguro(){'
+          if f1 in c and f2 in c:
+              i1,i2=c.index(f1),c.index(f2)
+              NF="""async function carregarDocsSeguro(){
+var uid=document.getElementById("docs-cli-sel").value;
+var lista=document.getElementById("docs-lista");
+if(!lista)return;
+if(!uid){lista.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px;font-size:13px">Selecione um cliente acima</div>';return;}
+var DS=[
+{id:"cnpj",nome:"Cartão CNPJ",icon:"\U0001fa9a",key:"cnpj_link"},
+{id:"certidao",nome:"Certidão de Inteiro Teor",icon:"\U0001f4dc",key:"certidao_link"},
+{id:"cert_digital",nome:"Certificado Digital",icon:"\U0001f4b3",key:"cert_digital_link"}
+];
+lista.innerHTML='<div style="color:var(--cinza);text-align:center;padding:12px;font-size:12px">Carregando...</div>';
+var ex={};
+try{var snap=await firebase.firestore().doc("documentos_seguros/"+uid).get();if(snap.exists)ex=snap.data();}catch(e){}
+lista.innerHTML=DS.map(function(doc){
+var val=ex[doc.key]||"";var tem=val&&val.length>10;
+var h='<div style="background:var(--card2);border-radius:10px;padding:12px;margin-bottom:10px">';
+h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+h+='<span style="font-size:18px">'+doc.icon+'</span>';
+h+='<div><div style="font-weight:700;font-size:13px">'+doc.nome+'</div>';
+h+='<div style="font-size:10px;color:'+(tem?'#22cc77':'var(--cinza)')+'">'+( tem?'&#9989; Arquivo enviado':'&#9898; Sem arquivo')+'</div></div></div>';
+h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+if(tem){
+h+='<button data-key="'+doc.key+'" data-uid="'+uid+'" onclick="dsAbrirArquivo(this.dataset.key,this.dataset.uid)" style="flex:1;padding:7px;border:none;border-radius:7px;background:var(--azul);color:#fff;font-size:11px;cursor:pointer">&#128065; Visualizar</button>';
+h+='<a href="'+val+'" download target="_blank" style="flex:1;padding:7px;border:none;border-radius:7px;background:#1a6a3a;color:#fff;font-size:11px;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">&#11015; Download</a>';
+h+='<button data-uid="'+uid+'" data-id="'+doc.id+'" data-key="'+doc.key+'" onclick="dsDeleteDoc(this.dataset.uid,this.dataset.id,this.dataset.key)" style="padding:7px 10px;border:none;border-radius:7px;background:#6a1a1a;color:#fff;font-size:11px;cursor:pointer">&#128465;</button>';
+}
+h+='<label style="flex:'+(tem?'0 0 auto':'1')+';padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--cinza);font-size:11px;cursor:pointer;text-align:center">';
+h+=(tem?'&#128260; Substituir':'&#128228; Enviar arquivo');
+h+='<input id="ds-file-'+doc.id+'" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" data-uid="'+uid+'" data-id="'+doc.id+'" data-key="'+doc.key+'" onchange="dsUploadArquivo(this.dataset.uid,this.dataset.id,this.dataset.key,this)"/></label>';
+h+='</div></div>';return h;
+}).join('');
+}
+"""
+              c=c[:i1]+NF+'\n'+c[i2:]
+              print('2 OK: carregarDocsSeguro atualizado com visualizar/excluir/download')
+          else:
+              print('2 FAIL: funcao nao encontrada:',f1 in c,f2 in c)
+
+          # Fix 3: Add carregarDocsCliente function for client view
+          if 'carregarDocsCliente' not in c:
+              anchor='var _deferredInstall=null;'
+              if anchor in c:
+                  NF3="""async function carregarDocsCliente(){
+var user=typeof firebase!='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+if(!user)return;
+var uid=user.uid;
+var cont=document.getElementById('lista-docs-cliente');
+if(!cont)return;
+var DS=[
+{id:"cnpj",nome:"Cartão CNPJ",icon:"\U0001fa9a",key:"cnpj_link"},
+{id:"certidao",nome:"Certidão de Inteiro Teor",icon:"\U0001f4dc",key:"certidao_link"},
+{id:"cert_digital",nome:"Certificado Digital",icon:"\U0001f4b3",key:"cert_digital_link"}
+];
+cont.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px;font-size:12px">Carregando documentos...</div>';
+var ex={};
+try{var snap=await firebase.firestore().doc("documentos_seguros/"+uid).get();if(snap.exists)ex=snap.data();}catch(e){}
+var docs=DS.filter(function(d){return ex[d.key]&&ex[d.key].length>10;});
+if(docs.length===0){
+cont.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px;font-size:12px">Nenhum documento disponível no momento</div>';
+return;
+}
+cont.innerHTML=docs.map(function(doc){var url=ex[doc.key];
+return '<div class="docca"><div class="dico">'+doc.icon+'</div>'
++'<div class="dinf"><strong>'+doc.nome+'</strong>'
++'<span>Enviado pelo escritório</span></div>'
++'<div style="display:flex;gap:4px">'
++'<a class="btndl" href="'+url+'" target="_blank" style="text-decoration:none;display:flex;align-items:center;padding:5px 10px">&#128065; Ver</a>'
++'<a class="btndl" href="'+url+'" download target="_blank" style="text-decoration:none;display:flex;align-items:center;padding:5px 8px">&#11015;</a>'
++'</div></div>';}).join('');
+}
+"""
+                  c=c.replace(anchor,NF3+'\n'+anchor,1)
+                  print('3 OK: carregarDocsCliente adicionada')
+              else:
+                  print('3 FAIL: ancora nao encontrada')
+          else:
+              print('3 SKIP: ja existe')
+
+          # Fix 4: Replace static ap-docs HTML with dynamic version
+          old_ap='<div class="apage" id="ap-docs">'
+          if old_ap in c:
+              ai=c.index(old_ap)
+              ni=c.find('<div class="apage"',ai+1)
+              if ni>ai:
+                  new_ap=('<div class="apage" id="ap-docs">\n'
+                  '<div class="segbadge"><span>\U0001f512</span>'
+                  '<span>Documentos criptografados</span></div>\n'
+                  '<div class="asec">\U0001f4c4 Meus Documentos</div>\n'
+                  '<div id="lista-docs-cliente">'
+                  '<div style="color:var(--cinza);text-align:center;padding:20px;font-size:12px">'
+                  'Carregando...</div></div>\n'
+                  '<button class="btn btn-az" onclick="carregarDocsCliente()" '
+                  'style="width:100%;margin-top:8px">\U0001f504 Atualizar</button>\n'
+                  '</div>\n')
+                  c=c[:ai]+new_ap+c[ni:]
+                  print('4 OK: ap-docs atualizado com visualizar/download dinamico')
+              else:
+                  print('4 FAIL: proximo apage nao encontrado')
+          else:
+              print('4 FAIL: ap-docs nao encontrado')
+
+          # Fix 5: Auto-load client docs when nav tab is clicked
+          nav_old='onclick="navAba(\'docs\',this)"'
+          nav_new='onclick="navAba(\'docs\',this);setTimeout(carregarDocsCliente,400)"'
+          if nav_old in c:
+              c=c.replace(nav_old,nav_new,1)
+              print('5 OK: nav docs atualizado')
+          else:
+              print('5 FAIL: nav item nao encontrado')
+
+          with open('index.html','w',encoding='utf-8') as f:
+              f.write(c)
+          print('Concluido!')
+          PYEOF
+      - name: Commit all fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "feat: Documentos Seguros - storage SDK, ver, excluir, cliente download"
+          git push
