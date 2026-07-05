@@ -849,30 +849,32 @@ body.foco .cli-top{display:none}
     <!-- DOCUMENTOS SEGUROS -->
     <div class="painel-section" id="sec-docs-seguros">
       <div class="sec-title">🔒 Documentos Seguros</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end">
-        <div style="flex:1">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Cliente:</label>
-          <select id="docs-cli-sel" onchange="carregarDocsSeguro()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;width:100%">
-            <option value="">— Selecione um cliente —</option>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="ds-tab-btn-links" onclick="dsTab('links')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--azul);color:#fff">📎 Links</button>
+        <button id="ds-tab-btn-prev" onclick="dsTab('prev')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--card2);color:var(--cinza)">👁️ Visualizar</button>
+      </div>
+      <div id="ds-pane-links">
+        <div style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Cliente</label>
+          <select id="docs-cli-sel" onchange="carregarDocsSeguro()" onfocus="popularDocsSelect()" style="width:100%;padding:9px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:13px">
+            <option value="">Toque para selecionar...</option>
           </select>
         </div>
-        <button onclick="popularDocsSelect()" style="background:#6b7280;color:#fff;border:none;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px">📋 Clientes</button>
+        <div id="docs-lista"></div>
+        <button class="btn btn-az" id="btn-save-docs" onclick="salvarDocsSeguro()" style="width:100%;margin-top:4px">💾 Salvar Links</button>
       </div>
-      <div class="docs-admin-grid">
-        <div class="doc-admin-card">
-          <label>🪪 Cartão CNPJ</label>
-          <input type="url" id="doc-cnpj-link" placeholder="Link Google Drive..."/>
+      <div id="ds-pane-prev" style="display:none">
+        <div style="margin-bottom:10px">
+          <select id="ds-prev-sel" onchange="dsPreviewIframe(this.value)" style="width:100%;padding:9px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:13px">
+            <option value="">Selecione documento...</option>
+            <option value="cnpj">🪪 Cartao CNPJ</option>
+            <option value="certidao">📜 Certidao de Inteiro Teor</option>
+            <option value="cert_digital">💳 Certificado Digital</option>
+          </select>
         </div>
-        <div class="doc-admin-card">
-          <label>📄 Certidão de Inteiro Teor</label>
-          <input type="url" id="doc-certidao-link" placeholder="Link Google Drive..."/>
-        </div>
-        <div class="doc-admin-card">
-          <label>🔐 Certificado Digital</label>
-          <input type="url" id="doc-certdig-link" placeholder="Link Google Drive..."/>
-        </div>
+        <iframe id="ds-iframe" src="about:blank" style="width:100%;height:480px;border:1px solid var(--border);border-radius:10px;background:#fff"></iframe>
+        <button onclick="dsTab('links')" style="margin-top:8px;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--cinza);cursor:pointer;font-size:12px">Voltar</button>
       </div>
-      <button onclick="salvarDocsSeguro()" class="btn-save-docs">💾 Salvar Links</button>
     </div>
 
     <!-- SOLICITACOES -->
@@ -2513,7 +2515,7 @@ async function renderClientePortal(nome){
       +'<div class="cli-left">'
         +'<div class="cli-sec" id="sec-fat"><div class="asec">📈 Controle de Faturamento</div><div id="cli-fat"></div></div>'
         +'<div class="cli-sec" id="sec-dados"><div class="asec" style="margin-top:12px">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
-        +'<div class="cli-sec" id="sec-docs"><div class="asec" style="margin-top:12px">🔒 Meus Documentos</div><div id="cli-docs-carousel"><p style=\"text-align:center;color:#888;padding:24px\">Carregando...</p></div></div>'
+        +'<div class="cli-sec" id="sec-docs"><div class="asec" style="margin-top:12px">🔒 Meus Documentos</div><div id="cli-docs-carousel"><div id="cli-docs-cards"></div><div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-top:10px"><button onclick="navDoc(-1)" style="background:#1a1a35;border:1px solid #222248;border-radius:50%;width:34px;height:34px;color:#fff;cursor:pointer;font-size:18px">&#8249;</button><span id="doc-nav-info" style="font-size:12px;color:#9090b8">1 / 3</span><button onclick="navDoc(1)" style="background:#1a1a35;border:1px solid #222248;border-radius:50%;width:34px;height:34px;color:#fff;cursor:pointer;font-size:18px">&#8250;</button></div></div></div>'
         +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon"></div></div>'
         +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
         +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
@@ -2925,77 +2927,184 @@ setTimeout(()=>{const sp=document.getElementById('splash');if(sp)sp.classList.ad
 
 // ===== DOCUMENTOS SEGUROS =====
 async function popularDocsSelect(){
-  const sel=document.getElementById('docs-cli-sel');if(!sel)return;
-  try{const snap=await db.collection('clientes').get();sel.innerHTML='<option value="">— Selecione —</option>';snap.forEach(d=>{const o=document.createElement('option');o.value=d.id;o.textContent=d.data().nome||d.id;sel.appendChild(o);});}
-  catch(e){console.error('popularDocsSelect:',e);}
+  const sel=document.getElementById('docs-cli-sel');
+  if(!sel)return;
+  if(sel.dataset.loaded==='1'&&sel.options.length>1)return;
+  sel.dataset.loaded='1';
+  try{
+    let snap;
+    try{snap=await firebase.firestore().collection('usuarios').get();}
+    catch(e2){snap=await firebase.firestore().collection('clientes').get();}
+    sel.innerHTML='<option value="">Selecione o cliente...</option>';
+    if(snap.empty){sel.innerHTML='<option value="">Nenhum cliente cadastrado</option>';return;}
+    snap.forEach(d=>{
+      const dat=d.data();
+      const nome=dat.nome||dat.empresa||dat.nomeEmpresa||dat.email||d.id;
+      const o=document.createElement('option');
+      o.value=d.id;o.textContent=nome;sel.appendChild(o);
+    });
+  }catch(e){sel.innerHTML='<option value="">Erro ao carregar</option>';console.error(e);}
 }
 async function carregarDocsSeguro(){
-  const id=document.getElementById('docs-cli-sel').value;if(!id)return;
-  try{const snap=await db.collection('documentos_seguros').doc(id).get();const data=snap.exists?snap.data():{};document.getElementById('doc-cnpj-link').value=data.cnpj_link||'';document.getElementById('doc-certidao-link').value=data.certidao_link||'';document.getElementById('doc-certdig-link').value=data.cert_link||'';}
-  catch(e){console.error(e);}
+  const uid=document.getElementById('docs-cli-sel').value;
+  const lista=document.getElementById('docs-lista');
+  if(!lista)return;
+  if(!uid){lista.innerHTML='';return;}
+  const DS=[
+    {id:'cnpj',nome:'Cartao CNPJ',icon:'🪪',key:'cnpj_link'},
+    {id:'certidao',nome:'Certidao de Inteiro Teor',icon:'📜',key:'certidao_link'},
+    {id:'cert_digital',nome:'Certificado Digital',icon:'💳',key:'cert_digital_link'}
+  ];
+  lista.innerHTML='<p style="color:var(--cinza);font-size:12px;text-align:center;padding:12px">Carregando...</p>';
+  let ex={};
+  try{
+    const snap=await firebase.firestore().doc('documentos_seguros/'+uid).get();
+    if(snap.exists)ex=snap.data();
+  }catch(e){}
+  lista.innerHTML=DS.map(doc=>{
+    const val=(ex[doc.key]||'').replace(/"/g,'&quot;');
+    return '<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+      +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+doc.icon+' '+doc.nome+'</div>'
+      +'<div style="display:flex;gap:6px;align-items:center">'
+      +'<input id="ds-inp-'+doc.id+'" type="url" placeholder="Link Google Drive..." value="'+val+'" style="flex:1;padding:7px;background:var(--escuro);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px"/>'
+      +'<button onclick="dsPreviewIframe(''+doc.id+'')" title="Visualizar" style="background:var(--azul);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">👁️</button>'
+      +'<button onclick="dsDeleteDoc(''+uid+'',''+doc.id+'',''+doc.key+'')" title="Excluir" style="background:var(--vermelho);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">🗑️</button>'
+      +'</div></div>';
+  }).join('');
 }
 async function salvarDocsSeguro(){
-  const id=document.getElementById('docs-cli-sel').value;if(!id){alert('Selecione um cliente.');return;}
-  const data={cnpj_link:document.getElementById('doc-cnpj-link').value.trim(),certidao_link:document.getElementById('doc-certidao-link').value.trim(),cert_link:document.getElementById('doc-certdig-link').value.trim(),updated:new Date().toISOString()};
-  try{await db.collection('documentos_seguros').doc(id).set(data);alert('Documentos salvos com sucesso!');}catch(e){alert('Erro: '+e.message);}
+  const uid=document.getElementById('docs-cli-sel').value;
+  if(!uid){notif('Selecione um cliente primeiro');return;}
+  const payload={
+    cnpj_link:document.getElementById('ds-inp-cnpj')?.value||'',
+    certidao_link:document.getElementById('ds-inp-certidao')?.value||'',
+    cert_digital_link:document.getElementById('ds-inp-cert_digital')?.value||'',
+    updated:new Date().toISOString()
+  };
+  try{
+    await firebase.firestore().doc('documentos_seguros/'+uid).set(payload,{merge:true});
+    notif('Links salvos!');
+  }catch(e){notif('Erro: '+e.message);}
+}
+async function dsDeleteDoc(uid,docId,docKey){
+  if(!confirm('Excluir este link?'))return;
+  try{
+    const upd={};upd[docKey]='';
+    await firebase.firestore().doc('documentos_seguros/'+uid).update(upd);
+    const inp=document.getElementById('ds-inp-'+docId);
+    if(inp)inp.value='';
+    notif('Link removido!');
+  }catch(e){notif('Erro: '+e.message);}
+}
+function dsPreviewIframe(docId){
+  const inp=document.getElementById('ds-inp-'+docId);
+  const link=inp?inp.value.trim():'';
+  if(!link){notif('Nenhum link para visualizar');return;}
+  let url=link;
+  const m=link.match(//d/([a-zA-Z0-9_-]+)/);
+  if(m)url='https://drive.google.com/file/d/'+m[1]+'/preview';
+  document.getElementById('ds-iframe').src=url;
+  dsTab('prev');
+}
+function dsTab(tab){
+  const lP=document.getElementById('ds-pane-links');
+  const pP=document.getElementById('ds-pane-prev');
+  const lB=document.getElementById('ds-tab-btn-links');
+  const pB=document.getElementById('ds-tab-btn-prev');
+  if(lP)lP.style.display=tab==='links'?'block':'none';
+  if(pP)pP.style.display=tab==='prev'?'block':'none';
+  if(lB){lB.style.background=tab==='links'?'var(--azul)':'var(--card2)';lB.style.color=tab==='links'?'#fff':'var(--cinza)';}
+  if(pB){pB.style.background=tab==='prev'?'var(--azul)':'var(--card2)';pB.style.color=tab==='prev'?'#fff':'var(--cinza)';}
 }
 async function renderDocsCarousel(uid){
-  const container=document.getElementById('cli-docs-carousel');if(!container)return;
+  const cont=document.getElementById('cli-docs-carousel');
+  if(!cont)return;
+  const DS=[
+    {id:'cnpj',nome:'Cartao CNPJ',icon:'🪪',desc:'Comprovante CNPJ',key:'cnpj_link'},
+    {id:'certidao',nome:'Certidao Inteiro Teor',icon:'📜',desc:'Certidao completa',key:'certidao_link'},
+    {id:'cert_digital',nome:'Certificado Digital',icon:'💳',desc:'Certificado A1/A3',key:'cert_digital_link'}
+  ];
+  let links={};
   try{
-    const snap=await db.collection('documentos_seguros').doc(uid).get();
-    if(!snap.exists){container.innerHTML='<p style="color:#888;text-align:center;padding:20px">Nenhum documento disponível.</p>';return;}
-    const data=snap.data();
-    const docs=[{id:'cnpj',nome:'Cartão CNPJ',icon:'🪪',link:data.cnpj_link},{id:'certidao',nome:'Certidão de Inteiro Teor',icon:'📄',link:data.certidao_link},{id:'certdig',nome:'Certificado Digital',icon:'🔐',link:data.cert_link}].filter(d=>d.link);
-    if(!docs.length){container.innerHTML='<p style="color:#888;text-align:center;padding:20px">Nenhum documento disponível.</p>';return;}
-    window._docsIdx=0;
-    container.innerHTML='<div id="docs-wrap">'+docs.map((d,i)=>'<div class="doc-slide'+(i===0?' active':'')+'" data-idx="'+i+'"><div class="doc-card-client"><div class="doc-card-icon">'+d.icon+'</div><div class="doc-card-name">'+d.nome+'</div><div class="doc-card-lock" id="dlock-'+d.id+'">🔒</div><button class="btn-acessar-doc" onclick="abrirOTP(\''+d.id+'\',\''+d.nome.replace(/'/g,"\'")+'\',' +'\''+encodeURIComponent(d.link)+'\')">Acessar Documento</button></div></div>').join('')+'</div><div class="docs-nav"><button onclick="navDoc(-1)">&#8249;</button><span id="doc-nav-info">1 / '+docs.length+'</span><button onclick="navDoc(1)">&#8250;</button></div>';
-  }catch(e){container.innerHTML='<p style="color:#f87171;text-align:center;padding:20px">Erro ao carregar documentos.</p>';}
+    const snap=await firebase.firestore().doc('documentos_seguros/'+uid).get();
+    if(snap.exists)links=snap.data();
+  }catch(e){}
+  let cur=0;
+  function renderCard(){
+    const doc=DS[cur];
+    const link=(links[doc.key]||'').trim();
+    const hasLink=link.length>0;
+    const sk='otp_ok_'+uid+'_'+doc.id;
+    const verified=!!sessionStorage.getItem(sk);
+    let embedUrl=link,dlUrl=link;
+    const m=link.match(//d/([a-zA-Z0-9_-]+)/);
+    if(m){embedUrl='https://drive.google.com/file/d/'+m[1]+'/preview';dlUrl='https://drive.google.com/uc?export=download&id='+m[1];}
+    const enc=encodeURIComponent(link);
+    const cards=cont.querySelector('#cli-docs-cards');
+    if(!cards)return;
+    let btns='';
+    if(!hasLink)btns='<div style="color:var(--cinza);font-size:12px;margin-top:8px">Documento nao disponivel</div>';
+    else if(!verified)btns='<button onclick="abrirOTP(''+doc.id+'',''+doc.nome+'',''+enc+'')" style="background:var(--azul);border:none;border-radius:10px;padding:11px 24px;color:#fff;cursor:pointer;font-size:14px;font-weight:700;margin-top:4px;width:100%">Acessar</button>';
+    else btns='<div style="display:flex;gap:8px;width:100%;margin-top:4px"><button onclick="window.open(''+embedUrl+'','_blank')" style="flex:1;background:var(--azul);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Visualizar</button><button onclick="window.open(''+dlUrl+'','_blank')" style="flex:1;background:var(--verde);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Download</button></div>';
+    cards.innerHTML='<div style="background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="font-size:44px">'+doc.icon+'</div><div style="font-weight:700;font-size:15px">'+doc.nome+'</div><div style="color:var(--cinza);font-size:12px">'+doc.desc+'</div>'+btns+'</div>';
+    const nav=cont.querySelector('#doc-nav-info');
+    if(nav)nav.textContent=(cur+1)+' / '+DS.length;
+  }
+  window._dcNav=function(dir){cur=(cur+dir+DS.length)%DS.length;renderCard();};
+  renderCard();
 }
+function navDoc(dir){if(window._dcNav)window._dcNav(dir);}
 const _otpSt={code:'',doc:'',link:'',expiry:0,timer:null};
 function abrirOTP(docId,docNome,linkEnc){
   const link=decodeURIComponent(linkEnc);
-  if(sessionStorage.getItem('doc_ok_'+docId)==='1'){window.open(link,'_blank');return;}
-  _otpSt.code=Math.floor(100000+Math.random()*900000).toString();_otpSt.doc=docId;_otpSt.link=link;_otpSt.expiry=Date.now()+300000;
-  const user=firebase.auth().currentUser;
-  if(user)db.collection('otp_docs').doc(user.uid).set({code:_otpSt.code,doc:docId,expiry:_otpSt.expiry});
+  const code=String(Math.floor(100000+Math.random()*900000));
+  _otpSt.code=code;_otpSt.doc=docId;_otpSt.link=link;_otpSt.expiry=Date.now()+300000;
+  const u=firebase.auth().currentUser;
+  if(u)firebase.firestore().collection('otp_docs').doc(u.uid).set({code,doc:docId,expiry:_otpSt.expiry});
   const modal=document.getElementById('otp-modal');
-  if(modal){modal.style.display='flex';document.getElementById('otp-doc-nome').textContent=docNome;}
-  Array.from(document.querySelectorAll('.otp-digit')).forEach(i=>i.value='');
-  const first=document.querySelector('.otp-digit');if(first)first.focus();
+  if(modal){
+    modal.style.display='flex';
+    const t=modal.querySelector('#otp-doc-nome');if(t)t.textContent=docNome;
+    const ins=modal.querySelectorAll('.otp-digit');ins.forEach(i=>i.value='');
+    if(ins[0])ins[0].focus();
+  }
   iniciarTimerOTP();
 }
 function iniciarTimerOTP(){
-  clearInterval(_otpSt.timer);let rem=300;
+  if(_otpSt.timer)clearInterval(_otpSt.timer);
   const el=document.getElementById('otp-timer');
-  _otpSt.timer=setInterval(()=>{rem--;const m=String(Math.floor(rem/60)).padStart(2,'0'),s=String(rem%60).padStart(2,'0');if(el)el.textContent=m+':'+s;if(rem<=0){clearInterval(_otpSt.timer);if(el)el.textContent='Expirado';}},1000);
+  _otpSt.timer=setInterval(()=>{
+    const r=Math.max(0,Math.floor((_otpSt.expiry-Date.now())/1000));
+    if(el)el.textContent=Math.floor(r/60)+':'+(r%60<10?'0':'')+(r%60);
+    if(r<=0){clearInterval(_otpSt.timer);fecharOTP();notif('Codigo expirado');}
+  },1000);
 }
 function otpNav(input,idx){
-  const digits=Array.from(document.querySelectorAll('.otp-digit'));
-  if(input.value.length===1&&idx<digits.length-1)digits[idx+1].focus();
-  if(digits.every(d=>d.value.length===1))confirmarOTP();
+  const ins=document.querySelectorAll('.otp-digit');
+  if(input.value.length===1&&idx<5)ins[idx+1]?.focus();
+  if(ins[idx].value.length===1&&idx===5)confirmarOTP();
 }
 function confirmarOTP(){
-  const digits=Array.from(document.querySelectorAll('.otp-digit'));
-  const entered=digits.map(d=>d.value).join('');
-  if(Date.now()>_otpSt.expiry){alert('Código expirado. Cancele e tente novamente.');return;}
+  const ins=document.querySelectorAll('.otp-digit');
+  const entered=Array.from(ins).map(i=>i.value).join('');
   if(entered===_otpSt.code){
-    clearInterval(_otpSt.timer);document.getElementById('otp-modal').style.display='none';
-    sessionStorage.setItem('doc_ok_'+_otpSt.doc,'1');
-    const lk=document.getElementById('dlock-'+_otpSt.doc);if(lk)lk.textContent='🔓';
-    window.open(_otpSt.link,'_blank');
-  }else{alert('Código incorreto. Tente novamente.');digits.forEach(d=>d.value='');const f=document.querySelector('.otp-digit');if(f)f.focus();}
+    clearInterval(_otpSt.timer);
+    const u=firebase.auth().currentUser;
+    if(u)sessionStorage.setItem('otp_ok_'+u.uid+'_'+_otpSt.doc,'1');
+    fecharOTP();
+    if(u)renderDocsCarousel(u.uid);
+  }else{notif('Codigo incorreto');}
 }
-function fecharOTP(){clearInterval(_otpSt.timer);const m=document.getElementById('otp-modal');if(m)m.style.display='none';}
-let _docsIdx=0;
-function navDoc(dir){
-  const slides=document.querySelectorAll('.doc-slide');if(!slides.length)return;
-  slides[_docsIdx].classList.remove('active');_docsIdx=(_docsIdx+dir+slides.length)%slides.length;
-  slides[_docsIdx].classList.add('active');
-  const info=document.getElementById('doc-nav-info');if(info)info.textContent=(_docsIdx+1)+' / '+slides.length;
+function fecharOTP(){
+  const modal=document.getElementById('otp-modal');
+  if(modal)modal.style.display='none';
+  if(_otpSt.timer)clearInterval(_otpSt.timer);
 }
-const _dcObs=new MutationObserver(()=>{const c=document.getElementById('cli-docs-carousel');if(c&&!c.dataset.loaded){c.dataset.loaded='1';const u=firebase.auth().currentUser;if(u)renderDocsCarousel(u.uid);}});
-_dcObs.observe(document.body,{childList:true,subtree:true});
-</script>
+const _dcObs=new MutationObserver(()=>{
+  const c=document.getElementById('cli-docs-carousel');
+  if(c&&!c.dataset.loaded){c.dataset.loaded='1';const u=firebase.auth().currentUser;if(u)renderDocsCarousel(u.uid);}
+});
+_dcObs.observe(document.body,{childList:true,subtree:true});</script>
 <div class="otp-overlay" id="otp-modal">
   <div class="otp-box">
     <h3>🔒 Verificação de Segurança</h3>
