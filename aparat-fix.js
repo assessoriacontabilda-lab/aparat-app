@@ -4,6 +4,20 @@
   if (window.__APARAT_FIX__) return;
   window.__APARAT_FIX__ = "v2";
 
+  // Auto-atualizacao: evita ficar preso numa versao antiga em cache.
+  (function () {
+    try {
+      if (!("serviceWorker" in navigator)) return;
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) { try { r.update(); } catch (e) {} });
+      });
+      var recarregou = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (recarregou) return; recarregou = true; location.reload();
+      });
+    } catch (e) {}
+  })();
+
   var ADMIN_EMAIL = "assessoriacontabil.da@gmail.com";
   var MAX_BYTES = 15 * 1024 * 1024;   // 15 MB por arquivo
   var CHUNK = 700000;                 // ~700 KB por parte (limite do Firestore e 1 MB/doc)
