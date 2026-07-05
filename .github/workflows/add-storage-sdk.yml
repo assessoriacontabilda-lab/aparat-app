@@ -1,0 +1,29 @@
+name: Add Storage SDK
+on:
+  push:
+    paths:
+      - '.github/workflows/add-storage-sdk.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Add storage SDK after auth SDK
+        run: |
+          if grep -q 'firebase-storage-compat' index.html; then
+            echo "SKIP: already present"
+          else
+            sed -i '/firebase-auth-compat.js/a <script src="https:\/\/www.gstatic.com\/firebasejs\/10.12.2\/firebase-storage-compat.js"><\/script>' index.html
+            grep -q 'firebase-storage-compat' index.html && echo "OK: storage SDK added" || echo "FAIL"
+          fi
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "fix: add firebase-storage-compat SDK para uploads"
+          git push
