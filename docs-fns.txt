@@ -1,0 +1,132 @@
+=== FN: carregarDocsSeguro at js+138722 ===
+h(e){sel.innerHTML='<option value="">Erro ao carregar</option>';console.error(e);}
+}
+async function carregarDocsSeguro(){
+  const uid=document.getElementById('docs-cli-sel').value;
+  const lista=document.getElementById('docs-lista');
+  if(!lista)return;
+  if(!uid){lista.innerHTML='';return;}
+  const DS=[
+    {id:'cnpj',nome:'Cartao CNPJ',icon:'🪪',key:'cnpj_link'},
+    {id:'certidao',nome:'Certidao de Inteiro Teor',icon:'📜',key:'certidao_link'},
+    {id:'cert_digital',nome:'Certificado Digital',icon:'💳',key:'cert_digital_link'}
+  ];
+  lista.innerHTML='<p style="color:var(--cinza);font-size:12px;text-align:center;padding:12px">Carregando...</p>';
+  let ex={};
+  try{
+    const snap=await firebase.firestore().doc('documentos_seguros/'+uid).get();
+    if(snap.exists)ex=snap.data();
+  }catch(e){}
+  lista.innerHTML=DS.map(doc=>{
+    const val=ex[doc.key]||'';
+    const temArq=val&&val.length>10
+=== END ===
+
+=== FN: dsTab at js+141815 ===
+ttps://drive.google.com/file/d/'+m[1]+'/preview';
+  document.getElementById('ds-iframe').src=url;
+  dsTab('prev');
+}
+async function dsAbrirArquivo(docKey,uid){
+  try{
+    const snap=await firebase.firestore().doc('documentos_seguros/'+uid).get();
+    if(!snap.exists){notif('Documento não encontrado');return;}
+    const url=(snap.data()||{})[docKey];
+    if(!url){notif('Arquivo não disponível');return;}
+    window.open(url,'_blank');
+  }catch(e){notif('Erro: '+e.message);}
+}
+async function dsUploadArquivo(uid,docId,docKey,input){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>15*1024*1024){notif('Arquivo muito grande (máx 15 MB)');return;}
+  notif('⏳ Enviando arquivo...','info');
+  try{
+    const storage=firebase.storage();
+    const ext=file.name.split('.').pop();
+    const ref=storage.ref('documentos/'+uid+'/'+docKey+'_'+Date.now()+'.'+ext);
+    await ref.put(file);
+    
+=== END ===
+
+=== FN: dsUpload at js+140800 ===
+put id="ds-file-${doc.id}" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="dsUploadArquivo('${uid}','${doc.id}','${doc.key}',this)"/>`
+          +'</label>'
+      )
+      +'</div>';
+  }).join('');
+}
+async function salvarDocsSeguro(){
+  const uid=document.getElementById('docs-cli-sel').value;
+  if(!uid){notif('Selecione um cliente primeiro');return;}
+  await carregarDocsSeguro();
+  notif('Lista atualizada!','info');
+}
+async function dsDeleteDoc(uid,docId,docKey){
+  if(!confirm('Excluir este arquivo?'))return;
+  try{
+    const upd={};upd[docKey]='';
+    await firebase.firestore().doc('documentos_seguros/'+uid).update(upd);
+    notif('Arquivo removido!');
+    carregarDocsSeguro();
+  }catch(e){notif('Erro: '+e.message);}
+}
+function dsPreviewIframe(docId){
+  const inp=document.getElementById('ds-inp-'+docId);
+  const link=inp?inp.value.trim():'';
+  if(!link){notif('Ne
+=== END ===
+
+=== HTML: sec-docs-seguros ===
+S SEGUROS -->
+    <div class="painel-section" id="sec-docs-seguros">
+      <div class="sec-title">🔒 Documentos Seguros</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="ds-tab-btn-links" onclick="dsTab('links')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--azul);color:#fff">📂 Arquivos</button>
+        <button id="ds-tab-btn-prev" onclick="dsTab('prev')" style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:var(--card2);color:var(--cinza)">👁️ Visualizar</button>
+      </div>
+      <div id="ds-pane-links">
+        <div style="margin-bottom:12px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Cliente</label>
+          <select id="docs-cli-sel" onchange="carregarDocsSeguro()" onfocus="popularDocsSelect()" style="width:100%;padding:9px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:13px">
+            <option value="">Toque para selecionar...</option>
+          </select>
+        </div>
+        <div id="docs-lista"></div>
+        <button class="btn btn-az" id="btn-save-docs" onclick="salvarDocsSeguro()" style="width:100%;margin-top:4px">🔄 Atualizar</button>
+      </div>
+      <div id="ds-pane-prev" style="display:none">
+        <div style="margin-bottom:10px">
+          <select id="ds-prev-sel" onchange="dsPreviewIframe(this.value)" style="width:100%;padding:9px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:13px">
+            <option value="">Selecione documento...</option>
+            <option value="cnpj">🪪 Cartao CNPJ</option>
+            <option value="certidao">📜 Certidao de Inteiro Teor</option>
+            <option value="cert_digital">💳 Certificado Digital</option>
+          </select>
+        </div>
+        <iframe id="ds-iframe" src="about:blank" style="width:100%;height:480px;border:1px solid var(--border);border-radius:10px;background:#fff"></iframe>
+        <button onclick="dsTab('links')" style="margin-top:8px;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--cinza);cursor:pointer;font-size:12px">Voltar</button>
+      </div>
+    </div>
+
+    <!-- SOLICITACOES -->
+    <div class="ppage" id="pp-solicitacoes">
+      <div class="sec">📨 Solicitações dos Clientes</div>
+      <div class="tbox"><table>
+        <thead><tr><th>Cliente</th><th>Solicitação</th><th>Data</th><th>Ação</th></tr></thead>
+        <tbody id="tb-solic"></tbody>
+      </table></div>
+    </div>
+
+    <!-- RECEBIDOS -->
+    <div class="ppage" id="pp-recebidos">
+      <div class="sec">📥 Arquivos Recebidos dos Clientes</div>
+      <div class="tbox"><table>
+        <thead><tr><th>Cliente</th><th>Arquivo</th><th>Tipo</th><th>Data</th><th>Ação</th></tr></thead>
+        <tbody id="tb-recebidos"></tbody>
+      </table></div>
+    </div>
+
+    <!-- FINANCEIRO -->
+    <div class="ppage" 
+=== END ===
