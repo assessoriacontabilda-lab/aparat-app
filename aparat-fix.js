@@ -75,9 +75,13 @@
   }
 
   async function deleteDocSet(name, key) {
-    var snap = await col().where("cliente", "==", name).get();
-    var dels = [];
-    snap.forEach(function (d) { if (d.data().tipoKey === key) dels.push(d.ref.delete()); });
+    var base = baseId(name, key);
+    var meta = await col().doc(base).get();
+    var dels = [col().doc(base).delete()];
+    if (meta.exists) {
+      var n = meta.data().partes || 0;
+      for (var i = 0; i < n; i++) dels.push(col().doc(base + "__p" + i).delete());
+    }
     await Promise.all(dels);
   }
 
@@ -136,7 +140,7 @@
       return;
     }
     box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:10px">Carregando...</div>';
-    col().where("cliente", "==", name).get().then(function (snap) {
+    col().where("cliente", "==", name).where("meta", "==", true).get().then(function (snap) {
       var map = {};
       snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.id = d.id; map[x.tipoKey] = x; });
       var html = "";
@@ -227,7 +231,7 @@
     if (!box) return;
     if (!IDENT.name) { box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Faça login para ver seus documentos.</div>'; return; }
     box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Carregando...</div>';
-    col().where("cliente", "==", IDENT.name).get().then(function (snap) {
+    col().where("cliente", "==", IDENT.name).where("meta", "==", true).get().then(function (snap) {
       var docs = []; snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.id = d.id; docs.push(x); });
       if (!docs.length) { box.innerHTML = '<div style="color:#9090b8;font-size:12px;padding:8px">Nenhum documento disponível ainda.</div>'; return; }
       var html = "";
