@@ -1,5 +1,33 @@
-// v2026-07-05
-const CACHE='aparat-v2';
-self.addEventListener('install',e=>{self.skipWaiting();});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;e.respondWith(fetch(r).then(res=>{const c=res.clone();caches.open(CACHE).then(x=>x.put(r,c)).catch(()=>{});return res;}).catch(()=>caches.match(r)));});
+/* APARAT service worker - network-first (sempre pega a versao nova) */
+var CACHE = 'aparat-v3';
+
+self.addEventListener('install', function (e) {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function (e) {
+  e.waitUntil((async function () {
+    var keys = await caches.keys();
+    await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', function (e) {
+  var req = e.request;
+  if (req.method !== 'GET') return;
+  e.respondWith((async function () {
+    try {
+      var net = await fetch(req, { cache: 'no-store' });
+      try {
+        var c = await caches.open(CACHE);
+        c.put(req, net.clone());
+      } catch (err) {}
+      return net;
+    } catch (err) {
+      var cached = await caches.match(req);
+      if (cached) return cached;
+      throw err;
+    }
+  })());
+});
