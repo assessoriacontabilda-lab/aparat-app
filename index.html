@@ -2426,7 +2426,7 @@ async function handleAuth(user){
     return;
   }
   _show('login-screen',false);
-  const bs=document.getElementById('btn-sair'); if(bs) bs.style.display='';
+  const bs=document.getElementById('btn-sair'); if(bs) bs.style.display=''; const bi=document.getElementById('btn-install-app'); if(bi) bi.style.display='inline-block';
   const ul=document.getElementById('user-label'); if(ul) ul.textContent=user.email;
   if(user.email && user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
     CURRENT_ROLE='admin'; CURRENT_CLIENTE=null;
@@ -3044,7 +3044,7 @@ window.addEventListener('appinstalled',function(){
   notif('✅ App instalado com sucesso!');
 });
 async function instalarApp(){
-  if(!_deferredInstall){notif('Abra no Chrome e use o menu do navegador para instalar','info');return;}
+  if(!_deferredInstall){notif('Para instalar: no Android toque nos 3 pontinhos e escolha Adicionar a tela inicial. No iPhone toque em Compartilhar depois Adicionar a Tela de Inicio. No PC clique no icone de instalacao na barra do Chrome','info');return;}
   _deferredInstall.prompt();
   const r=await _deferredInstall.userChoice;
   _deferredInstall=null;
