@@ -262,6 +262,49 @@
     });
   }
 
+  /* ---------- CARROSSEL do cliente ("Meus Documentos") ---------- */
+  var CAR = { cache: null, idx: 0 };
+  var CAR_SUB = { cnpj: "Comprovante CNPJ", certidao: "Certidão de Inteiro Teor", certificado: "Certificado Digital A1" };
+  async function carLoad() {
+    var uid = uidAtual(); if (!uid) return {};
+    var snap = await col().where("cliente", "==", uid).where("meta", "==", true).get();
+    var m = {}; snap.forEach(function (d) { var x = d.data(); if (x.chunk) return; x.__id = d.id; m[x.tipoKey] = x; });
+    return m;
+  }
+  async function carRender(i) {
+    var cards = document.getElementById("cli-docs-cards"); if (!cards) return;
+    if (typeof i === "number" && i >= 0 && i < TYPES.length) CAR.idx = i;
+    if (!CAR.cache) CAR.cache = await carLoad();
+    var t = TYPES[CAR.idx]; var doc = CAR.cache[t.key];
+    var h = '<div style="text-align:center;padding:14px"><div style="font-size:38px">📄</div>'
+      + '<div style="font-weight:700;color:#fff;font-size:16px;margin-top:6px">' + t.label + '</div>'
+      + '<div style="font-size:12px;color:#9090b8;margin:4px 0 12px">' + (CAR_SUB[t.key] || "") + '</div>';
+    if (doc) {
+      h += '<div style="font-size:11px;color:#bcd;margin-bottom:12px;word-break:break-word">' + esc(doc.arquivoNome || "documento") + '</div>'
+        + '<div style="display:flex;gap:8px;justify-content:center">'
+        + '<button data-carver="' + t.key + '" style="background:#3a5bd9;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer">👁 Ver</button>'
+        + '<button data-carbaixar="' + t.key + '" style="background:#22c55e;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer">⬇ Baixar</button></div>';
+    } else {
+      h += '<div style="color:#9090b8;padding:10px">Documento não disponível</div>';
+    }
+    h += "</div>"; cards.innerHTML = h;
+    var nav = document.getElementById("doc-nav-info"); if (nav) nav.textContent = (CAR.idx + 1) + " / " + TYPES.length;
+    var vb = cards.querySelector("[data-carver]"); if (vb) vb.onclick = function () { carAbrir(t.key, false); };
+    var bb = cards.querySelector("[data-carbaixar]"); if (bb) bb.onclick = function () { carAbrir(t.key, true); };
+  }
+  function carAbrir(key, baixar) {
+    var doc = CAR.cache && CAR.cache[key]; if (!doc) { alert("Documento não disponível."); return; }
+    buildFromMeta(doc).then(function (d) {
+      if (!d) { alert("Arquivo não encontrado."); return; }
+      if (baixar) downloadData(d, doc.arquivoNome); else openData(d);
+    });
+  }
+  function setupCarousel() {
+    window.renderDocsCarousel = function (i) { return carRender(i); };
+    window.navDoc = function (dir) { CAR.idx = (CAR.idx + (dir || 1) + TYPES.length) % TYPES.length; carRender(CAR.idx); };
+    if (document.getElementById("cli-docs-cards")) carRender(0);
+  }
+
   /* ---------- INSTALACAO ---------- */
   function setupInstall() {
     window.addEventListener("beforeinstallprompt", function (e) {
@@ -300,17 +343,19 @@
     if (prev) prev.addEventListener("change", previewInIframe);
     window.carregarDocsSeguro = officeRender;
     window.carregarDocsCliente = clientRender;
+    setupCarousel();
     var nb = document.getElementById("nb-docs");
     if (nb) nb.addEventListener("click", function () { setTimeout(clientRender, 350); });
 
     function afterAuth() {
       var u = firebase.auth().currentUser;
       var isAdmin = u && (u.email === ADMIN_EMAIL);
-      if (isAdmin) fillClientSelect(); else if (u) clientRender();
+      if (isAdmin) { fillClientSelect(); }
+      else if (u) { clientRender(); CAR.cache = null; setTimeout(function () { carRender(0); }, 300); }
     }
     afterAuth();
     firebase.auth().onAuthStateChanged(afterAuth);
-    console.log("[aparat-fix] v3 (UID) carregado");
+    console.log("[aparat-fix] v3.1 (UID + carrossel) carregado");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
