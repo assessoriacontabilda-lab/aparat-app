@@ -1,0 +1,49 @@
+name: Save Docs Extract
+on:
+  push:
+    paths:
+      - '.github/workflows/save-extract.yml'
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract and save docs section
+        run: |
+          python3 - << 'PYEOF'
+          with open('index.html','r',encoding='utf-8') as f:
+              c=f.read()
+          # Find docs section in HTML
+          markers = ['ap-docs', 'navAba(\'docs', 'Documentos Seguros', 'uploadDocSeg', 'docSeguro', 'docs-seguro', 'firebase.storage', 'getStorage']
+          out = []
+          for m in markers:
+              idx = c.find(m)
+              if idx >= 0:
+                  out.append(f"=== MARKER: {m} at {idx} ===")
+                  out.append(c[max(0,idx-200):idx+500])
+                  out.append("=== END ===\n")
+          # Also extract full docs-related functions (search for 'docs' in JS)
+          js_start = c.rfind('<script>')
+          if js_start >= 0:
+              js = c[js_start:]
+              for kw in ['DocSeg', 'docSeg', 'ap-docs', 'storage', 'firebase.storage']:
+                  ki = js.find(kw)
+                  if ki >= 0:
+                      out.append(f"=== JS: {kw} at {ki} ===")
+                      out.append(js[max(0,ki-300):ki+600])
+                      out.append("=== END ===\n")
+          with open('docs-extract.txt','w',encoding='utf-8') as f:
+              f.write('\n'.join(out))
+          print(f"Wrote {len(out)} sections")
+          PYEOF
+      - name: Commit extract
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs-extract.txt
+          git diff --staged --quiet || git commit -m "temp: docs section extract"
+          git push
