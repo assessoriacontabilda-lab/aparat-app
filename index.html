@@ -2967,8 +2967,8 @@ async function carregarDocsSeguro(){
       +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+doc.icon+' '+doc.nome+'</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
       +'<input id="ds-inp-'+doc.id+'" type="url" placeholder="Link Google Drive..." value="'+val+'" style="flex:1;padding:7px;background:var(--escuro);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px"/>'
-      +'<button onclick="dsPreviewIframe(''+doc.id+'')" title="Visualizar" style="background:var(--azul);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">👁️</button>'
-      +'<button onclick="dsDeleteDoc(''+uid+'',''+doc.id+'',''+doc.key+'')" title="Excluir" style="background:var(--vermelho);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">🗑️</button>'
+      +`<button onclick="dsPreviewIframe('${doc.id}')" title="Visualizar" style="background:var(--azul);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">👁️</button>`
+      +`<button onclick="dsDeleteDoc('${uid}','${doc.id}','${doc.key}')" title="Excluir" style="background:var(--vermelho);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">🗑️</button>`
       +'</div></div>';
   }).join('');
 }
@@ -3044,8 +3044,8 @@ async function renderDocsCarousel(uid){
     if(!cards)return;
     let btns='';
     if(!hasLink)btns='<div style="color:var(--cinza);font-size:12px;margin-top:8px">Documento nao disponivel</div>';
-    else if(!verified)btns='<button onclick="abrirOTP(''+doc.id+'',''+doc.nome+'',''+enc+'')" style="background:var(--azul);border:none;border-radius:10px;padding:11px 24px;color:#fff;cursor:pointer;font-size:14px;font-weight:700;margin-top:4px;width:100%">Acessar</button>';
-    else btns='<div style="display:flex;gap:8px;width:100%;margin-top:4px"><button onclick="window.open(''+embedUrl+'','_blank')" style="flex:1;background:var(--azul);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Visualizar</button><button onclick="window.open(''+dlUrl+'','_blank')" style="flex:1;background:var(--verde);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Download</button></div>';
+    else if(!verified)btns=`<button onclick="abrirOTP('${doc.id}','${doc.nome}','${enc}')" style="background:var(--azul);border:none;border-radius:10px;padding:11px 24px;color:#fff;cursor:pointer;font-size:14px;font-weight:700;margin-top:4px;width:100%">Acessar</button>`;
+    else btns=`<div style="display:flex;gap:8px;width:100%;margin-top:4px"><button onclick="window.open('${embedUrl}','_blank')" style="flex:1;background:var(--azul);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Visualizar</button><button onclick="window.open('${dlUrl}','_blank')" style="flex:1;background:var(--verde);border:none;border-radius:10px;padding:11px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Download</button></div>`;
     cards.innerHTML='<div style="background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="font-size:44px">'+doc.icon+'</div><div style="font-weight:700;font-size:15px">'+doc.nome+'</div><div style="color:var(--cinza);font-size:12px">'+doc.desc+'</div>'+btns+'</div>';
     const nav=cont.querySelector('#doc-nav-info');
     if(nav)nav.textContent=(cur+1)+' / '+DS.length;
