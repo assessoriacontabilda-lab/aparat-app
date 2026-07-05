@@ -3,8 +3,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-<title>Aparat Contabilidade</title>
+<meta name="viewport" content="width=deviche-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>Aparat Contabilidade</title>h
 <link rel="manifest" href="manifest.webmanifest"/>
 <link rel="icon" href="icone-aparat.png"/>
 <link rel="apple-touch-icon" href="icone-aparat.png"/>
@@ -3001,7 +3001,7 @@ function dsPreviewIframe(docId){
   const link=inp?inp.value.trim():'';
   if(!link){notif('Nenhum link para visualizar');return;}
   let url=link;
-  const m=link.match(//d/([a-zA-Z0-9_-]+)/);
+  const m=link.match(/\/d\/([a-zA-Z0-9_-]+)\//);
   if(m)url='https://drive.google.com/file/d/'+m[1]+'/preview';
   document.getElementById('ds-iframe').src=url;
   dsTab('prev');
@@ -3037,7 +3037,7 @@ async function renderDocsCarousel(uid){
     const sk='otp_ok_'+uid+'_'+doc.id;
     const verified=!!sessionStorage.getItem(sk);
     let embedUrl=link,dlUrl=link;
-    const m=link.match(//d/([a-zA-Z0-9_-]+)/);
+    const m=link.match(/\/d\/([a-zA-Z0-9_-]+)\//);
     if(m){embedUrl='https://drive.google.com/file/d/'+m[1]+'/preview';dlUrl='https://drive.google.com/uc?export=download&id='+m[1];}
     const enc=encodeURIComponent(link);
     const cards=cont.querySelector('#cli-docs-cards');
