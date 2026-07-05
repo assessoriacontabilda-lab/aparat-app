@@ -119,15 +119,23 @@
   function fillClientSelect() {
     var sel = document.getElementById("docs-cli-sel");
     if (!sel) return;
-    fs().collection("clientes").get().then(function (snap) {
+    // Usa o NOME DO LOGIN do cliente (usuarios.clienteNome) para garantir
+    // que o cliente encontre o documento no app dele.
+    fs().collection("usuarios").get().then(function (snap) {
       var nomes = [];
-      snap.forEach(function (d) { var n = d.data().nome; if (n) nomes.push(n); });
+      snap.forEach(function (d) {
+        var x = d.data();
+        if (x && x.clienteNome && x.role !== "admin" && x.email !== ADMIN_EMAIL) nomes.push(x.clienteNome);
+      });
+      var vistos = {}, unicos = [];
+      nomes.forEach(function (n) { if (!vistos[n]) { vistos[n] = 1; unicos.push(n); } });
+      nomes = unicos;
       nomes.sort(function (a, b) { return a.localeCompare(b); });
       var cur = sel.value;
       sel.innerHTML = '<option value="">Toque para selecionar...</option>';
       nomes.forEach(function (n) { var o = document.createElement("option"); o.value = n; o.textContent = n; sel.appendChild(o); });
       if (cur) sel.value = cur;
-    }).catch(function (e) { console.warn("[aparat-fix] clientes", e); });
+    }).catch(function (e) { console.warn("[aparat-fix] usuarios", e); });
   }
 
   function officeRender() {
