@@ -1,7 +1,7 @@
 {
   "name": "Aparat Contabilidade",
   "short_name": "Aparat",
-  "description": "Portal contábil da Aparat Contabilidade",
+  "description": "App da Aparat Contabilidade - documentos, guias, honorarios e comunicacao com o escritorio.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -9,8 +9,8 @@
   "background_color": "#07071a",
   "theme_color": "#3333FF",
   "icons": [
-    { "src": "icone-aparat.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icone-aparat.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
-    { "src": "icone-aparat.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "avatar-aparat.png.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any" },
+    { "src": "avatar-aparat.png.png", "sizes": "1254x1254", "type": "image/png", "purpose": "maskable" }
   ]
 }
