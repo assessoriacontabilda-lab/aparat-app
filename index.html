@@ -496,7 +496,7 @@ body.foco .cli-top{display:none}
       <div class="nav-item" onclick="navAba('recebidos',this)"><span class="ni">📥</span>Recebidos<span class="nav-dot" id="dot-recebidos"></span></div>
       <div class="nav-sec">Financeiro</div>
       <div class="nav-item" onclick="navAba('financeiro',this)"><span class="ni">💰</span>Financeiro</div>
-      <div class="nav-item" onclick="navAba('docs',this)"><span class="ni">📄</span>Documentos</div>
+      <div class="nav-item" onclick="navAba('docs',this);setTimeout(carregarDocsCliente,400)"><span class="ni">📄</span>Documentos</div>
       <div class="nav-sec">Sistema</div>
       <div class="nav-item" onclick="navAba('escritorio',this)"><span class="ni">🏢</span>Meu Escritório</div>
       <div class="nav-item" onclick="navAba('seguranca',this)"><span class="ni">🔒</span>Segurança</div>
@@ -1180,15 +1180,12 @@ body.foco .cli-top{display:none}
 
       <!-- DOCS -->
       <div class="apage" id="ap-docs">
-        <div class="segbadge"><span>🔒</span><span>Documentos criptografados</span></div>
-        <div class="asec">📄 Documentos</div>
-        <div class="docca"><div class="dico">📄</div><div class="dinf"><strong>Honorário Jun/2025.pdf</strong><span>Boleto · 98 KB · 01/06/2025</span><span class="tag tp" style="font-size:8px;margin-top:2px">Pago ✔</span></div><button class="btndl">Abrir</button></div>
-        <div class="docca"><div class="dico">📄</div><div class="dinf"><strong>DAS Jun/2025.pdf</strong><span>Guia · 142 KB · 10/06/2025</span><span class="tag ta" style="font-size:8px;margin-top:2px">Não lido</span></div><button class="btndl">Abrir</button></div>
-        <div class="docca"><div class="dico">📄</div><div class="dinf"><strong>Rel. Anual 2024.pdf</strong><span>Relatório · 2.1 MB · 01/01/2025</span><span class="tag tp" style="font-size:8px;margin-top:2px">Visto</span></div><button class="btndl">Abrir</button></div>
-      </div>
-
-      <!-- PERFIL -->
-      <div class="apage" id="ap-perfil">
+<div class="segbadge"><span>🔒</span><span>Documentos</span></div>
+<div class="asec">📄 Meus Documentos</div>
+<div id="lista-docs-cliente"><div style="color:var(--cinza);text-align:center;padding:20px">Carregando...</div></div>
+<button class="btn btn-az" onclick="carregarDocsCliente()" style="width:100%;margin-top:8px">🔄 Atualizar</button>
+</div>
+<div class="apage" id="ap-perfil">
         <div class="perfhdr">
           <div class="pavatar">MS</div>
           <div class="pnome">Mercearia Silva ME</div>
@@ -2947,39 +2944,26 @@ async function popularDocsSelect(){
   }catch(e){sel.innerHTML='<option value="">Erro ao carregar</option>';console.error(e);}
 }
 async function carregarDocsSeguro(){
-  const uid=document.getElementById('docs-cli-sel').value;
-  const lista=document.getElementById('docs-lista');
-  if(!lista)return;
-  if(!uid){lista.innerHTML='';return;}
-  const DS=[
-    {id:'cnpj',nome:'Cartao CNPJ',icon:'🪪',key:'cnpj_link'},
-    {id:'certidao',nome:'Certidao de Inteiro Teor',icon:'📜',key:'certidao_link'},
-    {id:'cert_digital',nome:'Certificado Digital',icon:'💳',key:'cert_digital_link'}
-  ];
-  lista.innerHTML='<p style="color:var(--cinza);font-size:12px;text-align:center;padding:12px">Carregando...</p>';
-  let ex={};
-  try{
-    const snap=await firebase.firestore().doc('documentos_seguros/'+uid).get();
-    if(snap.exists)ex=snap.data();
-  }catch(e){}
-  lista.innerHTML=DS.map(doc=>{
-    const val=ex[doc.key]||'';
-    const temArq=val&&val.length>10;
-    return '<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
-      +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+doc.icon+' '+doc.nome+'</div>'
-      +(temArq
-        ?'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-          +'<span style="color:var(--verde);font-size:12px;font-weight:600;flex:1">✅ Arquivo salvo</span>'
-          +`<button onclick="dsAbrirArquivo('${doc.key}','${uid}')" style="background:var(--azul);border:none;border-radius:6px;padding:7px 10px;cursor:pointer;color:#fff;font-size:12px;font-weight:600">👁️ Ver</button>`
-          +`<button onclick="dsDeleteDoc('${uid}','${doc.id}','${doc.key}')" style="background:var(--vermelho);border:none;border-radius:6px;padding:7px 9px;cursor:pointer;color:#fff;font-size:13px">🗑️</button>`
-          +'</div>'
-        :'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--escuro);border:2px dashed var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--cinza)">'
-          +'📎 Toque aqui para selecionar arquivo (PDF, JPG ou PNG)'
-          +`<input id="ds-file-${doc.id}" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="dsUploadArquivo('${uid}','${doc.id}','${doc.key}',this)"/>`
-          +'</label>'
-      )
-      +'</div>';
-  }).join('');
+var uid=document.getElementById("docs-cli-sel").value;
+var lista=document.getElementById("docs-lista");
+if(!lista)return;
+if(!uid){lista.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px">Selecione um cliente</div>';return;}
+var DS=[{id:"cnpj",nome:"Cartão CNPJ",icon:"📋",key:"cnpj_link"},{id:"certidao",nome:"Certidão de Inteiro Teor",icon:"📜",key:"certidao_link"},{id:"cert_digital",nome:"Certificado Digital",icon:"💳",key:"cert_digital_link"}];
+lista.innerHTML='<div style="color:var(--cinza);text-align:center;padding:12px">Carregando...</div>';
+var ex={};
+try{var snap=await firebase.firestore().doc("documentos_seguros/"+uid).get();if(snap.exists)ex=snap.data();}catch(e){}
+lista.innerHTML=DS.map(function(doc){
+var val=ex[doc.key]||"";var tem=val&&val.length>10;
+var h='<div style="background:var(--card2);border-radius:10px;padding:12px;margin-bottom:10px">';
+h+='<b>'+doc.icon+' '+doc.nome+'</b>';
+h+='<div style="font-size:10px;color:'+(tem?'#22cc77':'var(--cinza)')+'">'+( tem?'&#9989; Enviado':'&#9898; Vazio')+'</div>';
+h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+if(tem){h+='<button data-key="'+doc.key+'" data-uid="'+uid+'" onclick="dsAbrirArquivo(this.dataset.key,this.dataset.uid)" style="flex:1;padding:7px;border:none;border-radius:7px;background:var(--azul);color:#fff;font-size:11px;cursor:pointer">&#128065; Visualizar</button>';
+h+='<a href="'+val+'" download target="_blank" style="flex:1;padding:7px;border:none;border-radius:7px;background:#1a6a3a;color:#fff;font-size:11px;text-align:center;text-decoration:none">&#11015; Download</a>';
+h+='<button data-uid="'+uid+'" data-id="'+doc.id+'" data-key="'+doc.key+'" onclick="dsDeleteDoc(this.dataset.uid,this.dataset.id,this.dataset.key)" style="padding:7px 10px;border:none;border-radius:7px;background:#6a1a1a;color:#fff;font-size:11px;cursor:pointer">&#128465;</button>';}
+h+='<label style="flex:'+(tem?'0 0 auto':'1')+';padding:7px 10px;border:1px solid var(--border);border-radius:7px;color:var(--cinza);font-size:11px;cursor:pointer;text-align:center">'+(tem?'&#128260; Subs.':'&#128228; Enviar');
+h+='<input id="ds-file-'+doc.id+'" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" data-uid="'+uid+'" data-id="'+doc.id+'" data-key="'+doc.key+'" onchange="dsUploadArquivo(this.dataset.uid,this.dataset.id,this.dataset.key,this)"/></label>';
+h+='</div></div>';return h;}).join('');
 }
 async function salvarDocsSeguro(){
   const uid=document.getElementById('docs-cli-sel').value;
@@ -3032,6 +3016,23 @@ async function dsUploadArquivo(uid,docId,docKey,input){
     carregarDocsSeguro();
   }catch(e){notif('Erro ao enviar: '+e.message);}
 }
+async function carregarDocsCliente(){
+var user=typeof firebase!='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+if(!user)return;
+var uid=user.uid;
+var cont=document.getElementById('lista-docs-cliente');
+if(!cont)return;
+var DS=[{id:"cnpj",nome:"Cartão CNPJ",icon:"📋",key:"cnpj_link"},{id:"certidao",nome:"Certidão de Inteiro Teor",icon:"📜",key:"certidao_link"},{id:"cert_digital",nome:"Certificado Digital",icon:"💳",key:"cert_digital_link"}];
+cont.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px">Carregando...</div>';
+var ex={};
+try{var snap=await firebase.firestore().doc("documentos_seguros/"+uid).get();if(snap.exists)ex=snap.data();}catch(e){}
+var docs=DS.filter(function(d){return ex[d.key]&&ex[d.key].length>10;});
+if(!docs.length){cont.innerHTML='<div style="color:var(--cinza);text-align:center;padding:20px">Nenhum documento disponível</div>';return;}
+cont.innerHTML=docs.map(function(doc){var url=ex[doc.key];
+return '<div class="docca"><div class="dico">'+doc.icon+'</div><div class="dinf"><strong>'+doc.nome+'</strong><span>Escritório</span></div><div style="display:flex;gap:4px"><a class="btndl" href="'+url+'" target="_blank" style="text-decoration:none;display:flex;align-items:center;padding:5px 10px">&#128065; Ver</a><a class="btndl" href="'+url+'" download target="_blank" style="text-decoration:none;display:flex;align-items:center;padding:5px 8px">&#11015;</a></div></div>';
+}).join('');
+}
+
 var _deferredInstall=null;
 window.addEventListener('beforeinstallprompt',function(e){
   e.preventDefault();_deferredInstall=e;
