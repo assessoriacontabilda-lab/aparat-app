@@ -371,6 +371,32 @@ body.foco .cli-top{display:none}
 @media (max-width:420px){
   .cards4{grid-template-columns:1fr}
 }
+
+/* ===== DOCUMENTOS SEGUROS ===== */
+.docs-admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0}
+.doc-admin-card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:14px}
+.doc-admin-card label{display:block;font-weight:600;margin-bottom:6px;font-size:13px;color:#374151}
+.doc-admin-card input{width:100%;border:1px solid #ccc;border-radius:6px;padding:7px 10px;font-size:12px;box-sizing:border-box}
+.btn-save-docs{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;margin-top:10px;font-weight:600}
+.btn-save-docs:hover{background:#1d4ed8}
+.doc-slide{display:none}.doc-slide.active{display:block}
+.docs-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:10px}
+.docs-nav button{background:#e5e7eb;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;line-height:1}
+.doc-card-client{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px 16px;text-align:center;margin:8px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.doc-card-icon{font-size:40px;margin-bottom:8px}
+.doc-card-name{font-size:15px;font-weight:600;margin-bottom:12px;color:#1f2937}
+.doc-card-lock{font-size:28px;margin-bottom:12px}
+.btn-acessar-doc{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:13px;font-weight:600}
+.otp-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center}
+.otp-box{background:#fff;border-radius:16px;padding:28px 24px;max-width:340px;width:90%;text-align:center}
+.otp-box h3{margin:0 0 6px;font-size:18px}
+.otp-box p{color:#6b7280;font-size:13px;margin:0 0 20px}
+.otp-inputs{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+.otp-digit{width:40px;height:48px;border:2px solid #d1d5db;border-radius:8px;text-align:center;font-size:22px;font-weight:700}
+.otp-digit:focus{border-color:#2563eb;outline:none}
+.otp-timer{color:#ef4444;font-size:13px;margin-bottom:14px}
+.btn-confirmar-otp{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:12px 28px;cursor:pointer;font-size:14px;width:100%;margin-bottom:10px;font-weight:600}
+.btn-fechar-otp{background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -818,6 +844,35 @@ body.foco .cli-top{display:none}
       </div>
       <div class="sec">📰 Informativos Publicados</div>
       <div id="lista-informativos"></div>
+    </div>
+
+    <!-- DOCUMENTOS SEGUROS -->
+    <div class="painel-section" id="sec-docs-seguros">
+      <div class="sec-title">🔒 Documentos Seguros</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end">
+        <div style="flex:1">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Cliente:</label>
+          <select id="docs-cli-sel" onchange="carregarDocsSeguro()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;width:100%">
+            <option value="">— Selecione um cliente —</option>
+          </select>
+        </div>
+        <button onclick="popularDocsSelect()" style="background:#6b7280;color:#fff;border:none;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px">📋 Clientes</button>
+      </div>
+      <div class="docs-admin-grid">
+        <div class="doc-admin-card">
+          <label>🪪 Cartão CNPJ</label>
+          <input type="url" id="doc-cnpj-link" placeholder="Link Google Drive..."/>
+        </div>
+        <div class="doc-admin-card">
+          <label>📄 Certidão de Inteiro Teor</label>
+          <input type="url" id="doc-certidao-link" placeholder="Link Google Drive..."/>
+        </div>
+        <div class="doc-admin-card">
+          <label>🔐 Certificado Digital</label>
+          <input type="url" id="doc-certdig-link" placeholder="Link Google Drive..."/>
+        </div>
+      </div>
+      <button onclick="salvarDocsSeguro()" class="btn-save-docs">💾 Salvar Links</button>
     </div>
 
     <!-- SOLICITACOES -->
@@ -2458,6 +2513,7 @@ async function renderClientePortal(nome){
       +'<div class="cli-left">'
         +'<div class="cli-sec" id="sec-fat"><div class="asec">📈 Controle de Faturamento</div><div id="cli-fat"></div></div>'
         +'<div class="cli-sec" id="sec-dados"><div class="asec" style="margin-top:12px">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
+        +'<div class="cli-sec" id="sec-docs"><div class="asec" style="margin-top:12px">🔒 Meus Documentos</div><div id="cli-docs-carousel"><p style=\"text-align:center;color:#888;padding:24px\">Carregando...</p></div></div>'
         +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon"></div></div>'
         +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
         +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
@@ -2866,7 +2922,97 @@ window.addEventListener('load', async ()=>{
 });
 setTimeout(()=>{const sp=document.getElementById('splash');if(sp)sp.classList.add('hide');},2700);
 
+
+// ===== DOCUMENTOS SEGUROS =====
+async function popularDocsSelect(){
+  const sel=document.getElementById('docs-cli-sel');if(!sel)return;
+  try{const snap=await db.collection('clientes').get();sel.innerHTML='<option value="">— Selecione —</option>';snap.forEach(d=>{const o=document.createElement('option');o.value=d.id;o.textContent=d.data().nome||d.id;sel.appendChild(o);});}
+  catch(e){console.error('popularDocsSelect:',e);}
+}
+async function carregarDocsSeguro(){
+  const id=document.getElementById('docs-cli-sel').value;if(!id)return;
+  try{const snap=await db.collection('documentos_seguros').doc(id).get();const data=snap.exists?snap.data():{};document.getElementById('doc-cnpj-link').value=data.cnpj_link||'';document.getElementById('doc-certidao-link').value=data.certidao_link||'';document.getElementById('doc-certdig-link').value=data.cert_link||'';}
+  catch(e){console.error(e);}
+}
+async function salvarDocsSeguro(){
+  const id=document.getElementById('docs-cli-sel').value;if(!id){alert('Selecione um cliente.');return;}
+  const data={cnpj_link:document.getElementById('doc-cnpj-link').value.trim(),certidao_link:document.getElementById('doc-certidao-link').value.trim(),cert_link:document.getElementById('doc-certdig-link').value.trim(),updated:new Date().toISOString()};
+  try{await db.collection('documentos_seguros').doc(id).set(data);alert('Documentos salvos com sucesso!');}catch(e){alert('Erro: '+e.message);}
+}
+async function renderDocsCarousel(uid){
+  const container=document.getElementById('cli-docs-carousel');if(!container)return;
+  try{
+    const snap=await db.collection('documentos_seguros').doc(uid).get();
+    if(!snap.exists){container.innerHTML='<p style="color:#888;text-align:center;padding:20px">Nenhum documento disponível.</p>';return;}
+    const data=snap.data();
+    const docs=[{id:'cnpj',nome:'Cartão CNPJ',icon:'🪪',link:data.cnpj_link},{id:'certidao',nome:'Certidão de Inteiro Teor',icon:'📄',link:data.certidao_link},{id:'certdig',nome:'Certificado Digital',icon:'🔐',link:data.cert_link}].filter(d=>d.link);
+    if(!docs.length){container.innerHTML='<p style="color:#888;text-align:center;padding:20px">Nenhum documento disponível.</p>';return;}
+    window._docsIdx=0;
+    container.innerHTML='<div id="docs-wrap">'+docs.map((d,i)=>'<div class="doc-slide'+(i===0?' active':'')+'" data-idx="'+i+'"><div class="doc-card-client"><div class="doc-card-icon">'+d.icon+'</div><div class="doc-card-name">'+d.nome+'</div><div class="doc-card-lock" id="dlock-'+d.id+'">🔒</div><button class="btn-acessar-doc" onclick="abrirOTP(\''+d.id+'\',\''+d.nome.replace(/'/g,"\'")+'\',' +'\''+encodeURIComponent(d.link)+'\')">Acessar Documento</button></div></div>').join('')+'</div><div class="docs-nav"><button onclick="navDoc(-1)">&#8249;</button><span id="doc-nav-info">1 / '+docs.length+'</span><button onclick="navDoc(1)">&#8250;</button></div>';
+  }catch(e){container.innerHTML='<p style="color:#f87171;text-align:center;padding:20px">Erro ao carregar documentos.</p>';}
+}
+const _otpSt={code:'',doc:'',link:'',expiry:0,timer:null};
+function abrirOTP(docId,docNome,linkEnc){
+  const link=decodeURIComponent(linkEnc);
+  if(sessionStorage.getItem('doc_ok_'+docId)==='1'){window.open(link,'_blank');return;}
+  _otpSt.code=Math.floor(100000+Math.random()*900000).toString();_otpSt.doc=docId;_otpSt.link=link;_otpSt.expiry=Date.now()+300000;
+  const user=firebase.auth().currentUser;
+  if(user)db.collection('otp_docs').doc(user.uid).set({code:_otpSt.code,doc:docId,expiry:_otpSt.expiry});
+  const modal=document.getElementById('otp-modal');
+  if(modal){modal.style.display='flex';document.getElementById('otp-doc-nome').textContent=docNome;}
+  Array.from(document.querySelectorAll('.otp-digit')).forEach(i=>i.value='');
+  const first=document.querySelector('.otp-digit');if(first)first.focus();
+  iniciarTimerOTP();
+}
+function iniciarTimerOTP(){
+  clearInterval(_otpSt.timer);let rem=300;
+  const el=document.getElementById('otp-timer');
+  _otpSt.timer=setInterval(()=>{rem--;const m=String(Math.floor(rem/60)).padStart(2,'0'),s=String(rem%60).padStart(2,'0');if(el)el.textContent=m+':'+s;if(rem<=0){clearInterval(_otpSt.timer);if(el)el.textContent='Expirado';}},1000);
+}
+function otpNav(input,idx){
+  const digits=Array.from(document.querySelectorAll('.otp-digit'));
+  if(input.value.length===1&&idx<digits.length-1)digits[idx+1].focus();
+  if(digits.every(d=>d.value.length===1))confirmarOTP();
+}
+function confirmarOTP(){
+  const digits=Array.from(document.querySelectorAll('.otp-digit'));
+  const entered=digits.map(d=>d.value).join('');
+  if(Date.now()>_otpSt.expiry){alert('Código expirado. Cancele e tente novamente.');return;}
+  if(entered===_otpSt.code){
+    clearInterval(_otpSt.timer);document.getElementById('otp-modal').style.display='none';
+    sessionStorage.setItem('doc_ok_'+_otpSt.doc,'1');
+    const lk=document.getElementById('dlock-'+_otpSt.doc);if(lk)lk.textContent='🔓';
+    window.open(_otpSt.link,'_blank');
+  }else{alert('Código incorreto. Tente novamente.');digits.forEach(d=>d.value='');const f=document.querySelector('.otp-digit');if(f)f.focus();}
+}
+function fecharOTP(){clearInterval(_otpSt.timer);const m=document.getElementById('otp-modal');if(m)m.style.display='none';}
+let _docsIdx=0;
+function navDoc(dir){
+  const slides=document.querySelectorAll('.doc-slide');if(!slides.length)return;
+  slides[_docsIdx].classList.remove('active');_docsIdx=(_docsIdx+dir+slides.length)%slides.length;
+  slides[_docsIdx].classList.add('active');
+  const info=document.getElementById('doc-nav-info');if(info)info.textContent=(_docsIdx+1)+' / '+slides.length;
+}
+const _dcObs=new MutationObserver(()=>{const c=document.getElementById('cli-docs-carousel');if(c&&!c.dataset.loaded){c.dataset.loaded='1';const u=firebase.auth().currentUser;if(u)renderDocsCarousel(u.uid);}});
+_dcObs.observe(document.body,{childList:true,subtree:true});
 </script>
+<div class="otp-overlay" id="otp-modal">
+  <div class="otp-box">
+    <h3>🔒 Verificação de Segurança</h3>
+    <p>Código enviado por e-mail para acessar:<br/><strong id="otp-doc-nome"></strong></p>
+    <div class="otp-inputs">
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,0)"/>
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,1)"/>
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,2)"/>
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,3)"/>
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,4)"/>
+      <input class="otp-digit" maxlength="1" type="text" inputmode="numeric" oninput="otpNav(this,5)"/>
+    </div>
+    <div class="otp-timer" id="otp-timer">05:00</div>
+    <button class="btn-confirmar-otp" onclick="confirmarOTP()">✅ Confirmar Código</button>
+    <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
+  </div>
+</div>
 </body>
 </html>
 <style id="apbot-avatar-fix">#aparat-bot .apbot-av{background:url('avatar-aparat.png.png') center/cover no-repeat !important;border-radius:50% !important;overflow:hidden !important}#aparat-bot .apbot-av svg{display:none !important}</style>
