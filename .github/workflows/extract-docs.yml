@@ -1,0 +1,24 @@
+name: Extract Docs Seguros Code
+on:
+  push:
+    paths:
+      - '.github/workflows/extract-docs.yml'
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Extract code sections
+        run: |
+          python3 - << 'PYEOF'
+          with open('index.html','r',encoding='utf-8') as f:
+              c=f.read()
+          # Find Documentos Seguros section
+          markers = ['docSeguros', 'documento-seguro', 'Documentos Seguros', 'uploadDocSeguro', 'docseguros', 'doc-seguro', 'ap-docs']
+          for m in markers:
+              idx = c.find(m)
+              if idx >= 0:
+                  print(f"MARKER [{m}] at {idx}:")
+                  print(c[max(0,idx-100):idx+300])
+                  print("---END---")
+          PYEOF
