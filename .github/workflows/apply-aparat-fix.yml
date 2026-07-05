@@ -1,0 +1,40 @@
+name: Aplicar aparat-fix no index.html
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-aparat-fix.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Inserir script aparat-fix.js no index.html
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          with io.open('index.html','r',encoding='utf-8') as f:
+              c = f.read()
+          tag = '<script defer src="aparat-fix.js?v=1"></script>'
+          if 'aparat-fix.js' in c:
+              print('Ja aplicado - nada a fazer')
+          else:
+              if '</body>' in c:
+                  c = c.replace('</body>', tag + '\n</body>', 1)
+              else:
+                  c = c + '\n' + tag + '\n'
+              with io.open('index.html','w',encoding='utf-8') as f:
+                  f.write(c)
+              print('Script aparat-fix.js inserido com sucesso')
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "app: carregar aparat-fix.js (Documentos Seguros + instalacao)"
+          git push
