@@ -1,0 +1,48 @@
+name: Criar copia do app em /app (URL nova para instalacao limpa)
+on:
+  push:
+    paths:
+      - '.github/workflows/criar-app-novo.yml'
+  workflow_dispatch:
+jobs:
+  copiar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Copiar arquivos para a pasta /app
+        run: |
+          python3 - << 'PYEOF'
+          import os, shutil
+          os.makedirs('app', exist_ok=True)
+          arquivos = [
+              'index.html','manifest.webmanifest','sw.js','firebase-messaging-sw.js',
+              'aparat-fix.js','icon-192.png','icon-512.png','icone-aparat.png',
+              'avatar-aparat.png.png','icon.svg'
+          ]
+          for f in arquivos:
+              if os.path.exists(f):
+                  shutil.copy(f, os.path.join('app', os.path.basename(f)))
+                  print('copiado:', f)
+              else:
+                  print('nao encontrado:', f)
+          # dar identidade propria ao manifesto da pasta /app
+          mpath = os.path.join('app','manifest.webmanifest')
+          if os.path.exists(mpath):
+              with open(mpath,'r',encoding='utf-8') as fh:
+                  c = fh.read()
+              c = c.replace('aparat-app-pwa-2026','aparat-app-instalar-novo')
+              with open(mpath,'w',encoding='utf-8') as fh:
+                  fh.write(c)
+              print('manifest /app ajustado')
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app
+          git diff --staged --quiet || git commit -m "app: copia em /app com URL nova para instalacao limpa"
+          git push
