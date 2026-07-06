@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.assessoriacontabilda_lab.twa",
+        "sha256_cert_fingerprints": ["DB:67:D3:D0:E0:6E:C4:1B:E3:64:67:0B:02:87:EA:BF:63:50:DC:BA:52:EA:0B:FB:3E:52:A0:21:E2:A2:4D:B6"]
+      }
+    }]
