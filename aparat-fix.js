@@ -336,11 +336,22 @@
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     setupInstall();
     var sel = document.getElementById("docs-cli-sel");
-    if (sel) sel.addEventListener("change", officeRender);
+    if (sel) {
+      sel.addEventListener("change", officeRender);
+      // atualiza a lista de clientes toda vez que o Daniel abre/toca o seletor
+      sel.addEventListener("mousedown", fillClientSelect);
+      sel.addEventListener("focus", fillClientSelect);
+    }
     var atu = document.getElementById("btn-save-docs");
-    if (atu) atu.onclick = officeRender;
+    if (atu) atu.onclick = function () { fillClientSelect(); officeRender(); };
+    // atualiza a lista ao abrir a aba "Arquivos" dos Documentos Seguros
+    var tabArq = document.getElementById("ds-tab-btn-links");
+    if (tabArq) tabArq.addEventListener("click", function () { setTimeout(fillClientSelect, 120); });
     var prev = document.getElementById("ds-prev-sel");
     if (prev) prev.addEventListener("change", previewInIframe);
+    // se existir botao de criar acesso do cliente, atualiza a lista depois
+    var btnAcesso = document.getElementById("btn-criar-acesso") || document.getElementById("acesso-btn");
+    if (btnAcesso) btnAcesso.addEventListener("click", function () { setTimeout(fillClientSelect, 1500); });
     window.carregarDocsSeguro = officeRender;
     window.carregarDocsCliente = clientRender;
     setupCarousel();
