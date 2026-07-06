@@ -18,6 +18,33 @@
     } catch (e) {}
   })();
 
+  // ---- Visual: camada de organizacao (mantem o tema escuro) ----
+  (function injectStyle() {
+    try {
+      if (document.getElementById("__apstyle")) return;
+      var css = ""
+        + ":root{--ap-radius:14px;--ap-line:rgba(255,255,255,.08);--ap-blue:#4f7cff;}"
+        + ".sidebar{border-right:1px solid var(--ap-line);}"
+        + ".nav-sec{text-transform:uppercase;letter-spacing:.09em;font-size:10px!important;color:#8890b8!important;opacity:.75;margin:16px 14px 6px!important;font-weight:800!important;}"
+        + ".nav-item,.ni{border-radius:10px!important;margin:2px 8px!important;transition:background .15s,box-shadow .15s;}"
+        + ".nav-item:hover,.ni:hover{background:rgba(255,255,255,.06)!important;}"
+        + ".nav-item.active,.ni.active{background:linear-gradient(90deg,rgba(79,124,255,.20),rgba(79,124,255,.03))!important;box-shadow:inset 3px 0 0 var(--ap-blue);}"
+        + ".kcard{border-radius:var(--ap-radius)!important;border:1px solid rgba(255,255,255,.07)!important;background:linear-gradient(160deg,#15152f,#101024)!important;transition:transform .18s,box-shadow .18s,border-color .18s;}"
+        + ".kcard:hover{transform:translateY(-2px);border-color:rgba(79,124,255,.4)!important;box-shadow:0 10px 24px rgba(0,0,0,.4);}"
+        + ".fbox,.tbox{border-radius:var(--ap-radius)!important;border:1px solid rgba(255,255,255,.07)!important;}"
+        + ".btn-az,.btn{border-radius:10px!important;}"
+        + ".qcard{border-radius:var(--ap-radius)!important;border:1px solid var(--ap-line)!important;background:linear-gradient(160deg,#17193c,#111028)!important;transition:transform .18s,box-shadow .18s,border-color .18s;}"
+        + ".qcard:hover,.qcard:active{transform:translateY(-2px);border-color:rgba(79,124,255,.45)!important;box-shadow:0 8px 20px rgba(0,0,0,.4);}"
+        + ".wcard{border-radius:16px!important;background:linear-gradient(135deg,#2846cf,#3a5bd9)!important;box-shadow:0 10px 26px rgba(42,70,207,.32)!important;}"
+        + ".lcard,.hon-app-card{border-radius:var(--ap-radius)!important;border:1px solid var(--ap-line)!important;}"
+        + ".bnav{border-top:1px solid var(--ap-line)!important;}"
+        + ".nbtn{border-radius:10px!important;transition:color .15s;}"
+        + "#cli-docs-carousel,#cli-docs-cards{border-radius:var(--ap-radius)!important;}";
+      var s = document.createElement("style"); s.id = "__apstyle"; s.textContent = css;
+      (document.head || document.documentElement).appendChild(s);
+    } catch (e) {}
+  })();
+
   var ADMIN_EMAIL = "assessoriacontabil.da@gmail.com";
   var MAX_BYTES = 15 * 1024 * 1024;
   var CHUNK = 700000;
