@@ -358,6 +358,38 @@
     };
   }
 
+  /* ---------- Cards grandes na tela inicial do escritorio ---------- */
+  function navToSecao(name) {
+    var items = [].slice.call(document.querySelectorAll(".sidebar .nav-item, .sidebar .ni"));
+    var el = items.filter(function (e) { return e.textContent.indexOf(name) >= 0; })[0];
+    if (el) el.click();
+  }
+  function injectQuickCards() {
+    var dash = document.getElementById("pp-dash");
+    if (!dash) return;
+    if (document.getElementById("ap-quick-cards")) return;
+    var cards = [
+      { n: "Documentos", ic: "📁", d: "Acesse seus documentos a qualquer momento." },
+      { n: "Obrigações", ic: "📅", d: "Acompanhe prazos e evite multas." },
+      { n: "Financeiro", ic: "💲", d: "Visualize honorários, boletos e pagamentos." },
+      { n: "Solicitações", ic: "✈️", d: "Envie solicitações de forma rápida e fácil." },
+      { n: "Informativos", ic: "📢", d: "Receba comunicados importantes." }
+    ];
+    var wrap = document.createElement("div");
+    wrap.id = "ap-quick-cards";
+    wrap.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:18px";
+    cards.forEach(function (c) {
+      var card = document.createElement("div");
+      card.style.cssText = "display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;cursor:pointer;background:linear-gradient(135deg,#1b3a8f,#11224f);border:1px solid rgba(120,160,255,.22);box-shadow:0 6px 18px rgba(0,0,0,.3);transition:transform .18s,box-shadow .18s";
+      card.onmouseover = function () { card.style.transform = "translateY(-3px)"; card.style.boxShadow = "0 12px 30px rgba(30,70,180,.45)"; };
+      card.onmouseout = function () { card.style.transform = ""; card.style.boxShadow = "0 6px 18px rgba(0,0,0,.3)"; };
+      card.onclick = function () { navToSecao(c.n); };
+      card.innerHTML = '<div style="font-size:32px;min-width:52px;height:52px;display:flex;align-items:center;justify-content:center;border:2px solid rgba(150,180,255,.4);border-radius:12px">' + c.ic + '</div><div><div style="font-weight:800;color:#fff;font-size:17px">' + c.n + '</div><div style="font-size:12px;color:#c3d0f5;margin-top:3px;line-height:1.3">' + c.d + '</div></div>';
+      wrap.appendChild(card);
+    });
+    dash.insertBefore(wrap, dash.firstElementChild);
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
@@ -382,6 +414,11 @@
     window.carregarDocsSeguro = officeRender;
     window.carregarDocsCliente = clientRender;
     setupCarousel();
+    injectQuickCards();
+    setTimeout(injectQuickCards, 800);
+    setTimeout(injectQuickCards, 2200);
+    var navDash = [].slice.call(document.querySelectorAll(".sidebar .nav-item, .sidebar .ni")).filter(function (e) { return e.textContent.indexOf("Dashboard") >= 0; })[0];
+    if (navDash) navDash.addEventListener("click", function () { setTimeout(injectQuickCards, 200); });
     var nb = document.getElementById("nb-docs");
     if (nb) nb.addEventListener("click", function () { setTimeout(clientRender, 350); });
 
