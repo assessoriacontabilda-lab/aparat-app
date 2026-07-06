@@ -1,0 +1,53 @@
+name: Extrair APK e assetlinks do pacote
+on:
+  push:
+    paths:
+      - '.github/workflows/extrair-apk.yml'
+  workflow_dispatch:
+jobs:
+  extrair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extrair APK e assetlinks
+        run: |
+          python3 - << 'PYEOF'
+          import zipfile, glob, os
+          cands = [z for z in glob.glob('*.zip') if ('Google Play' in z) or ('package' in z.lower())]
+          if not cands:
+              cands = [z for z in glob.glob('*.zip')]
+          print('zips candidatos:', cands)
+          alvo = None
+          for z in cands:
+              try:
+                  names = zipfile.ZipFile(z).namelist()
+                  if any(n.endswith('Aparat.apk') for n in names):
+                      alvo = z; break
+              except Exception as e:
+                  print('erro lendo', z, e)
+          if not alvo:
+              print('Nenhum zip com Aparat.apk encontrado'); raise SystemExit(1)
+          print('usando:', alvo)
+          zf = zipfile.ZipFile(alvo)
+          def achar(term):
+              for n in zf.namelist():
+                  if n.endswith(term): return n
+              return None
+          apk = achar('Aparat.apk'); al = achar('assetlinks.json')
+          with open('Aparat.apk','wb') as f: f.write(zf.read(apk))
+          os.makedirs('.well-known', exist_ok=True)
+          with open('.well-known/assetlinks.json','wb') as f: f.write(zf.read(al))
+          os.remove(alvo)
+          print('OK: Aparat.apk', os.path.getsize('Aparat.apk'), 'bytes; assetlinks.json publicado; zip removido')
+          PYEOF
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "apk: Aparat.apk + assetlinks (instalacao direta)"
+          git push
