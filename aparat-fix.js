@@ -40,6 +40,13 @@
         + ".bnav{border-top:1px solid var(--ap-line)!important;}"
         + ".nbtn{border-radius:10px!important;transition:color .15s;}"
         + "#cli-docs-carousel,#cli-docs-cards{border-radius:var(--ap-radius)!important;}"
+        // --- Cards do cliente organizados em coluna unica (igual ao escritorio) ---
+        + "#ap-home .qgrid{display:flex!important;flex-direction:column!important;gap:11px!important;grid-template-columns:none!important;margin:14px 0!important}"
+        + "#ap-home .qgrid>*{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;gap:8px 14px!important;padding:15px 16px!important;border-radius:15px!important;background:linear-gradient(135deg,#1b3a8f,#11224f)!important;border:1px solid rgba(120,160,255,.22)!important;box-shadow:0 5px 15px rgba(0,0,0,.28)!important;text-align:left!important;width:auto!important;min-height:0!important;aspect-ratio:auto!important}"
+        + "#ap-home .qgrid>*:hover,#ap-home .qgrid>*:active{transform:translateY(-2px);border-color:rgba(150,180,255,.55)!important}"
+        + "#ap-home .qgrid>* .qc-icon{font-size:24px!important;width:44px!important;min-width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important;border:2px solid rgba(150,180,255,.4)!important;border-radius:11px!important;margin:0!important;flex:0 0 auto!important;background:rgba(255,255,255,.05)!important}"
+        + "#ap-home .qgrid>* .qc-lbl{font-weight:800!important;color:#fff!important;font-size:15px!important;margin:0!important;flex:1 1 60%!important}"
+        + "#ap-home .qgrid>* .qc-sub{font-size:11px!important;color:#c3d0f5!important;margin:0!important;flex:1 1 100%!important;padding-left:58px!important;line-height:1.3!important}"
         + "@media (max-width:640px){"
         + "html,body{overflow-x:hidden!important}"
         + ".layout{flex-direction:column!important;display:flex!important}"
@@ -413,6 +420,10 @@
 
   // ---- Cards grandes na tela inicial do CLIENTE ----
   function injectClientCards() {
+    // Desativado: os cards do cliente agora sao os proprios botoes do .qgrid,
+    // reorganizados em coluna unica via CSS (sobrevive as re-renderizacoes do app).
+    return;
+    // eslint-disable-next-line no-unreachable
     var home = document.getElementById("ap-home");
     if (!home) return;
     if (document.getElementById("ap-client-cards")) return;
