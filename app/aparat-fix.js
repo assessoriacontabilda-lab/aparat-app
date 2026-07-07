@@ -390,6 +390,34 @@
     dash.insertBefore(wrap, dash.firstElementChild);
   }
 
+  // ---- Cards grandes na tela inicial do CLIENTE ----
+  function injectClientCards() {
+    var home = document.getElementById("ap-home");
+    if (!home) return;
+    if (document.getElementById("ap-client-cards")) return;
+    var cards = [
+      { ic: "📁", t: "Documentos", d: "Acesse seus documentos a qualquer momento.", nav: "nb-docs" },
+      { ic: "📅", t: "Obrigações", d: "Acompanhe seus prazos e evite multas.", nav: "nb-obrig" },
+      { ic: "💲", t: "Financeiro", d: "Veja honorários, boletos e pagamentos.", nav: "nb-financeiro" },
+      { ic: "💳", t: "Honorários", d: "Veja e pague seus honorários.", nav: "nb-honorarios" },
+      { ic: "🚨", t: "Avisos", d: "Receba comunicados importantes.", nav: "nb-urgencias" }
+    ];
+    var wrap = document.createElement("div");
+    wrap.id = "ap-client-cards";
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:12px;margin:14px 0";
+    cards.forEach(function (c) {
+      var card = document.createElement("div");
+      card.style.cssText = "display:flex;align-items:center;gap:14px;padding:16px;border-radius:16px;cursor:pointer;background:linear-gradient(135deg,#1b3a8f,#11224f);border:1px solid rgba(120,160,255,.22);box-shadow:0 5px 15px rgba(0,0,0,.3)";
+      card.onclick = function () { var b = document.getElementById(c.nav); if (b) b.click(); };
+      card.innerHTML = '<div style="font-size:28px;min-width:46px;height:46px;display:flex;align-items:center;justify-content:center;border:2px solid rgba(150,180,255,.4);border-radius:11px">' + c.ic + '</div><div><div style="font-weight:800;color:#fff;font-size:15px">' + c.t + '</div><div style="font-size:11px;color:#c3d0f5;margin-top:2px;line-height:1.3">' + c.d + '</div></div>';
+      wrap.appendChild(card);
+    });
+    var seg = home.querySelector(".segbadge");
+    if (seg && seg.parentNode === home) { home.insertBefore(wrap, seg.nextSibling); }
+    else { home.insertBefore(wrap, home.firstElementChild); }
+    var qg = home.querySelector(".qgrid"); if (qg) qg.style.display = "none";
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
@@ -419,6 +447,8 @@
     setTimeout(injectQuickCards, 2200);
     var navDash = [].slice.call(document.querySelectorAll(".sidebar .nav-item, .sidebar .ni")).filter(function (e) { return e.textContent.indexOf("Dashboard") >= 0; })[0];
     if (navDash) navDash.addEventListener("click", function () { setTimeout(injectQuickCards, 200); });
+    var nbHome = document.getElementById("nb-home");
+    if (nbHome) nbHome.addEventListener("click", function () { setTimeout(injectClientCards, 200); });
     var nb = document.getElementById("nb-docs");
     if (nb) nb.addEventListener("click", function () { setTimeout(clientRender, 350); });
 
@@ -426,7 +456,10 @@
       var u = firebase.auth().currentUser;
       var isAdmin = u && (u.email === ADMIN_EMAIL);
       if (isAdmin) { fillClientSelect(); }
-      else if (u) { clientRender(); CAR.cache = null; setTimeout(function () { carRender(0); }, 300); }
+      else if (u) {
+        clientRender(); CAR.cache = null; setTimeout(function () { carRender(0); }, 300);
+        injectClientCards(); setTimeout(injectClientCards, 800); setTimeout(injectClientCards, 2200);
+      }
     }
     afterAuth();
     firebase.auth().onAuthStateChanged(afterAuth);
