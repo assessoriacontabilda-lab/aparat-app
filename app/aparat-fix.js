@@ -40,7 +40,21 @@
         + ".bnav{border-top:1px solid var(--ap-line)!important;}"
         + ".nbtn{border-radius:10px!important;transition:color .15s;}"
         + "#cli-docs-carousel,#cli-docs-cards{border-radius:var(--ap-radius)!important;}"
-        + "@media (max-width:640px){html,body{overflow-x:hidden!important}.sidebar{width:112px!important;min-width:112px!important}.nav-sec{font-size:8px!important;margin:10px 6px 3px!important}.nav-item,.ni{font-size:10px!important;padding:7px 5px!important;margin:2px 4px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pmain{padding:10px 8px!important}.cards4{grid-template-columns:1fr 1fr!important;gap:8px!important}.kcard{padding:12px 8px!important}#ap-quick-cards{max-width:none!important}#ap-quick-cards>div{padding:13px!important}.fbox,.tbox{padding:12px!important}.fgrid{grid-template-columns:1fr!important}}";
+        + "@media (max-width:640px){"
+        + "html,body{overflow-x:hidden!important}"
+        + ".layout{flex-direction:column!important;display:flex!important}"
+        + ".sidebar{width:100%!important;min-width:0!important;max-width:none!important;height:auto!important;max-height:none!important;border-right:none!important;border-bottom:1px solid var(--ap-line)!important;position:static!important}"
+        + ".nav{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:6px!important;padding:8px!important;-webkit-overflow-scrolling:touch}"
+        + ".nav-sec{display:none!important}"
+        + ".nav-item,.ni{flex:0 0 auto!important;white-space:nowrap!important;font-size:12px!important;padding:9px 12px!important;margin:0!important}"
+        + ".sidebar-foot{display:none!important}"
+        + ".pmain,.painel{width:100%!important;padding:12px 10px!important}"
+        + ".cards4{grid-template-columns:1fr 1fr!important;gap:8px!important}"
+        + ".kcard{padding:12px 8px!important}"
+        + "#ap-quick-cards{max-width:none!important}"
+        + ".fbox,.tbox{padding:12px!important}"
+        + ".fgrid{grid-template-columns:1fr!important}"
+        + "}";
       var s = document.createElement("style"); s.id = "__apstyle"; s.textContent = css;
       (document.head || document.documentElement).appendChild(s);
     } catch (e) {}
