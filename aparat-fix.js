@@ -54,6 +54,12 @@
         + "#ap-quick-cards{max-width:none!important}"
         + ".fbox,.tbox{padding:12px!important}"
         + ".fgrid{grid-template-columns:1fr!important}"
+        + "#view-app.app-wrap,#view-app{padding:0!important}"
+        + ".phone{width:100%!important;max-width:none!important;min-height:100vh!important;height:100vh!important;border:none!important;border-radius:0!important;box-shadow:none!important;margin:0!important}"
+        + ".phone .notch{display:none!important}"
+        + ".phone .sbar{display:none!important}"
+        + ".phone .acontent{flex:1 1 auto!important;overflow-y:auto!important}"
+        + ".phone .bnav{flex:0 0 auto!important}"
         + "}";
       var s = document.createElement("style"); s.id = "__apstyle"; s.textContent = css;
       (document.head || document.documentElement).appendChild(s);
