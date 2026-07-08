@@ -464,10 +464,49 @@
     } catch (e) {}
   }
 
+  // ---- Avatar de secretaria (bonequinho) no assistente virtual ----
+  function secretarySvg() {
+    return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+      + "<defs><clipPath id='apsc'><circle cx='50' cy='50' r='50'/></clipPath>"
+      + "<linearGradient id='apsg' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#3a5bd9'/><stop offset='1' stop-color='#16276e'/></linearGradient></defs>"
+      + "<g clip-path='url(#apsc)'>"
+      + "<rect width='100' height='100' fill='url(#apsg)'/>"
+      + "<path d='M12 100 q0 -30 38 -30 q38 0 38 30 z' fill='#0f1c4d'/>"
+      + "<path d='M50 72 l-11 28 h22 z' fill='#f4f6ff'/>"
+      + "<rect x='43' y='58' width='14' height='16' rx='6' fill='#eab58c'/>"
+      + "<circle cx='50' cy='44' r='20' fill='#f4c49c'/>"
+      + "<path d='M29 46 q0 -23 21 -23 q21 0 21 23 q-7 -11 -21 -11 q-14 0 -21 11z' fill='#4a2f1a'/>"
+      + "<path d='M29 46 q-3 13 2 22 l4 -2 q-5 -10 -2 -20z' fill='#4a2f1a'/>"
+      + "<path d='M71 46 q3 13 -2 22 l-4 -2 q5 -10 2 -20z' fill='#4a2f1a'/>"
+      + "<circle cx='43' cy='45' r='2.3' fill='#3a2a1a'/>"
+      + "<circle cx='57' cy='45' r='2.3' fill='#3a2a1a'/>"
+      + "<path d='M44 52 q6 5 12 0' stroke='#b5623c' stroke-width='2' fill='none' stroke-linecap='round'/>"
+      + "<path d='M28 45 q0 -21 22 -21 q22 0 22 21' stroke='#12203f' stroke-width='4' fill='none'/>"
+      + "<rect x='25' y='43' width='6' height='11' rx='3' fill='#12203f'/>"
+      + "<rect x='69' y='43' width='6' height='11' rx='3' fill='#12203f'/>"
+      + "<path d='M28 52 q-4 9 7 13' stroke='#12203f' stroke-width='3' fill='none'/>"
+      + "<circle cx='36' cy='65' r='3.2' fill='#12203f'/>"
+      + "</g></svg>";
+  }
+  function setSecretaryAvatar() {
+    try {
+      var av = document.querySelector(".apbot-av");
+      if (!av) return;
+      if (av.getAttribute("data-apsec") === "1") return;
+      var uri = "data:image/svg+xml;utf8," + secretarySvg()
+        .replace(/#/g, "%23").replace(/</g, "%3C").replace(/>/g, "%3E").replace(/"/g, "'");
+      av.innerHTML = "";
+      av.style.background = "#16276e url(\"" + uri + "\") center/cover no-repeat";
+      av.setAttribute("data-apsec", "1");
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     removeStrays(); setTimeout(removeStrays, 500); setTimeout(removeStrays, 1500);
+    setSecretaryAvatar();
+    [400, 1200, 2500, 5000].forEach(function (t) { setTimeout(setSecretaryAvatar, t); });
     setupInstall();
     var sel = document.getElementById("docs-cli-sel");
     if (sel) {
