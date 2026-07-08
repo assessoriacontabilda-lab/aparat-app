@@ -450,9 +450,24 @@
     var qg = home.querySelector(".qgrid"); if (qg) qg.style.display = "none";
   }
 
+  // ---- Remove letras/textos soltos direto no <body> (ex.: "h h") ----
+  function removeStrays() {
+    try {
+      var b = document.body; if (!b) return;
+      for (var i = b.childNodes.length - 1; i >= 0; i--) {
+        var n = b.childNodes[i];
+        if (n.nodeType === 3) {
+          var t = (n.nodeValue || "").replace(/\s+/g, "").trim(); // __stray
+          if (t.length > 0 && t.length <= 3) { b.removeChild(n); }
+        }
+      }
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
+    removeStrays(); setTimeout(removeStrays, 500); setTimeout(removeStrays, 1500);
     setupInstall();
     var sel = document.getElementById("docs-cli-sel");
     if (sel) {
