@@ -1,0 +1,21 @@
+name: Notificador push APARAT (app fechado)
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # a cada 5 minutos
+  workflow_dispatch:
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        working-directory: notificador
+        run: npm install
+      - name: Rodar carteiro de notificacoes
+        working-directory: notificador
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+        run: node enviar.js
