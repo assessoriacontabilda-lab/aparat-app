@@ -1,0 +1,21 @@
+name: Faturador automatico APARAT (OFX)
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # a cada 15 minutos
+  workflow_dispatch:
+jobs:
+  faturar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        working-directory: faturador
+        run: npm install
+      - name: Processar extratos OFX
+        working-directory: faturador
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+        run: node processar.js
