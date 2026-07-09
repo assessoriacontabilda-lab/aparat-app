@@ -47,6 +47,10 @@
         + "#ap-home .qgrid>* .qc-icon{font-size:24px!important;width:44px!important;min-width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important;border:2px solid rgba(150,180,255,.4)!important;border-radius:11px!important;margin:0!important;flex:0 0 auto!important;background:rgba(255,255,255,.05)!important}"
         + "#ap-home .qgrid>* .qc-lbl{font-weight:800!important;color:#fff!important;font-size:15px!important;margin:0!important;flex:1 1 60%!important}"
         + "#ap-home .qgrid>* .qc-sub{font-size:11px!important;color:#c3d0f5!important;margin:0!important;flex:1 1 100%!important;padding-left:58px!important;line-height:1.3!important}"
+        // Selo fluorescente indicando onde anexar o extrato bancario
+        + ".ap-extrato-flag{display:flex;align-items:center;gap:8px;margin:10px 0;padding:11px 13px;border-radius:12px;font-weight:800;font-size:13px;color:#062a12;background:linear-gradient(90deg,#39ff14,#00e5ff);box-shadow:0 0 8px 2px rgba(57,255,20,.7);animation:apglow 1.4s ease-in-out infinite;cursor:pointer}"
+        + ".ap-extrato-flag .ap-ef-ic{font-size:18px}"
+        + "@keyframes apglow{0%{box-shadow:0 0 6px 1px rgba(57,255,20,.6)}50%{box-shadow:0 0 18px 6px rgba(0,229,255,.9)}100%{box-shadow:0 0 6px 1px rgba(57,255,20,.6)}}"
         + "@media (max-width:640px){"
         + "html,body{overflow-x:hidden!important}"
         + ".layout{flex-direction:column!important;display:flex!important}"
@@ -501,12 +505,31 @@
     } catch (e) {}
   }
 
+  // ---- Selo fluorescente: onde anexar o extrato bancario (cli-arq-file) ----
+  function markExtratoUpload() {
+    try {
+      var f = document.getElementById("cli-arq-file");
+      if (!f) return;
+      if (document.getElementById("ap-extrato-flag")) return;
+      var flag = document.createElement("div");
+      flag.id = "ap-extrato-flag";
+      flag.className = "ap-extrato-flag";
+      flag.innerHTML = "<span class='ap-ef-ic'>📎</span> Anexe AQUI o seu extrato bancário (OFX ou PDF)";
+      flag.onclick = function () { try { f.click(); } catch (e) {} };
+      var anchor = f.parentElement || f;
+      anchor.parentNode.insertBefore(flag, anchor);
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     removeStrays(); setTimeout(removeStrays, 500); setTimeout(removeStrays, 1500);
     setSecretaryAvatar();
     [400, 1200, 2500, 5000].forEach(function (t) { setTimeout(setSecretaryAvatar, t); });
+    markExtratoUpload();
+    document.addEventListener("click", function () { setTimeout(markExtratoUpload, 250); }, true);
+    [800, 2500].forEach(function (t) { setTimeout(markExtratoUpload, t); });
     setupInstall();
     var sel = document.getElementById("docs-cli-sel");
     if (sel) {
