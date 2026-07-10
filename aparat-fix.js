@@ -521,10 +521,51 @@
     } catch (e) {}
   }
 
+  // ---- Calendario completo no seletor de mes do Faturamento (cliente) ----
+  function expandFatMonths() {
+    try {
+      if (window.__apFatWrapped) return;
+      if (typeof window._fatMesBox !== "function") return;
+      var orig = window._fatMesBox;
+      window._fatMesBox = function () {
+        var r;
+        try { r = orig.apply(this, arguments); } catch (e) {}
+        try {
+          var sel = document.getElementById("cli-fat-mes");
+          if (sel) {
+            var have = {};
+            [].forEach.call(sel.options, function (o) { have[o.value] = 1; });
+            var nomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+            var now = new Date();
+            for (var k = 0; k >= -47; k--) {
+              var d = new Date(now.getFullYear(), now.getMonth() + k, 1);
+              var y = d.getFullYear(), m = d.getMonth() + 1;
+              var vv = y + "-" + (m < 10 ? "0" + m : m);
+              if (have[vv]) continue;
+              var o = document.createElement("option");
+              o.value = vv; o.textContent = nomes[m - 1] + "/" + y;
+              sel.appendChild(o);
+            }
+            var selVal = sel.value;
+            var opts = [].slice.call(sel.options);
+            opts.sort(function (a, b) { return a.value < b.value ? 1 : (a.value > b.value ? -1 : 0); });
+            opts.forEach(function (o) { sel.appendChild(o); });
+            if (selVal) sel.value = selVal;
+          }
+        } catch (e) {}
+        return r;
+      };
+      window.__apFatWrapped = true;
+      if (document.getElementById("cli-fat-mes")) { try { window._fatMesBox(); } catch (e) {} }
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     removeStrays(); setTimeout(removeStrays, 500); setTimeout(removeStrays, 1500);
+    expandFatMonths();
+    [600, 1800, 4000].forEach(function (t) { setTimeout(expandFatMonths, t); });
     setSecretaryAvatar();
     [400, 1200, 2500, 5000].forEach(function (t) { setTimeout(setSecretaryAvatar, t); });
     markExtratoUpload();
