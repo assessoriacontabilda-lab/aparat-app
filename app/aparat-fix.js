@@ -559,6 +559,40 @@
     } catch (e) {}
   }
 
+  // ---- Obrigacoes mensais completas: Extrato, NF-e e Certidao Fiscal ----
+  function setupObrigacoes() {
+    try {
+      var tipo = document.getElementById("ob-tipo");
+      var status = document.getElementById("ob-status");
+      if (!tipo || !status) return;
+      if (tipo.getAttribute("data-apob") === "1") return;
+      var origStatus = [].slice.call(status.options).map(function (o) { return { v: o.value, t: o.textContent }; });
+      var novos = ["Extrato Bancário", "NF-e Emitida", "Certidão Fiscal"];
+      var have = {};
+      [].forEach.call(tipo.options, function (o) { have[o.value] = 1; });
+      novos.forEach(function (n) {
+        if (!have[n]) { var o = document.createElement("option"); o.value = n; o.textContent = n; tipo.appendChild(o); }
+      });
+      var mapa = {
+        "Extrato Bancário": ["Enviado", "Não Enviado"],
+        "NF-e Emitida": ["Emitida", "Não Emitida"],
+        "Certidão Fiscal": ["Conferida", "Pendente", "Irregular"]
+      };
+      function aplicar() {
+        var lista = mapa[tipo.value];
+        var atual = status.value;
+        status.innerHTML = "";
+        var fonte = lista ? lista.map(function (s) { return { v: s, t: s }; }) : origStatus;
+        fonte.forEach(function (s) {
+          var o = document.createElement("option"); o.value = s.v; o.textContent = s.t; status.appendChild(o);
+        });
+        try { status.value = atual; } catch (e) {}
+      }
+      tipo.addEventListener("change", aplicar);
+      tipo.setAttribute("data-apob", "1");
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
@@ -566,6 +600,9 @@
     expandFatMonths();
     [600, 1800, 4000].forEach(function (t) { setTimeout(expandFatMonths, t); });
     setInterval(expandFatMonths, 3000);
+    setupObrigacoes();
+    [700, 2000, 4500].forEach(function (t) { setTimeout(setupObrigacoes, t); });
+    setInterval(setupObrigacoes, 4000);
     setSecretaryAvatar();
     [400, 1200, 2500, 5000].forEach(function (t) { setTimeout(setSecretaryAvatar, t); });
     markExtratoUpload();
