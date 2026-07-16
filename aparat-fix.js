@@ -574,8 +574,8 @@
         if (!have[n]) { var o = document.createElement("option"); o.value = n; o.textContent = n; tipo.appendChild(o); }
       });
       var mapa = {
-        "Extrato Bancário": ["Enviado", "Não Enviado"],
-        "NF-e Emitida": ["Emitida", "Não Emitida"],
+        "Extrato Bancário": ["Recebido", "Enviado", "Não Enviado"],
+        "NF-e Emitida": ["Emitida", "Não Emitida", "Enviada ao Cliente", "Recebida de Fornecedor", "Emitida pelo Escritório"],
         "Certidão Fiscal": ["Conferida", "Pendente", "Irregular"]
       };
       function aplicar() {
@@ -593,10 +593,314 @@
     } catch (e) {}
   }
 
+  // ---- Anexos nas Obrigacoes: escritorio anexa, cliente baixa ----
+  var OB_MAX = 700000; // ~700 KB por anexo
+
+  function obBaixar(nome, dataUrl) {
+    try {
+      var a = document.createElement("a");
+      a.href = dataUrl; a.download = nome || "documento";
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) {}
+  }
+
+  function enhanceObrigOffice() {
+    try {
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser;
+      if (!u || u.email !== ADMIN_EMAIL) return;
+      var db = firebase.firestore();
+      var btns = [].slice.call(document.querySelectorAll("[onclick]")).filter(function (b) {
+        return /excluirObrig\(/.test(b.getAttribute("onclick") || "");
+      });
+      btns.forEach(function (b) {
+        if (b.getAttribute("data-apanx") === "1") return;
+        var m = (b.getAttribute("onclick") || "").match(/excluirObrig\(['"]([^'"]+)['"]\)/);
+        if (!m) return;
+        var id = m[1];
+        var cel = b.parentElement; if (!cel) return;
+
+        var bAnx = document.createElement("button");
+        bAnx.className = b.className;
+        bAnx.textContent = "📎 Anexar";
+        bAnx.style.marginLeft = "4px";
+        bAnx.onclick = function () {
+          var inp = document.createElement("input");
+          inp.type = "file";
+          inp.accept = ".pdf,.xml,.png,.jpg,.jpeg";
+          inp.onchange = function () {
+            var f = inp.files && inp.files[0]; if (!f) return;
+            if (f.size > OB_MAX) { alert("Arquivo muito grande (máximo 700 KB). Comprima o PDF e tente novamente."); return; }
+            var fr = new FileReader();
+            fr.onload = function () {
+              db.collection("obrigacoes").doc(id).set({
+                arquivoData: String(fr.result),
+                arquivoNome: f.name,
+                arquivoMime: f.type || "",
+                arquivoEm: firebase.firestore.FieldValue.serverTimestamp()
+              }, { merge: true }).then(function () {
+                alert("Anexo salvo! O cliente já pode visualizar e baixar.");
+              }).catch(function () { alert("Erro ao salvar o anexo."); });
+            };
+            fr.onerror = function () { alert("Não consegui ler o arquivo."); };
+            fr.readAsDataURL(f);
+          };
+          inp.click();
+        };
+
+        var bDl = document.createElement("button");
+        bDl.className = b.className;
+        bDl.textContent = "⬇ Baixar";
+        bDl.style.marginLeft = "4px";
+        bDl.onclick = function () {
+          db.collection("obrigacoes").doc(id).get().then(function (d) {
+            var x = d.data() || {};
+            if (!x.arquivoData) { alert("Esta obrigação ainda não tem anexo."); return; }
+            obBaixar(x.arquivoNome, x.arquivoData);
+          }).catch(function () { alert("Erro ao buscar o anexo."); });
+        };
+
+        cel.appendChild(bAnx);
+        cel.appendChild(bDl);
+        b.setAttribute("data-apanx", "1");
+      });
+    } catch (e) {}
+  }
+
+  function enhanceObrigClient() {
+    try {
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var pag = document.getElementById("ap-obrig");
+      if (!pag) return;
+      var u = firebase.auth().currentUser;
+      if (!u || u.email === ADMIN_EMAIL) return;
+      if (pag.getAttribute("data-apanx") === "1") return;
+      pag.setAttribute("data-apanx", "1");
+      var db = firebase.firestore();
+      db.collection("usuarios").doc(u.uid).get().then(function (ud) {
+        var nome = (ud.data() || {}).clienteNome || "";
+        if (!nome) return;
+        return db.collection("obrigacoes").where("cliente", "==", nome).get().then(function (snap) {
+          var lista = [];
+          snap.forEach(function (d) { var x = d.data(); if (x && x.arquivoData) lista.push(x); });
+          if (!lista.length) return;
+          var box = document.createElement("div");
+          box.id = "ap-obrig-anexos";
+          box.style.cssText = "margin:14px 0;padding:13px;border-radius:14px;background:linear-gradient(135deg,#1b3a8f,#11224f);border:1px solid rgba(120,160,255,.22)";
+          var t = document.createElement("div");
+          t.style.cssText = "font-weight:800;color:#fff;margin-bottom:8px;font-size:14px";
+          t.textContent = "📎 Documentos das Obrigações";
+          box.appendChild(t);
+          lista.forEach(function (x) {
+            var row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;margin-top:7px;border-radius:10px;background:rgba(0,0,0,.28)";
+            var lbl = document.createElement("div");
+            lbl.style.cssText = "font-size:12px;color:#dfe6ff;line-height:1.3";
+            lbl.innerHTML = "<b>" + (x.tipo || "Documento") + "</b><br><span style='color:#c3d0f5'>" + (x.arquivoNome || "") + "</span>";
+            var btn = document.createElement("button");
+            btn.textContent = "⬇ Baixar";
+            btn.style.cssText = "background:#2b6fff;color:#fff;border:0;border-radius:9px;padding:7px 13px;font-weight:700;cursor:pointer;white-space:nowrap";
+            btn.onclick = function () { obBaixar(x.arquivoNome, x.arquivoData); };
+            row.appendChild(lbl); row.appendChild(btn);
+            box.appendChild(row);
+          });
+          pag.insertBefore(box, pag.firstChild);
+        });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  // ---- Obrigacoes ANUAIS: sub-aba dentro de Obrigacoes ----
+  var ANUAIS_TIPOS = ["DASN-SIMEI", "DEFIS", "ECF", "ECD (SPED Contábil)", "DIRF", "RAIS/eSocial", "Balanço Patrimonial", "DRE Anual", "Informe de Rendimentos", "IRPF dos Sócios"];
+  var ANUAIS_SIT = ["Entregue", "Pendente", "Em Andamento", "Dispensado"];
+
+  function elx(tag, props, style) {
+    var e = document.createElement(tag);
+    if (props) for (var k in props) e[k] = props[k];
+    if (style) e.style.cssText = style;
+    return e;
+  }
+  function mkSel(id, arr) {
+    var s = elx("select", { id: id });
+    arr.forEach(function (v) { var o = elx("option"); o.value = v; o.textContent = v; s.appendChild(o); });
+    return s;
+  }
+
+  function setupObrigAnuais() {
+    try {
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser;
+      if (!u || u.email !== ADMIN_EMAIL) return;
+      var page = document.getElementById("pp-obrig");
+      if (!page || page.getAttribute("data-apanu") === "1") return;
+      page.setAttribute("data-apanu", "1");
+      var db = firebase.firestore();
+      var orig = [].slice.call(page.children);
+
+      var bar = elx("div", null, "display:flex;gap:10px;margin-bottom:14px");
+      function styBtn(on) { return "padding:10px 18px;border-radius:10px;font-weight:800;border:1px solid rgba(120,160,255,.3);cursor:pointer;font-size:13px;" + (on ? "background:linear-gradient(135deg,#2b6fff,#1b3a8f);color:#fff" : "background:#12122a;color:#c8d2f0"); }
+      var bM = elx("button", { textContent: "📋 Obrigações Mensais" }, styBtn(true));
+      var bA = elx("button", { textContent: "🗓️ Obrigações Anuais" }, styBtn(false));
+      bar.appendChild(bM); bar.appendChild(bA);
+
+      var anu = elx("div", { id: "ob-anuais-wrap" }, "display:none");
+      var card = elx("div", null, "background:#12122a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px");
+      card.appendChild(elx("div", { innerHTML: "🗓️ <b>Lançar Obrigação Anual</b>" }, "color:#7fa0ff;margin-bottom:12px"));
+      var grid = elx("div", null, "display:grid;grid-template-columns:1fr 1fr;gap:12px");
+      function fld(lb, input) {
+        var d = elx("div");
+        d.appendChild(elx("label", { textContent: lb }, "display:block;font-size:11px;color:#9fb0e8;margin-bottom:4px"));
+        input.style.cssText = "width:100%;background:#05050f;border:1px solid rgba(150,180,255,.25);border-radius:7px;padding:9px 11px;color:#dfe6ff;font-size:13px";
+        d.appendChild(input); return d;
+      }
+      var selCli = elx("select", { id: "oba-cli" });
+      var oc = document.getElementById("ob-cli");
+      if (oc) [].forEach.call(oc.options, function (o) { var n = elx("option"); n.value = o.value; n.textContent = o.textContent; selCli.appendChild(n); });
+      var selTipo = mkSel("oba-tipo", ANUAIS_TIPOS);
+      var anos = []; var ya = new Date().getFullYear(); for (var y = ya + 1; y >= ya - 6; y--) anos.push(String(y));
+      var selAno = mkSel("oba-ano", anos);
+      var selSit = mkSel("oba-sit", ANUAIS_SIT);
+      var inpPz = elx("input", { type: "date", id: "oba-prazo" });
+      var inpF = elx("input", { type: "file", id: "oba-file", accept: ".pdf,.xml,.png,.jpg,.jpeg" });
+      grid.appendChild(fld("Cliente", selCli));
+      grid.appendChild(fld("Tipo (Obrigação Anual)", selTipo));
+      grid.appendChild(fld("Exercício (Ano)", selAno));
+      grid.appendChild(fld("Situação", selSit));
+      grid.appendChild(fld("Prazo", inpPz));
+      grid.appendChild(fld("Anexo (PDF/recibo · máx 700KB)", inpF));
+      card.appendChild(grid);
+      var bLanc = elx("button", { textContent: "📤 Lançar / Enviar ao Cliente" }, "margin-top:14px;background:#2b6fff;color:#fff;border:0;border-radius:9px;padding:10px 16px;font-weight:800;cursor:pointer");
+      card.appendChild(bLanc);
+      anu.appendChild(card);
+      var lst = elx("div", { id: "oba-lista" }, "margin-top:14px");
+      anu.appendChild(lst);
+
+      page.insertBefore(bar, page.firstChild);
+      page.appendChild(anu);
+
+      function show(w) {
+        orig.forEach(function (c) { c.style.display = (w === "m") ? "" : "none"; });
+        anu.style.display = (w === "a") ? "" : "none";
+        bM.style.cssText = styBtn(w === "m"); bA.style.cssText = styBtn(w === "a");
+        if (w === "a") renderLista();
+      }
+      bM.onclick = function () { show("m"); };
+      bA.onclick = function () { show("a"); };
+
+      function baixar(id) {
+        db.collection("obrigacoesAnuais").doc(id).get().then(function (d) {
+          var x = d.data() || {};
+          if (!x.arquivoData) { alert("Esta obrigação ainda não tem anexo."); return; }
+          obBaixar(x.arquivoNome, x.arquivoData);
+        });
+      }
+      function anexar(id) {
+        var inp = elx("input", { type: "file", accept: ".pdf,.xml,.png,.jpg,.jpeg" });
+        inp.onchange = function () {
+          var f = inp.files && inp.files[0]; if (!f) return;
+          if (f.size > OB_MAX) { alert("Anexo muito grande (máx 700 KB)."); return; }
+          var fr = new FileReader();
+          fr.onload = function () {
+            db.collection("obrigacoesAnuais").doc(id).set({ arquivoData: String(fr.result), arquivoNome: f.name, arquivoEm: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).then(function () { alert("Anexo salvo! O cliente já pode baixar."); });
+          };
+          fr.readAsDataURL(f);
+        };
+        inp.click();
+      }
+      function editar(id, x) {
+        selCli.value = x.cliente || ""; selTipo.value = x.tipo || ""; selAno.value = x.exercicio || ""; selSit.value = x.situacao || "";
+        inpPz.value = x.prazo || ""; anu.__editId = id;
+        card.scrollIntoView({ block: "center" });
+      }
+      function renderLista() {
+        db.collection("obrigacoesAnuais").get().then(function (snap) {
+          var arr = []; snap.forEach(function (d) { arr.push({ id: d.id, x: d.data() }); });
+          arr.sort(function (a, b) { return String(b.x.cliente || "") < String(a.x.cliente || "") ? 1 : -1; });
+          lst.innerHTML = "";
+          var tbl = elx("table", null, "width:100%;border-collapse:collapse;font-size:13px");
+          var th = "padding:8px;border:1px solid rgba(255,255,255,.12);text-align:left;background:#1a1a3a;color:#9fb0e8";
+          tbl.innerHTML = "<tr><th style='" + th + "'>Cliente</th><th style='" + th + "'>Obrigação</th><th style='" + th + "'>Ano</th><th style='" + th + "'>Situação</th><th style='" + th + "'>Ação</th></tr>";
+          arr.forEach(function (it) {
+            var x = it.x, tr = elx("tr");
+            function td(html, c) { var e = elx("td"); e.style.cssText = "padding:8px;border:1px solid rgba(255,255,255,.12)" + (c ? ";text-align:center" : ""); e.innerHTML = html; return e; }
+            tr.appendChild(td(x.cliente || ""));
+            tr.appendChild(td(x.tipo || ""));
+            tr.appendChild(td(x.exercicio || "", true));
+            tr.appendChild(td("<span style='background:rgba(57,255,20,.15);color:#8affb0;padding:3px 8px;border-radius:20px;font-size:11px'>" + (x.situacao || "") + "</span>", true));
+            var ac = td("", true);
+            [["✏️ Editar", function () { editar(it.id, x); }], ["🗑️ Excluir", function () { if (confirm("Excluir esta obrigação anual?")) db.collection("obrigacoesAnuais").doc(it.id).delete().then(renderLista); }], ["📎 Anexar", function () { anexar(it.id); }], ["⬇ Baixar", function () { baixar(it.id); }]].forEach(function (p) {
+              var b = elx("button", { textContent: p[0] }, "margin:0 2px;background:#1b2f6a;color:#fff;border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px");
+              b.onclick = p[1]; ac.appendChild(b);
+            });
+            tr.appendChild(ac);
+            tbl.appendChild(tr);
+          });
+          lst.appendChild(tbl);
+        }).catch(function () { lst.innerHTML = "<div style='color:#ffd3e0'>Erro ao carregar.</div>"; });
+      }
+
+      bLanc.onclick = function () {
+        var dados = { cliente: selCli.value, tipo: selTipo.value, exercicio: selAno.value, situacao: selSit.value, prazo: inpPz.value || "", atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() };
+        var f = inpF.files && inpF.files[0];
+        function persist(extra) {
+          var payload = {}; for (var k in dados) payload[k] = dados[k]; if (extra) for (var k2 in extra) payload[k2] = extra[k2];
+          var eid = anu.__editId;
+          if (eid) { db.collection("obrigacoesAnuais").doc(eid).set(payload, { merge: true }).then(function () { anu.__editId = null; alert("Atualizado!"); inpF.value = ""; renderLista(); }); }
+          else { payload.criadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("obrigacoesAnuais").add(payload).then(function () { alert("Lançado! O cliente já pode visualizar."); inpF.value = ""; renderLista(); }); }
+        }
+        if (f) { if (f.size > OB_MAX) { alert("Anexo muito grande (máx 700 KB)."); return; } var fr = new FileReader(); fr.onload = function () { persist({ arquivoData: String(fr.result), arquivoNome: f.name }); }; fr.readAsDataURL(f); }
+        else persist();
+      };
+
+      show("m");
+    } catch (e) {}
+  }
+
+  function enhanceObrigAnuaisClient() {
+    try {
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var pag = document.getElementById("ap-obrig");
+      if (!pag) return;
+      var u = firebase.auth().currentUser;
+      if (!u || u.email === ADMIN_EMAIL) return;
+      if (pag.getAttribute("data-apanu") === "1") return;
+      pag.setAttribute("data-apanu", "1");
+      var db = firebase.firestore();
+      db.collection("usuarios").doc(u.uid).get().then(function (ud) {
+        var nome = (ud.data() || {}).clienteNome || "";
+        if (!nome) return;
+        return db.collection("obrigacoesAnuais").where("cliente", "==", nome).get().then(function (snap) {
+          if (snap.empty) return;
+          var box = elx("div", { id: "ap-obrig-anuais" }, "margin:14px 0;padding:13px;border-radius:14px;background:linear-gradient(135deg,#1b3a8f,#11224f);border:1px solid rgba(120,160,255,.22)");
+          box.appendChild(elx("div", { textContent: "🗓️ Minhas Obrigações Anuais" }, "font-weight:800;color:#fff;margin-bottom:8px;font-size:14px"));
+          snap.forEach(function (d) {
+            var x = d.data();
+            var row = elx("div", null, "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;margin-top:7px;border-radius:10px;background:rgba(0,0,0,.28)");
+            var lbl = elx("div", { innerHTML: "<b>" + (x.tipo || "") + " " + (x.exercicio || "") + "</b><br><span style='color:#c3d0f5'>" + (x.situacao || "") + (x.arquivoNome ? " · " + x.arquivoNome : "") + "</span>" }, "font-size:12px;color:#dfe6ff;line-height:1.3");
+            row.appendChild(lbl);
+            if (x.arquivoData) {
+              var btn = elx("button", { textContent: "⬇ Baixar" }, "background:#2b6fff;color:#fff;border:0;border-radius:9px;padding:7px 13px;font-weight:700;cursor:pointer;white-space:nowrap");
+              btn.onclick = function () { obBaixar(x.arquivoNome, x.arquivoData); };
+              row.appendChild(btn);
+            } else {
+              row.appendChild(elx("span", { textContent: "aguardando" }, "color:#9fb0e8;font-size:12px"));
+            }
+            box.appendChild(row);
+          });
+          pag.insertBefore(box, pag.firstChild);
+        });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     if (!(window.firebase && firebase.apps && firebase.apps.length)) { setTimeout(init, 300); return; }
     removeStrays(); setTimeout(removeStrays, 500); setTimeout(removeStrays, 1500);
+    setInterval(enhanceObrigOffice, 2000);
+    setInterval(enhanceObrigClient, 3000);
+    setInterval(setupObrigAnuais, 2500);
+    setInterval(enhanceObrigAnuaisClient, 3500);
     expandFatMonths();
     [600, 1800, 4000].forEach(function (t) { setTimeout(expandFatMonths, t); });
     setInterval(expandFatMonths, 3000);
