@@ -1,5 +1,5 @@
 /* APARAT service worker - network-first (sempre pega a versao nova) - v13 */
-var CACHE = 'aparat-v13';
+var CACHE = 'aparat-v16';
 
 self.addEventListener('install', function (e) {
   self.skipWaiting();
