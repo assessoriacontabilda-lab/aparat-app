@@ -1,0 +1,39 @@
+name: Injetar navegacao cards cliente v13
+on:
+  push:
+    paths:
+      - '.github/workflows/inject-nav-fix.yml'
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Injetar snippet e bumpar versao
+        run: |
+          for f in aparat-fix.js app/aparat-fix.js; do
+            if [ -f "$f" ]; then
+              if grep -q "__APARAT_NAV_FIX__" "$f"; then
+                echo "ja tem: $f"
+              else
+                printf '\n' >> "$f"
+                cat nav-snippet.js >> "$f"
+                echo "injetado: $f"
+              fi
+            fi
+          done
+          for f in index.html app/index.html portal/index.html; do
+            if [ -f "$f" ]; then
+              sed -i -E 's/aparat-fix\.js\?v=[0-9]+/aparat-fix.js?v=13/g' "$f"
+              echo "bumped: $f"
+            fi
+          done
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "fix: cards do cliente abrem pagina completa + bump v13"
+          git push
