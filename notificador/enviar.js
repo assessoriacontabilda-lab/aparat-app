@@ -15,7 +15,7 @@ const ICON = APP_URL + "icon-192.png";
 // Mensagens que o CLIENTE envia -> avisar o ESCRITORIO (role admin)
 const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos"];
 // Avisos que o ESCRITORIO envia -> avisar o CLIENTE (role cliente)
-const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos"];
+const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais"];
 
 // Palavras que indicam "para todos os clientes"
 function ehTodos(dest) {
@@ -40,6 +40,8 @@ function tituloDe(coll, d) {
   if (coll === "recebidos") return { t: "Novo arquivo/mensagem recebido", b: (d.cliente ? d.cliente + ": " : "") + (d.msg || d.mensagem || d.arquivoNome || "Voce recebeu algo novo.") };
   if (coll === "urgencias") return { t: d.titulo || "Novo aviso da Aparat", b: d.msg || d.mensagem || "Toque para ver." };
   if (coll === "informativos") return { t: d.titulo || "Novo informativo da Aparat", b: d.msg || d.texto || "Toque para ver." };
+  if (coll === "obrigacoes") return { t: "Nova obrigacao lancada", b: (d.tipo || d.guia || "Obrigacao") + (d.mesRef || d.competencia ? " (" + (d.mesRef || d.competencia) + ")" : "") + (d.status ? " - " + d.status : "") };
+  if (coll === "obrigacoesAnuais") return { t: "Nova obrigacao anual", b: (d.tipo || "Obrigacao anual") + (d.exercicio ? " " + d.exercicio : "") + (d.situacao ? " - " + d.situacao : "") };
   return { t: "Aparat Contabilidade", b: "Voce tem uma novidade no app." };
 }
 
@@ -121,11 +123,12 @@ async function main() {
       } else {
         // para cliente: se for para todos, manda pra todos os clientes;
         // senao, so para o cliente destino (por nome)
+        const alvoTxt = String(d.dest || d.cliente || "").trim();
         let destinos = tokensCliente;
-        if (!ehTodos(d.dest)) {
-          const alvoNome = String(d.dest || d.cliente || "").toLowerCase();
+        if (!ehTodos(alvoTxt)) {
+          const alvoNome = alvoTxt.toLowerCase();
           destinos = tokensCliente.filter(function (x) {
-            return String(x.cliente || "").toLowerCase() === alvoNome;
+            return String(x.cliente || "").trim().toLowerCase() === alvoNome;
           });
         }
         await enviar(destinos, info.t, info.b, db);
