@@ -754,8 +754,19 @@
         d.appendChild(input); return d;
       }
       var selCli = elx("select", { id: "oba-cli" });
-      var oc = document.getElementById("ob-cli");
-      if (oc) [].forEach.call(oc.options, function (o) { var n = elx("option"); n.value = o.value; n.textContent = o.textContent; selCli.appendChild(n); });
+      function carregarClientesAnu() {
+        db.collection("clientes").get().then(function (snap) {
+          var nomes = [];
+          snap.forEach(function (d) { var n = String((d.data() || {}).nome || "").trim(); if (n && nomes.indexOf(n) < 0) nomes.push(n); });
+          nomes.sort(function (a, b) { return a.localeCompare(b); });
+          var atual = selCli.value;
+          selCli.innerHTML = "";
+          var ph = elx("option"); ph.value = ""; ph.textContent = "Selecione o cliente..."; selCli.appendChild(ph);
+          nomes.forEach(function (n) { var o = elx("option"); o.value = n; o.textContent = n; selCli.appendChild(o); });
+          if (atual) selCli.value = atual;
+        }).catch(function () {});
+      }
+      carregarClientesAnu();
       var selTipo = mkSel("oba-tipo", ANUAIS_TIPOS);
       var anos = []; var ya = new Date().getFullYear(); for (var y = ya + 1; y >= ya - 6; y--) anos.push(String(y));
       var selAno = mkSel("oba-ano", anos);
@@ -782,7 +793,7 @@
         orig.forEach(function (c) { c.style.display = (w === "m") ? "" : "none"; });
         anu.style.display = (w === "a") ? "" : "none";
         bM.style.cssText = styBtn(w === "m"); bA.style.cssText = styBtn(w === "a");
-        if (w === "a") renderLista();
+        if (w === "a") { carregarClientesAnu(); renderLista(); }
       }
       bM.onclick = function () { show("m"); };
       bA.onclick = function () { show("a"); };
