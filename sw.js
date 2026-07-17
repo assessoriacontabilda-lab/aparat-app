@@ -1,5 +1,5 @@
-/* APARAT service worker - network-first (sempre pega a versao nova) */
-var CACHE = 'aparat-v3';
+/* APARAT service worker - network-first (sempre pega a versao nova) - v13 */
+var CACHE = 'aparat-v13';
 
 self.addEventListener('install', function (e) {
   self.skipWaiting();
@@ -7,10 +7,16 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil((async function () {
-    var keys = await caches.keys();
-    await Promise.all(keys.map(function (k) { return caches.delete(k); }));
-    await self.clients.claim();
+    try {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    } catch (err) {}
+    try { await self.clients.claim(); } catch (err) {}
   })());
+});
+
+self.addEventListener('message', function (e) {
+  if (e.data === 'skipWaiting' || (e.data && e.data.type === 'skipWaiting')) self.skipWaiting();
 });
 
 self.addEventListener('fetch', function (e) {
@@ -20,8 +26,10 @@ self.addEventListener('fetch', function (e) {
     try {
       var net = await fetch(req, { cache: 'no-store' });
       try {
-        var c = await caches.open(CACHE);
-        c.put(req, net.clone());
+        if (net && net.status === 200 && req.url.indexOf('http') === 0) {
+          var c = await caches.open(CACHE);
+          c.put(req, net.clone());
+        }
       } catch (err) {}
       return net;
     } catch (err) {
