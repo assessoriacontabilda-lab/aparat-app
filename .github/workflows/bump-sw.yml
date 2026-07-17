@@ -1,0 +1,28 @@
+name: Atualizar Service Worker v16
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-sw.yml'
+  workflow_dispatch:
+jobs:
+  sw:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trocar versao do SW e do cache
+        run: |
+          for f in sw.js app/sw.js portal/sw.js; do
+            if [ -f "$f" ]; then
+              sed -i -E 's/aparat-v[0-9]+/aparat-v16/g' "$f"
+              echo "sw bumped: $f"
+            fi
+          done
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "sw: forcar atualizacao do service worker v16"
+          git push
