@@ -1,0 +1,32 @@
+name: Injetar tag nav-snippet no index v15
+on:
+  push:
+    paths:
+      - '.github/workflows/inject-tag.yml'
+  workflow_dispatch:
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Adicionar script nav-snippet e bumpar
+        run: |
+          for f in index.html app/index.html portal/index.html; do
+            if [ -f "$f" ]; then
+              if ! grep -q "nav-snippet.js" "$f"; then
+                sed -i -E 's#(<script defer src="aparat-fix\.js\?v=[0-9]+"></script>)#\1\n<script defer src="nav-snippet.js?v=1"></script>#' "$f"
+                echo "tag added: $f"
+              fi
+              sed -i -E 's/aparat-fix\.js\?v=[0-9]+/aparat-fix.js?v=15/g' "$f"
+              echo "bumped: $f"
+            fi
+          done
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "fix: nav-snippet como script separado + bump v15"
+          git push
