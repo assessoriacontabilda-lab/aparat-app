@@ -1,0 +1,42 @@
+name: Publicar correcao das abas (v18)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-v18.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Aplicar correcoes no index.html e sw.js
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=16', 'aparat-fix.js?v=17')
+          c = c.replace('nav-snippet.js?v=2', 'nav-snippet.js?v=3')
+          c = c.replace("navigator.serviceWorker.register('sw.js').catch(function(){});",
+                        "navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(r){try{r.update();}catch(e){}}).catch(function(){});")
+          if '__APARAT_NAV_INLINE__' not in c:
+              nav = io.open('nav-snippet.js', encoding='utf-8').read()
+              tag = '<script>/*__APARAT_NAV_INLINE__*/\n' + nav + '\n</script>'
+              alvo = '<script defer src="nav-snippet.js?v=3"></script>'
+              if alvo in c:
+                  c = c.replace(alvo, alvo + '\n' + tag)
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v17', 'aparat-v18')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          print('OK: correcoes aplicadas')
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "fix: abas do cliente abrem sempre (v17/v3, sw v18, correcao embutida no index)"
+          git push
