@@ -1,0 +1,35 @@
+name: Publicar botao Voltar (v19)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-voltar.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes no index.html e sw.js
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('nav-snippet.js?v=3', 'nav-snippet.js?v=4')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v18', 'aparat-v19')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'nav-snippet.js?v=4' in io.open('index.html', encoding='utf-8').read()
+          ok2 = '__APARAT_BACK_FIX__' in io.open('nav-snippet.js', encoding='utf-8').read()
+          print('index v4:', ok1, '| nav-snippet com botao Voltar:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: botao Voltar nas paginas do cliente (nav v4, sw v19)"
+          git push
