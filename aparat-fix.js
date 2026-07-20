@@ -571,7 +571,7 @@
       if (!tipo || !status) return;
       if (tipo.getAttribute("data-apob") === "1") return;
       var origStatus = [].slice.call(status.options).map(function (o) { return { v: o.value, t: o.textContent }; });
-      var novos = ["Extrato Bancário", "NF-e Emitida", "Certidão Fiscal"];
+      var novos = ["Extrato Bancário", "NF-e Emitida", "Certidão Fiscal", "Lançamento no Domínio"];
       var have = {};
       [].forEach.call(tipo.options, function (o) { have[o.value] = 1; });
       novos.forEach(function (n) {
@@ -580,7 +580,8 @@
       var mapa = {
         "Extrato Bancário": ["Recebido", "Enviado", "Não Enviado"],
         "NF-e Emitida": ["Emitida", "Não Emitida", "Enviada ao Cliente", "Recebida de Fornecedor", "Emitida pelo Escritório"],
-        "Certidão Fiscal": ["Conferida", "Pendente", "Irregular"]
+        "Certidão Fiscal": ["Conferida", "Pendente", "Irregular"],
+        "Lançamento no Domínio": ["Lançado", "Em Andamento", "Pendente"]
       };
       function aplicar() {
         var lista = mapa[tipo.value];
