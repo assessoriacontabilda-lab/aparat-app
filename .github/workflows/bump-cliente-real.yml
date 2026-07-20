@@ -1,0 +1,39 @@
+name: Ativar paginas reais do cliente (v20)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-cliente-real.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Ativar client-pages.js e atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=17', 'aparat-fix.js?v=18')
+          alvo = '<script defer src="nav-snippet.js?v=4"></script>'
+          novo = '<script defer src="client-pages.js?v=1"></script>'
+          if novo not in c and alvo in c:
+              c = c.replace(alvo, alvo + '\n' + novo)
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v19', 'aparat-v20')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'client-pages.js?v=1' in io.open('index.html', encoding='utf-8').read()
+          ok2 = 'Lançamento no Domínio' in io.open('aparat-fix.js', encoding='utf-8').read()
+          print('client-pages ativo:', ok1, '| tipo Lancamento no Dominio:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: paginas reais do cliente (honorarios/guias) + tipo Lancamento no Dominio (sw v20)"
+          git push
