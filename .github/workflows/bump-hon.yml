@@ -1,0 +1,35 @@
+name: Ativar gestao de honorarios real (v21)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-hon.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=18', 'aparat-fix.js?v=19')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v20', 'aparat-v21')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'aparat-fix.js?v=19' in io.open('index.html', encoding='utf-8').read()
+          ok2 = '__APARAT_HON_GESTAO__' in io.open('aparat-fix.js', encoding='utf-8').read()
+          print('index v19:', ok1, '| gestao honorarios no aparat-fix:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: gestao de honorarios real com mes selecionavel e total anual (sw v21)"
+          git push
