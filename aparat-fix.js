@@ -1004,3 +1004,150 @@
   [500,1500,3000].forEach(function(t){ setTimeout(fixClientCardsNav,t); });
   setInterval(fixClientCardsNav,3000);
 })();
+
+/* ===== APARAT: Gestao de Honorarios REAL (mes selecionavel + total anual) ===== */
+;(function () {
+  if (window.__APARAT_HON_GESTAO__) return; window.__APARAT_HON_GESTAO__ = 1;
+  var MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  var ABREV = { jan:0, fev:1, mar:2, abr:3, mai:4, jun:5, jul:6, ago:7, set:8, out:9, nov:10, dez:11 };
+  function num(v) {
+    try { if (typeof _num === "function") return _num(v); } catch (e) {}
+    v = String(v == null ? "" : v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".");
+    var n = parseFloat(v); return isNaN(n) ? 0 : n;
+  }
+  function money(n) { return "R$ " + (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function pad(m) { return (m < 10 ? "0" : "") + m; }
+  function compDe(h) {
+    var r = String(h.referencia || "").toLowerCase();
+    var m = r.match(/(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*[\s\/\-]*(\d{4})/);
+    if (m) return m[2] + "-" + pad(ABREV[m[1]] + 1);
+    m = r.match(/(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + pad(parseInt(m[2], 10));
+    m = r.match(/(\d{1,2})[\s\/\-](\d{4})/); if (m) return m[2] + "-" + pad(parseInt(m[1], 10));
+    m = String(h.vencimento || "").match(/(\d{4})-(\d{2})/); if (m) return m[1] + "-" + m[2];
+    return "";
+  }
+  function ehPago(h) { return /pago/i.test(h.status || ""); }
+  function recebidoDe(h) { return (h.valorRecebido != null && h.valorRecebido !== "") ? Number(h.valorRecebido) : num(h.valor); }
+  var DADOS = [];
+  var MES_SEL = (function () { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1); })();
+
+  function montaOpcoes(sel) {
+    var comps = {};
+    DADOS.forEach(function (it) { var c = compDe(it.x); if (c) comps[c] = 1; });
+    var hoje = new Date();
+    for (var y = 2025; y <= hoje.getFullYear() + 1; y++) for (var m = 1; m <= 12; m++) comps[y + "-" + pad(m)] = 1;
+    var lista = Object.keys(comps).sort().reverse();
+    sel.innerHTML = "";
+    lista.forEach(function (c) {
+      var p = c.split("-");
+      var o = document.createElement("option");
+      o.value = c; o.textContent = MESES[parseInt(p[1], 10) - 1] + " " + p[0];
+      sel.appendChild(o);
+    });
+    sel.value = MES_SEL;
+    if (!sel.value) { sel.value = lista[0] || ""; MES_SEL = sel.value; }
+  }
+
+  function render() {
+    var page = document.getElementById("pp-honorarios"); if (!page) return;
+    var card = page.querySelector(".hon-card"); if (!card) return;
+    var wrap = document.getElementById("hg-wrap");
+    if (!wrap) {
+      card.innerHTML = "";
+      wrap = document.createElement("div"); wrap.id = "hg-wrap";
+      card.appendChild(wrap);
+      wrap.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
+        + '<div class="hon-title">💳 Gestão de Honorários</div>'
+        + '<select id="hg-mes" style="background:#0a0a20;border:1px solid var(--border,#222248);border-radius:9px;color:#fff;padding:8px 12px;font-size:13px;font-weight:700"></select>'
+        + "</div>"
+        + '<div id="hg-stats"></div>'
+        + '<div id="hg-anual" style="margin:10px 0;padding:10px 12px;border-radius:10px;background:rgba(51,51,255,.08);border:1px solid rgba(51,51,255,.25);font-size:12px;color:#cfd8ff"></div>'
+        + '<div id="hg-lista"></div>';
+      var sel = wrap.querySelector("#hg-mes");
+      montaOpcoes(sel);
+      sel.addEventListener("change", function () { MES_SEL = sel.value; render(); });
+    }
+    var sel2 = wrap.querySelector("#hg-mes");
+    if (sel2 && sel2.options.length === 0) montaOpcoes(sel2);
+
+    var doMes = DADOS.filter(function (it) { return compDe(it.x) === MES_SEL; });
+    var rec = 0, pen = 0;
+    doMes.forEach(function (it) { if (ehPago(it.x)) rec += recebidoDe(it.x); else pen += num(it.x.valor); });
+    var ano = MES_SEL.split("-")[0], recA = 0, penA = 0;
+    DADOS.forEach(function (it) {
+      if (compDe(it.x).indexOf(ano + "-") !== 0) return;
+      if (ehPago(it.x)) recA += recebidoDe(it.x); else penA += num(it.x.valor);
+    });
+    function tile(cor, borda, rot, val, corTx) {
+      return '<div style="background:' + cor + ';border:1px solid ' + borda + ';border-radius:9px;padding:10px;text-align:center">'
+        + '<div style="font-size:9px;color:var(--cinza,#9090b8)">' + rot + "</div>"
+        + '<div style="font-size:16px;font-weight:800;color:' + corTx + '">' + val + "</div></div>";
+    }
+    document.getElementById("hg-stats").innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+      + tile("rgba(34,197,94,.1)", "rgba(34,197,94,.2)", "Recebido no mês", money(rec), "var(--verde,#22c55e)")
+      + tile("rgba(245,158,11,.1)", "rgba(245,158,11,.2)", "Pendente no mês", money(pen), "var(--laranja,#f59e0b)")
+      + tile("rgba(51,51,255,.1)", "rgba(51,51,255,.2)", "Total do mês", money(rec + pen), "var(--azul-light,#7fa0ff)")
+      + "</div>";
+    document.getElementById("hg-anual").innerHTML =
+      "📆 <b>Total anual " + ano + ":</b> recebido <b style='color:var(--verde,#22c55e)'>" + money(recA)
+      + "</b> · pendente <b style='color:var(--laranja,#f59e0b)'>" + money(penA)
+      + "</b> · total <b style='color:var(--azul-light,#7fa0ff)'>" + money(recA + penA) + "</b>";
+
+    var lst = document.getElementById("hg-lista");
+    if (!doMes.length) { lst.innerHTML = '<div style="font-size:11px;color:var(--cinza,#9090b8);padding:6px 0">Nenhum honorário lançado neste mês. Use o formulário abaixo para lançar.</div>'; return; }
+    var esc2 = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+    var html = "";
+    doMes.forEach(function (it) {
+      var h = it.x, pago = ehPago(h);
+      html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;margin-top:7px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--border,#222248)">'
+        + '<span style="flex:1;min-width:130px;font-size:12px;color:#fff;font-weight:700">' + esc2(h.cliente || "") + "</span>"
+        + '<span style="font-size:12px;color:#cfd8ff">' + (pago ? money(recebidoDe(h)) : money(num(h.valor))) + "</span>"
+        + '<span class="tag ' + (pago ? "tp" : "tn") + '">' + (pago ? "Pago ✔" : esc2(h.status || "Pendente")) + "</span>"
+        + '<button class="btn-sm" onclick="togglePago(\'' + it.id + '\')">' + (pago ? "↩ Pendente" : "✔ Pago") + "</button>"
+        + (pago ? '<button class="btn-sm" onclick="editarRecebido(\'' + it.id + '\')">💲 Recebido</button>' : "")
+        + '<button class="btn-sm" onclick="editarHonorario(\'' + it.id + '\')">✏️ Editar</button>'
+        + "</div>";
+    });
+    lst.innerHTML = html;
+  }
+
+  function melhoraCampoRef() {
+    try {
+      var ref = document.getElementById("hon-ref");
+      if (!ref || document.getElementById("hg-refmes")) return;
+      var mi = document.createElement("input");
+      mi.type = "month"; mi.id = "hg-refmes";
+      mi.style.cssText = "width:100%;margin-top:5px;background:#0a0a20;border:1px solid var(--border,#222248);border-radius:8px;color:#fff;padding:7px 10px;font-size:12px";
+      mi.addEventListener("change", function () {
+        if (!mi.value) return;
+        var p = mi.value.split("-");
+        ref.value = MESES[parseInt(p[1], 10) - 1] + "/" + p[0];
+      });
+      ref.parentNode.appendChild(mi);
+      ref.placeholder = "Escolha o mês abaixo ou digite (Ex: Julho/2025)";
+    } catch (e) {}
+  }
+
+  window.__APARAT_HON_TEST__ = function (arr) { DADOS = arr || []; render(); };
+
+  function boot() {
+    try {
+      if (window.__APARAT_HON_GESTAO__ === 2) return;
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser; if (!u) return;
+      if (typeof ADMIN_EMAIL !== "undefined" && u.email !== ADMIN_EMAIL) return;
+      if (!document.getElementById("pp-honorarios")) return;
+      window.__APARAT_HON_GESTAO__ = 2;
+      firebase.firestore().collection("honorarios").onSnapshot(function (s) {
+        var a = []; s.forEach(function (d) { a.push({ id: d.id, x: d.data() }); });
+        DADOS = a; render();
+      }, function () {});
+      melhoraCampoRef();
+      setInterval(melhoraCampoRef, 4000);
+    } catch (e) {}
+  }
+  [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
+  setInterval(boot, 5000);
+})();
