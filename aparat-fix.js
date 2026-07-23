@@ -1397,3 +1397,77 @@
   [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
   setInterval(boot, 5000);
 })();
+
+/* ===== APARAT: migrar lancamentos do antigo Financeiro para o Faturamento ===== */
+;(function () {
+  if (window.__APARAT_MIGRA_FIN__) return; window.__APARAT_MIGRA_FIN__ = 1;
+  var MMAP = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 };
+  function pad(m) { return (m < 10 ? "0" : "") + m; }
+  function num(v) {
+    if (typeof v === "number") return isNaN(v) ? 0 : v;
+    v = String(v == null ? "" : v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".");
+    var n = parseFloat(v); return isNaN(n) ? 0 : n;
+  }
+  function mesRefDe(comp) {
+    var c = String(comp || "").toLowerCase().trim();
+    var m = c.match(/(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*[\s\/\-]*(\d{4})/);
+    if (m) return m[2] + "-" + pad(MMAP[m[1]]);
+    m = c.match(/^(\d{4})[\-\/](\d{1,2})$/); if (m) return m[1] + "-" + pad(parseInt(m[2], 10));
+    m = c.match(/^(\d{1,2})[\s\/\-](\d{4})$/); if (m) return m[2] + "-" + pad(parseInt(m[1], 10));
+    return "";
+  }
+  function migrar(db) {
+    Promise.all([
+      db.collection("financeiro").get(),
+      db.collection("faturamento").get(),
+      db.collection("clientes").get()
+    ]).then(function (r) {
+      var have = {};
+      r[1].forEach(function (d) { var x = d.data() || {}; have[String(x.cliente || "") + "|" + String(x.mesRef || "")] = 1; });
+      var regime = {};
+      r[2].forEach(function (d) { var x = d.data() || {}; if (x.nome) regime[x.nome] = x.regime || ""; });
+      var feitos = 0, marcados = 0, cadeia = Promise.resolve();
+      r[0].forEach(function (d) {
+        var x = d.data() || {};
+        if (x.migradoFaturamento) return;
+        var mes = mesRefDe(x.competencia);
+        var nome = String(x.cliente || "").trim();
+        cadeia = cadeia.then(function () {
+          var ops = [];
+          if (nome && mes && !have[nome + "|" + mes]) {
+            have[nome + "|" + mes] = 1;
+            var rec = num(x.receita), desp = num(x.despesa);
+            ops.push(db.collection("faturamento").add({
+              cliente: nome, mesRef: mes,
+              tipo: /mei/i.test(regime[nome] || "") ? "MEI" : "ME",
+              faturamento: rec.toFixed(2).replace(".", ","),
+              despesa: desp.toFixed(2).replace(".", ","),
+              origem: "migrado-financeiro",
+              criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+              atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(function () { feitos++; }));
+          }
+          ops.push(d.ref.set({ migradoFaturamento: true }, { merge: true }).then(function () { marcados++; }));
+          return Promise.all(ops);
+        });
+      });
+      cadeia.then(function () {
+        if (feitos > 0 && typeof notif === "function") {
+          notif("📈 " + feitos + " lançamento(s) do antigo Financeiro migrados para o Faturamento!", "success");
+        }
+      }).catch(function () {});
+    }).catch(function () {});
+  }
+  function boot() {
+    try {
+      if (window.__APARAT_MIGRA_FIN__ === 2) return;
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser; if (!u) return;
+      if (typeof ADMIN_EMAIL !== "undefined" && u.email !== ADMIN_EMAIL) return;
+      window.__APARAT_MIGRA_FIN__ = 2;
+      migrar(firebase.firestore());
+    } catch (e) {}
+  }
+  [2000, 5000, 9000].forEach(function (t) { setTimeout(boot, t); });
+  setInterval(boot, 6000);
+})();
