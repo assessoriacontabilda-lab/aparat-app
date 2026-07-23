@@ -43,7 +43,7 @@
 /* APARAT - Botao Voltar nas paginas do cliente (estilo app de banco) */
 ;(function(){
   if(window.__APARAT_BACK_FIX__) return; window.__APARAT_BACK_FIX__=1;
-  var TIT={honorarios:'Honorários',obrig:'Guias e Obrigações',financeiro:'Finanças',urgencias:'Avisos',docs:'Documentos',perfil:'Perfil'};
+  var TIT={honorarios:'Honorários',obrig:'Guias e Obrigações',financeiro:'Faturamento',urgencias:'Avisos',docs:'Documentos',perfil:'Perfil'};
   function bar(){
     var va=document.getElementById('view-app'); if(!va) return null;
     var b=document.getElementById('ap-backbar');

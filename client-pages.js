@@ -209,3 +209,46 @@
   [1200, 3000, 6000, 10000].forEach(function (t) { setTimeout(boot, t); });
   setInterval(boot, 5000);
 })();
+
+/* ===== Aba "Financas" vira FATURAMENTO real (mesmo painel da tela inicial) ===== */
+;(function () {
+  if (window.__APARAT_FAT_TAB__) return; window.__APARAT_FAT_TAB__ = 1;
+  function ehCliente() { try { return typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE === "cliente"; } catch (e) { return false; } }
+  function prepPage() {
+    var pag = document.getElementById("ap-financeiro"); if (!pag) return null;
+    var hold = document.getElementById("ap-fat-holder");
+    if (!hold) {
+      [].forEach.call(pag.children, function (c) { c.style.display = "none"; });
+      hold = document.createElement("div"); hold.id = "ap-fat-holder";
+      hold.innerHTML = '<div class="asec">📈 Meu Faturamento</div>';
+      pag.appendChild(hold);
+    }
+    return hold;
+  }
+  function mover(alvo) {
+    var fat = document.getElementById("cli-fat"); if (!fat) return;
+    if (alvo === "page") { var h = prepPage(); if (h && fat.parentElement !== h) h.appendChild(fat); }
+    else { var sf = document.getElementById("sec-fat"); if (sf && fat.parentElement !== sf) sf.appendChild(fat); }
+  }
+  function wrapFat() {
+    if (typeof window.aPage !== "function" || window.aPage.__apFatWrapped) return;
+    var orig = window.aPage;
+    var w = function (key) {
+      var r = orig.apply(this, arguments);
+      try { if (ehCliente()) { if (key === "financeiro") mover("page"); else mover("home"); } } catch (e) {}
+      return r;
+    };
+    w.__apFatWrapped = 1; window.aPage = w;
+  }
+  function renomear() {
+    try {
+      if (!ehCliente()) return;
+      var b = document.getElementById("nb-financeiro"); if (!b) return;
+      var l = b.querySelector(".nbl"); if (l && l.textContent !== "Faturam.") l.textContent = "Faturam.";
+      var i = b.querySelector(".nbi"); if (i && i.textContent !== "📈") i.textContent = "📈";
+    } catch (e) {}
+  }
+  function tick() { wrapFat(); renomear(); }
+  [1000, 2500, 5000].forEach(function (t) { setTimeout(tick, t); });
+  setInterval(tick, 4000);
+})();
