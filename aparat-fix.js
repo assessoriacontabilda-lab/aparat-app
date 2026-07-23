@@ -407,7 +407,7 @@
     var cards = [
       { n: "Documentos", ic: "📁", d: "Acesse seus documentos a qualquer momento." },
       { n: "Obrigações", ic: "📅", d: "Acompanhe prazos e evite multas." },
-      { n: "Financeiro", ic: "💲", d: "Visualize honorários, boletos e pagamentos." },
+      { n: "Faturamento", ic: "📈", d: "Acompanhe faturamento, despesas e resultado." },
       { n: "Solicitações", ic: "✈️", d: "Envie solicitações de forma rápida e fácil." },
       { n: "Informativos", ic: "📢", d: "Receba comunicados importantes." }
     ];
@@ -1312,6 +1312,10 @@
         var oc = itens[i].getAttribute("onclick") || "";
         if (oc.indexOf("navAba('financeiro'") > -1 && itens[i].style.display !== "none") itens[i].style.display = "none";
       }
+      var secs = document.querySelectorAll(".nav-sec");
+      for (var j = 0; j < secs.length; j++) {
+        if ((secs[j].textContent || "").trim() === "Financeiro") secs[j].textContent = "Documentos";
+      }
     } catch (e) {}
   }
 
@@ -1336,6 +1340,58 @@
         var a = []; s.forEach(function (d) { var x = d.data(); x.__id = d.id; a.push(x); });
         REGS = a; render();
       }, function () {});
+    } catch (e) {}
+  }
+  [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
+  setInterval(boot, 5000);
+})();
+
+/* ===== APARAT: TODOS os clientes em TODOS os seletores do escritorio ===== */
+;(function () {
+  if (window.__APARAT_CLISEL__) return; window.__APARAT_CLISEL__ = 1;
+  var NOMES = {};
+  var DEMO = { "Mercearia Silva ME": 1, "Tech Soluções LTDA": 1, "Clínica Bem Estar": 1, "Padaria Gostosa ME": 1 };
+  var IDS = ["ob-cli", "hon-cli", "nf-cli", "dad-cli", "fat-cli", "ag-cli", "doc-cli", "acc-cli", "oba-cli", "urg-dest", "docs-cli-sel", "fin-cli"];
+  function coletar(db) {
+    var specs = [["clientes", "nome"], ["dados", "cliente"], ["faturamento", "cliente"], ["honorarios", "cliente"], ["obrigacoes", "cliente"], ["usuarios", "clienteNome"]];
+    specs.forEach(function (sp) {
+      db.collection(sp[0]).get().then(function (s) {
+        s.forEach(function (d) {
+          var n = String((d.data() || {})[sp[1]] || "").trim();
+          if (n && n !== "Todos os Clientes") NOMES[n] = 1;
+        });
+      }).catch(function () {});
+    });
+  }
+  function aplicar() {
+    try {
+      var lista = Object.keys(NOMES).sort(function (a, b) { return a.localeCompare(b); });
+      if (!lista.length) return;
+      IDS.forEach(function (id) {
+        var s = document.getElementById(id); if (!s) return;
+        [].slice.call(s.options).forEach(function (o) {
+          if (DEMO[o.value] && !NOMES[o.value] && s.value !== o.value) s.removeChild(o);
+        });
+        var have = {};
+        [].forEach.call(s.options, function (o) { have[o.value] = 1; });
+        lista.forEach(function (n) {
+          if (!have[n]) { var o = document.createElement("option"); o.value = n; o.textContent = n; s.appendChild(o); }
+        });
+      });
+    } catch (e) {}
+  }
+  window.__APARAT_CLISEL_TEST__ = function (nomes) { (nomes || []).forEach(function (n) { NOMES[n] = 1; }); aplicar(); };
+  function boot() {
+    try {
+      if (window.__APARAT_CLISEL__ === 2) return;
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser; if (!u) return;
+      if (typeof ADMIN_EMAIL !== "undefined" && u.email !== ADMIN_EMAIL) return;
+      window.__APARAT_CLISEL__ = 2;
+      coletar(firebase.firestore());
+      setInterval(function () { coletar(firebase.firestore()); }, 120000);
+      setInterval(aplicar, 3000);
+      [1000, 2500, 5000].forEach(function (t) { setTimeout(aplicar, t); });
     } catch (e) {}
   }
   [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
