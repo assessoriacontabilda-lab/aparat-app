@@ -1,0 +1,35 @@
+name: Gestao de faturamento do escritorio (v24)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-fatadm.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=19', 'aparat-fix.js?v=20')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v23', 'aparat-v24')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'aparat-fix.js?v=20' in io.open('index.html', encoding='utf-8').read()
+          ok2 = '__APARAT_FATADM__' in io.open('aparat-fix.js', encoding='utf-8').read()
+          print('index v20:', ok1, '| gestao faturamento escritorio:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: gestao de faturamento do escritorio com grafico 3D neon (sw v24)"
+          git push
