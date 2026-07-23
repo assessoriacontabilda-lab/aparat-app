@@ -1151,3 +1151,193 @@
   [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
   setInterval(boot, 5000);
 })();
+
+/* ===== APARAT ESCRITORIO: Faturamento unico com gestao + grafico 3D neon ===== */
+;(function () {
+  if (window.__APARAT_FATADM__) return; window.__APARAT_FATADM__ = 1;
+  var MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  var MAB = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  function num(v) {
+    v = String(v == null ? "" : v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".");
+    var n = parseFloat(v); return isNaN(n) ? 0 : n;
+  }
+  function money(n) { return "R$ " + (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function kf(n) {
+    var neg = n < 0; n = Math.abs(n);
+    var s;
+    if (n >= 1000000) s = (n / 1000000).toFixed(1).replace(".", ",") + "M";
+    else if (n >= 1000) s = (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(".", ",") + "k";
+    else s = String(Math.round(n));
+    return (neg ? "-" : "") + s;
+  }
+  function pad(m) { return (m < 10 ? "0" : "") + m; }
+  function rot(m) { var p = String(m || "").split("-"); return (MAB[parseInt(p[1], 10) - 1] || ""); }
+  function barra3d(x, y0, h, w, d, grad, filtro, corTopo, corLado) {
+    var y = y0 - h;
+    return '<polygon points="' + x + "," + y + " " + (x + d) + "," + (y - d) + " " + (x + w + d) + "," + (y - d) + " " + (x + w) + "," + y + '" fill="' + corTopo + '"/>'
+      + '<polygon points="' + (x + w) + "," + y + " " + (x + w + d) + "," + (y - d) + " " + (x + w + d) + "," + (y0 - d) + " " + (x + w) + "," + y0 + '" fill="' + corLado + '"/>'
+      + '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="url(#' + grad + 'A)" filter="url(#' + filtro + 'A)"/>';
+  }
+  function grafico(meses) {
+    var W = 640, H = 210, y0 = 158, d = 6, w = 22;
+    var maxv = 1;
+    meses.forEach(function (m) { maxv = Math.max(maxv, m.fat, m.desp, m.fat - m.desp); });
+    var gw = W / meses.length;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;display:block;max-width:700px">'
+      + "<defs>"
+      + '<linearGradient id="gfatA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb2ff"/><stop offset="1" stop-color="#2145c9"/></linearGradient>'
+      + '<linearGradient id="gdespA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#c9541e"/></linearGradient>'
+      + '<linearGradient id="gresA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#0e9c4f"/></linearGradient>'
+      + '<filter id="nfatA" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.4" flood-color="#4d82ff" flood-opacity="0.9"/></filter>'
+      + '<filter id="ndespA" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.4" flood-color="#ff9b45" flood-opacity="0.85"/></filter>'
+      + '<filter id="nresA" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.8" flood-color="#39ff88" flood-opacity="0.95"/></filter>'
+      + "</defs>";
+    for (var g = 1; g <= 3; g++) {
+      var gy = y0 - (g * 40);
+      s += '<line x1="6" y1="' + gy + '" x2="' + (W - 6) + '" y2="' + gy + '" stroke="#28285a" stroke-width="0.8" stroke-dasharray="4 5"/>';
+    }
+    s += '<line x1="6" y1="' + y0 + '" x2="' + (W - 6) + '" y2="' + y0 + '" stroke="#3a3a7a" stroke-width="1.2"/>';
+    meses.forEach(function (m, i) {
+      var res = m.fat - m.desp;
+      var hf = Math.max(3, Math.round(m.fat / maxv * 112));
+      var hd = Math.max(3, Math.round(m.desp / maxv * 112));
+      var hr = Math.max(3, Math.round(Math.max(0, res) / maxv * 112));
+      var cx = i * gw + gw / 2;
+      var xf = cx - 38, xd = cx - 11, xr = cx + 16;
+      s += barra3d(xf, y0, hf, w, d, "gfat", "nfat", "#a9c8ff", "#16308f");
+      s += barra3d(xd, y0, hd, w, d, "gdesp", "ndesp", "#ffd0a0", "#8f3a12");
+      s += barra3d(xr, y0, hr, w, d, "gres", "nres", "#b7ffd2", "#086b36");
+      s += '<text x="' + (xf + w / 2 + d / 2) + '" y="' + (y0 - hf - d - 5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#cfe0ff">' + kf(m.fat) + "</text>";
+      s += '<text x="' + (xr + w / 2 + d / 2) + '" y="' + (y0 - hr - d - 5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#8affb0">' + kf(res) + "</text>";
+      s += '<text x="' + cx + '" y="' + (y0 + 20) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#9090b8">' + rot(m.mesRef) + "</text>";
+    });
+    s += "</svg>";
+    s += '<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:6px;font-size:11px;color:#c3d0f5">'
+      + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:linear-gradient(#7fb2ff,#2145c9);box-shadow:0 0 7px #4d82ff;margin-right:5px"></span>Faturamento</span>'
+      + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:linear-gradient(#ffb35c,#c9541e);box-shadow:0 0 7px #ff9b45;margin-right:5px"></span>Despesas</span>'
+      + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:linear-gradient(#7dffb0,#0e9c4f);box-shadow:0 0 8px #39ff88;margin-right:5px"></span>Resultado</span>'
+      + "</div>";
+    return s;
+  }
+
+  var REGS = [];
+  var CLI_SEL = "", MES_SEL = (function () { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1); })();
+
+  function filtrados() {
+    return REGS.filter(function (r) { return !CLI_SEL || r.cliente === CLI_SEL; });
+  }
+  function porMes(regs) {
+    var mp = {};
+    regs.forEach(function (r) {
+      var m = String(r.mesRef || ""); if (!/^\d{4}-\d{2}$/.test(m)) return;
+      if (!mp[m]) mp[m] = { mesRef: m, fat: 0, desp: 0 };
+      mp[m].fat += num(r.faturamento); mp[m].desp += num(r.despesa);
+    });
+    return Object.keys(mp).sort().map(function (k) { return mp[k]; });
+  }
+
+  function render() {
+    var page = document.getElementById("pp-faturamento"); if (!page) return;
+    var wrap = document.getElementById("fadm-wrap");
+    if (!wrap) {
+      wrap = document.createElement("div"); wrap.id = "fadm-wrap";
+      wrap.style.cssText = "background:#12122a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:14px";
+      page.insertBefore(wrap, page.firstChild);
+      wrap.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
+        + '<div style="color:#7fa0ff;font-weight:800;font-size:15px">📈 Gestão de Faturamento</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        + '<select id="fadm-cli" style="background:#0a0a20;border:1px solid #222248;border-radius:9px;color:#fff;padding:8px 12px;font-size:13px;font-weight:700"></select>'
+        + '<select id="fadm-mes" style="background:#0a0a20;border:1px solid #222248;border-radius:9px;color:#fff;padding:8px 12px;font-size:13px;font-weight:700"></select>'
+        + "</div></div>"
+        + '<div id="fadm-stats"></div>'
+        + '<div id="fadm-anual" style="margin:10px 0;padding:10px 12px;border-radius:10px;background:rgba(51,51,255,.08);border:1px solid rgba(51,51,255,.25);font-size:12px;color:#cfd8ff"></div>'
+        + '<div id="fadm-chart" style="padding:6px 2px 2px"></div>';
+      wrap.querySelector("#fadm-cli").addEventListener("change", function () { CLI_SEL = this.value; render(); });
+      wrap.querySelector("#fadm-mes").addEventListener("change", function () { MES_SEL = this.value; render(); });
+    }
+    var selC = wrap.querySelector("#fadm-cli"), selM = wrap.querySelector("#fadm-mes");
+    var nomes = {};
+    REGS.forEach(function (r) { if (r.cliente) nomes[r.cliente] = 1; });
+    var atualC = selC.value;
+    selC.innerHTML = '<option value="">Todos os clientes</option>';
+    Object.keys(nomes).sort().forEach(function (n) {
+      var o = document.createElement("option"); o.value = n; o.textContent = n; selC.appendChild(o);
+    });
+    selC.value = atualC || CLI_SEL || "";
+    var comps = {};
+    REGS.forEach(function (r) { if (/^\d{4}-\d{2}$/.test(String(r.mesRef || ""))) comps[r.mesRef] = 1; });
+    var hoje = new Date();
+    for (var mm = 1; mm <= 12; mm++) comps[hoje.getFullYear() + "-" + pad(mm)] = 1;
+    var lista = Object.keys(comps).sort().reverse();
+    selM.innerHTML = "";
+    lista.forEach(function (c) {
+      var p = c.split("-");
+      var o = document.createElement("option"); o.value = c; o.textContent = MESES[parseInt(p[1], 10) - 1] + " " + p[0];
+      selM.appendChild(o);
+    });
+    selM.value = MES_SEL; if (!selM.value) { selM.value = lista[0] || ""; MES_SEL = selM.value; }
+
+    var fr = filtrados();
+    var doMes = fr.filter(function (r) { return r.mesRef === MES_SEL; });
+    var fm = 0, dm = 0;
+    doMes.forEach(function (r) { fm += num(r.faturamento); dm += num(r.despesa); });
+    var ano = MES_SEL.split("-")[0], fa = 0, da = 0;
+    fr.forEach(function (r) { if (String(r.mesRef || "").indexOf(ano + "-") === 0) { fa += num(r.faturamento); da += num(r.despesa); } });
+    function tile(bg, bd, rot2, val, cor, glow) {
+      return '<div style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:10px;padding:12px;text-align:center;box-shadow:0 0 12px ' + glow + '">'
+        + '<div style="font-size:10px;color:#9090b8">' + rot2 + "</div>"
+        + '<div style="font-size:18px;font-weight:800;color:' + cor + ';text-shadow:0 0 8px ' + glow + '">' + val + "</div></div>";
+    }
+    document.getElementById("fadm-stats").innerHTML =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px">'
+      + tile("rgba(51,51,255,.10)", "rgba(77,130,255,.35)", "Faturamento no mês", money(fm), "#7fb2ff", "rgba(77,130,255,.35)")
+      + tile("rgba(245,158,11,.08)", "rgba(255,155,69,.3)", "Despesas no mês", money(dm), "#ffb35c", "rgba(255,155,69,.25)")
+      + tile("rgba(34,197,94,.08)", "rgba(57,255,136,.3)", "Resultado no mês", money(fm - dm), "#7dffb0", "rgba(57,255,136,.3)")
+      + "</div>";
+    document.getElementById("fadm-anual").innerHTML =
+      "📆 <b>Total anual " + ano + (CLI_SEL ? " — " + CLI_SEL : " — todos os clientes") + ":</b> faturamento <b style='color:#7fb2ff'>" + money(fa)
+      + "</b> · despesas <b style='color:#ffb35c'>" + money(da)
+      + "</b> · resultado <b style='color:#7dffb0'>" + money(fa - da) + "</b>";
+    var meses = porMes(fr).slice(-6);
+    document.getElementById("fadm-chart").innerHTML = meses.length
+      ? grafico(meses)
+      : '<div style="font-size:11px;color:#9090b8;padding:6px 0">Sem lançamentos para montar o gráfico.</div>';
+  }
+
+  function esconderFinanceiro() {
+    try {
+      var itens = document.querySelectorAll(".nav-item");
+      for (var i = 0; i < itens.length; i++) {
+        var oc = itens[i].getAttribute("onclick") || "";
+        if (oc.indexOf("navAba('financeiro'") > -1 && itens[i].style.display !== "none") itens[i].style.display = "none";
+      }
+    } catch (e) {}
+  }
+
+  window.__APARAT_FATADM_TEST__ = function (arr) { REGS = arr || []; render(); esconderFinanceiro(); };
+
+  function boot() {
+    try {
+      if (window.__APARAT_FATADM__ === 2) return;
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser; if (!u) return;
+      if (typeof ADMIN_EMAIL !== "undefined" && u.email !== ADMIN_EMAIL) return;
+      if (!document.getElementById("pp-faturamento")) return;
+      window.__APARAT_FATADM__ = 2;
+      esconderFinanceiro();
+      if (!document.getElementById("ap-bot-fix-adm")) {
+        var st = document.createElement("style"); st.id = "ap-bot-fix-adm";
+        st.textContent = ".apbot{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}";
+        document.head.appendChild(st);
+      }
+      setInterval(esconderFinanceiro, 4000);
+      firebase.firestore().collection("faturamento").onSnapshot(function (s) {
+        var a = []; s.forEach(function (d) { var x = d.data(); x.__id = d.id; a.push(x); });
+        REGS = a; render();
+      }, function () {});
+    } catch (e) {}
+  }
+  [1500, 3500, 7000].forEach(function (t) { setTimeout(boot, t); });
+  setInterval(boot, 5000);
+})();
