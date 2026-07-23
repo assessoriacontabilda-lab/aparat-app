@@ -1,0 +1,35 @@
+name: Migrar financeiro para faturamento (v26)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-migra.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=21', 'aparat-fix.js?v=22')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v25', 'aparat-v26')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'aparat-fix.js?v=22' in io.open('index.html', encoding='utf-8').read()
+          ok2 = '__APARAT_MIGRA_FIN__' in io.open('aparat-fix.js', encoding='utf-8').read()
+          print('index v22:', ok1, '| migracao no aparat-fix:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: migracao automatica do financeiro antigo para o faturamento (sw v26)"
+          git push
