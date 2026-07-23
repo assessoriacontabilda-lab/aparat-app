@@ -210,7 +210,7 @@
   setInterval(boot, 5000);
 })();
 
-/* ===== Aba "Financas" vira FATURAMENTO real (mesmo painel da tela inicial) ===== */
+/* ===== FATURAMENTO em um lugar so: aba completa; some da tela inicial ===== */
 ;(function () {
   if (window.__APARAT_FAT_TAB__) return; window.__APARAT_FAT_TAB__ = 1;
   function ehCliente() { try { return typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE === "cliente"; } catch (e) { return false; } }
@@ -220,35 +220,136 @@
     if (!hold) {
       [].forEach.call(pag.children, function (c) { c.style.display = "none"; });
       hold = document.createElement("div"); hold.id = "ap-fat-holder";
-      hold.innerHTML = '<div class="asec">📈 Meu Faturamento</div>';
+      hold.innerHTML = '<div class="asec">\ud83d\udcc8 Meu Faturamento</div>';
       pag.appendChild(hold);
     }
     return hold;
   }
-  function mover(alvo) {
-    var fat = document.getElementById("cli-fat"); if (!fat) return;
-    if (alvo === "page") { var h = prepPage(); if (h && fat.parentElement !== h) h.appendChild(fat); }
-    else { var sf = document.getElementById("sec-fat"); if (sf && fat.parentElement !== sf) sf.appendChild(fat); }
-  }
-  function wrapFat() {
-    if (typeof window.aPage !== "function" || window.aPage.__apFatWrapped) return;
-    var orig = window.aPage;
-    var w = function (key) {
-      var r = orig.apply(this, arguments);
-      try { if (ehCliente()) { if (key === "financeiro") mover("page"); else mover("home"); } } catch (e) {}
-      return r;
-    };
-    w.__apFatWrapped = 1; window.aPage = w;
+  function unificar() {
+    if (!ehCliente()) return;
+    var fat = document.getElementById("cli-fat");
+    if (fat) { var h = prepPage(); if (h && fat.parentElement !== h) h.appendChild(fat); }
+    var sf = document.getElementById("sec-fat");
+    if (sf && sf.style.display !== "none") sf.style.display = "none";
+    var btns = document.querySelectorAll('.botnav button[data-go="sec-fat"]');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      if (b.getAttribute("data-apfat") === "1") continue;
+      b.setAttribute("data-apfat", "1");
+      b.onclick = function (ev) { try { ev.preventDefault(); } catch (e) {} try { window.aPage("financeiro"); } catch (e) {} };
+    }
   }
   function renomear() {
     try {
       if (!ehCliente()) return;
       var b = document.getElementById("nb-financeiro"); if (!b) return;
       var l = b.querySelector(".nbl"); if (l && l.textContent !== "Faturam.") l.textContent = "Faturam.";
-      var i = b.querySelector(".nbi"); if (i && i.textContent !== "📈") i.textContent = "📈";
+      var i = b.querySelector(".nbi"); if (i && i.textContent !== "\ud83d\udcc8") i.textContent = "\ud83d\udcc8";
     } catch (e) {}
   }
-  function tick() { wrapFat(); renomear(); }
+  function tick() { unificar(); renomear(); }
   [1000, 2500, 5000].forEach(function (t) { setTimeout(tick, t); });
-  setInterval(tick, 4000);
+  setInterval(tick, 3000);
+})();
+
+/* ===== Grafico 3D digital NEON (faturamento x despesas x resultado) ===== */
+;(function () {
+  if (window.__APARAT_FAT_CHART__) return; window.__APARAT_FAT_CHART__ = 1;
+  function num(v) {
+    v = String(v == null ? "" : v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".");
+    var n = parseFloat(v); return isNaN(n) ? 0 : n;
+  }
+  function kf(n) {
+    var neg = n < 0; n = Math.abs(n);
+    var s;
+    if (n >= 1000000) s = (n / 1000000).toFixed(1).replace(".", ",") + "M";
+    else if (n >= 1000) s = (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(".", ",") + "k";
+    else s = String(Math.round(n));
+    return (neg ? "-" : "") + s;
+  }
+  var MES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  function rot(m) { var p = String(m || "").split("-"); return (MES[parseInt(p[1], 10) - 1] || ""); }
+  function barra3d(x, y0, h, w, d, grad, filtro, corTopo, corLado) {
+    var y = y0 - h;
+    return '<polygon points="' + x + "," + y + " " + (x + d) + "," + (y - d) + " " + (x + w + d) + "," + (y - d) + " " + (x + w) + "," + y + '" fill="' + corTopo + '"/>'
+      + '<polygon points="' + (x + w) + "," + y + " " + (x + w + d) + "," + (y - d) + " " + (x + w + d) + "," + (y0 - d) + " " + (x + w) + "," + y0 + '" fill="' + corLado + '"/>'
+      + '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="url(#' + grad + ')" filter="url(#' + filtro + ')"/>';
+  }
+  function montar(regs) {
+    var W = 336, H = 178, y0 = 132, d = 5, w = 11;
+    var maxv = 1;
+    regs.forEach(function (r) {
+      var f = num(r.faturamento), dp = num(r.despesa);
+      maxv = Math.max(maxv, f, dp, f - dp);
+    });
+    var gw = W / regs.length;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;display:block">'
+      + "<defs>"
+      + '<linearGradient id="gfat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb2ff"/><stop offset="1" stop-color="#2145c9"/></linearGradient>'
+      + '<linearGradient id="gdesp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#c9541e"/></linearGradient>'
+      + '<linearGradient id="gres" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#0e9c4f"/></linearGradient>'
+      + '<filter id="nfat" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.2" flood-color="#4d82ff" flood-opacity="0.9"/></filter>'
+      + '<filter id="ndesp" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.2" flood-color="#ff9b45" flood-opacity="0.85"/></filter>'
+      + '<filter id="nres" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="2.6" flood-color="#39ff88" flood-opacity="0.95"/></filter>'
+      + "</defs>";
+    for (var g = 1; g <= 3; g++) {
+      var gy = y0 - (g * 34);
+      s += '<line x1="4" y1="' + gy + '" x2="' + (W - 4) + '" y2="' + gy + '" stroke="#28285a" stroke-width="0.7" stroke-dasharray="3 4"/>';
+    }
+    s += '<line x1="4" y1="' + y0 + '" x2="' + (W - 4) + '" y2="' + y0 + '" stroke="#3a3a7a" stroke-width="1"/>';
+    regs.forEach(function (r, i) {
+      var f = num(r.faturamento), dp = num(r.despesa), res = f - dp;
+      var hf = Math.max(3, Math.round(f / maxv * 92));
+      var hd = Math.max(3, Math.round(dp / maxv * 92));
+      var hr = Math.max(3, Math.round(Math.max(0, res) / maxv * 92));
+      var cx = i * gw + gw / 2;
+      var xf = cx - 21, xd = cx - 7, xr = cx + 7;
+      s += barra3d(xf, y0, hf, w, d, "gfat", "nfat", "#a9c8ff", "#16308f");
+      s += barra3d(xd, y0, hd, w, d, "gdesp", "ndesp", "#ffd0a0", "#8f3a12");
+      s += barra3d(xr, y0, hr, w, d, "gres", "nres", "#b7ffd2", "#086b36");
+      s += '<text x="' + (xf + w / 2 + d / 2) + '" y="' + (y0 - hf - d - 4) + '" text-anchor="middle" font-size="7" font-weight="700" fill="#cfe0ff">' + kf(f) + "</text>";
+      s += '<text x="' + (xr + w / 2 + d / 2) + '" y="' + (y0 - hr - d - 4) + '" text-anchor="middle" font-size="7" font-weight="700" fill="#8affb0">' + kf(res) + "</text>";
+      s += '<text x="' + cx + '" y="' + (y0 + 14) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#9090b8">' + rot(r.mesRef) + "</text>";
+    });
+    s += "</svg>";
+    s += '<div style="display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-top:4px;font-size:9px;color:#c3d0f5">'
+      + '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:linear-gradient(#7fb2ff,#2145c9);box-shadow:0 0 6px #4d82ff;margin-right:4px"></span>Faturamento</span>'
+      + '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:linear-gradient(#ffb35c,#c9541e);box-shadow:0 0 6px #ff9b45;margin-right:4px"></span>Despesas</span>'
+      + '<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:linear-gradient(#7dffb0,#0e9c4f);box-shadow:0 0 7px #39ff88;margin-right:4px"></span>Resultado</span>'
+      + "</div>";
+    return s;
+  }
+  function build() {
+    try {
+      var el = document.getElementById("cli-fat"); if (!el) return;
+      var cards = el.querySelectorAll(".lcard"); var alvo = null;
+      for (var i = 0; i < cards.length; i++) { if (/Faturamento por m|Faturamento x Despesas/.test(cards[i].textContent || "")) { alvo = cards[i]; break; } }
+      if (!alvo || alvo.getAttribute("data-ap3d") === "1") return;
+      var regs = (window.__fatRegs || []).slice();
+      regs.sort(function (a, b) { return String(a.mesRef || "").localeCompare(String(b.mesRef || "")); });
+      regs = regs.slice(-6);
+      if (!regs.length) return;
+      alvo.setAttribute("data-ap3d", "1");
+      alvo.innerHTML = '<div style="font-size:11px;font-weight:700;margin-bottom:8px">\ud83d\udcca Faturamento x Despesas x Resultado</div>' + montar(regs);
+    } catch (e) {}
+  }
+  [1500, 3000, 6000].forEach(function (t) { setTimeout(build, t); });
+  setInterval(build, 2000);
+})();
+
+/* ===== Assistente virtual acima da barra de icones (nao cobre a navegacao) ===== */
+;(function () {
+  if (window.__APARAT_BOT_POS__) return; window.__APARAT_BOT_POS__ = 1;
+  function aplicar() {
+    try {
+      if (!(typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE === "cliente")) return;
+      if (document.getElementById("ap-bot-fix")) return;
+      var st = document.createElement("style"); st.id = "ap-bot-fix";
+      st.textContent = ".apbot{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}"
+        + "@media(max-width:760px){.apbot{bottom:calc(78px + env(safe-area-inset-bottom,0px))!important}}";
+      document.head.appendChild(st);
+    } catch (e) {}
+  }
+  [800, 2000, 4000].forEach(function (t) { setTimeout(aplicar, t); });
+  setInterval(aplicar, 4000);
 })();
