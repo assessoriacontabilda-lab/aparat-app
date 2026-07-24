@@ -1510,3 +1510,38 @@
   [2000, 4500, 8000].forEach(function (t) { setTimeout(boot, t); });
   setInterval(boot, 5000);
 })();
+
+/* ===== APARAT: Botao ATIVAR NOTIFICACOES no painel do escritorio (admin) ===== */
+;(function () {
+  if (window.__APARAT_BTN_NOTIF_ADM__) return; window.__APARAT_BTN_NOTIF_ADM__ = 1;
+  function tick() {
+    try {
+      if (!(typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE === "admin")) return;
+      if (!("Notification" in window)) return;
+      var ok = Notification.permission === "granted";
+      var b = document.getElementById("adm-btn-notif");
+      if (!b) {
+        var pg = document.getElementById("pp-dash"); if (!pg) return;
+        b = document.createElement("button"); b.id = "adm-btn-notif";
+        b.style.cssText = "width:100%;margin:0 0 12px;border:0;border-radius:10px;padding:13px;font-weight:800;font-size:13px;cursor:pointer;color:#fff";
+        b.onclick = function () {
+          try { ativarNotificacoes(); } catch (e) {}
+          setTimeout(tick, 1500); setTimeout(tick, 4000);
+        };
+        pg.insertBefore(b, pg.firstChild);
+      }
+      if (ok) {
+        b.textContent = "🔔 Notificações ativadas neste aparelho ✔";
+        b.style.background = "#1c8f4e";
+      } else if (Notification.permission === "denied") {
+        b.textContent = "⚠ Notificações BLOQUEADAS — toque no cadeado 🔒 da barra de endereço → Notificações → Permitir";
+        b.style.background = "#c9541e";
+      } else {
+        b.textContent = "🔔 ATIVAR NOTIFICAÇÕES NESTE APARELHO — toque aqui";
+        b.style.background = "#2b6fff";
+      }
+    } catch (e) {}
+  }
+  [1500, 3000, 6000].forEach(function (t) { setTimeout(tick, t); });
+  setInterval(tick, 4000);
+})();
