@@ -13,7 +13,7 @@ const APP_URL = "https://assessoriacontabilda-lab.github.io/aparat-app/";
 const ICON = APP_URL + "icon-192.png";
 
 // Mensagens que o CLIENTE envia -> avisar o ESCRITORIO (role admin)
-const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos"];
+const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos", "enviosCliente", "notas"];
 // Avisos que o ESCRITORIO envia -> avisar o CLIENTE (role cliente)
 const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais"];
 
@@ -35,8 +35,40 @@ function initApp() {
   admin.initializeApp({ credential: admin.credential.cert(sa) });
 }
 
+
+const https = require("https");
+function avisarWhatsApp(titulo, corpo) {
+  return new Promise(function (res) {
+    const key = process.env.CALLMEBOT_KEY;
+    if (!key) { console.log("  (WhatsApp: segredo CALLMEBOT_KEY nao configurado ainda)"); return res(); }
+    const fone = process.env.CALLMEBOT_PHONE || "5516988699203";
+    const texto = encodeURIComponent("*APARAT* " + titulo + "\n" + corpo);
+    const url = "https://api.callmebot.com/whatsapp.php?phone=" + fone + "&text=" + texto + "&apikey=" + encodeURIComponent(key);
+    https.get(url, function (r) { console.log("  WhatsApp:", r.statusCode); r.resume(); res(); })
+      .on("error", function (e) { console.log("  WhatsApp erro:", e.message); res(); });
+  });
+}
+async function avisarEmail(titulo, corpo) {
+  const pass = process.env.GMAIL_APP_PASS;
+  if (!pass) { console.log("  (E-mail: segredo GMAIL_APP_PASS nao configurado ainda)"); return; }
+  const user = process.env.GMAIL_USER || "assessoriacontabil.da@gmail.com";
+  try {
+    const nodemailer = require("nodemailer");
+    const tp = nodemailer.createTransport({ service: "gmail", auth: { user: user, pass: pass } });
+    await tp.sendMail({
+      from: "APARAT App <" + user + ">",
+      to: user,
+      subject: "\ud83d\udce8 " + titulo,
+      text: corpo + "\n\nAbra o painel: https://assessoriacontabilda-lab.github.io/aparat-app/"
+    });
+    console.log("  E-mail enviado.");
+  } catch (e) { console.log("  E-mail erro:", e.message || e); }
+}
+
 function tituloDe(coll, d) {
   if (coll === "solicitacoes") return { t: "Nova solicitacao de cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.mensagem || "Voce recebeu uma nova mensagem.") };
+  if (coll === "enviosCliente") return { t: "Novo arquivo do cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.tipo ? d.tipo + " - " : "") + (d.nome || "arquivo enviado") };
+  if (coll === "notas") return { t: "Nota fiscal enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.numero ? "NF " + d.numero : (d.descricao || "nova nota")) };
   if (coll === "recebidos") return { t: "Novo arquivo/mensagem recebido", b: (d.cliente ? d.cliente + ": " : "") + (d.msg || d.mensagem || d.arquivoNome || "Voce recebeu algo novo.") };
   if (coll === "urgencias") return { t: d.titulo || "Novo aviso da Aparat", b: d.msg || d.mensagem || "Toque para ver." };
   if (coll === "informativos") return { t: d.titulo || "Novo informativo da Aparat", b: d.msg || d.texto || "Toque para ver." };
@@ -117,9 +149,12 @@ async function main() {
     console.log("Colecao", coll, "->", snap.size, "nova(s).");
     for (const doc of snap.docs) {
       const d = doc.data();
+      if (coll === "notas" && String(d.origem || "") !== "cliente") { continue; }
       const info = tituloDe(coll, d);
       if (alvo === "admin") {
         await enviar(tokensAdmin, info.t, info.b, db);
+        await avisarWhatsApp(info.t, info.b);
+        await avisarEmail(info.t, info.b);
       } else {
         // para cliente: se for para todos, manda pra todos os clientes;
         // senao, so para o cliente destino (por nome)
