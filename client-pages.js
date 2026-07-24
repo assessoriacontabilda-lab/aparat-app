@@ -83,7 +83,7 @@
     var ref = it ? (it.x.referencia || "") : "";
     db().collection("solicitacoes").add({
       cliente: nomeCli(), mensagem: "💳 PAGAMENTO INFORMADO: paguei o honorário " + ref + ". Favor confirmar o recebimento.",
-      status: "Nova", data: agora(), arquivoData: "", arquivoNome: "", origem: "app-honorario"
+      status: "Nova", data: agora(), arquivoData: "", arquivoNome: "", origem: "app-honorario", criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     }).then(function () { notif2("✅ Escritório avisado! Aguarde a confirmação."); })
       .catch(function () { notif2("Não consegui avisar. Tente pela aba Falar com o Escritório.", "warn"); });
   };
@@ -147,7 +147,7 @@
     }).catch(function () {
       db().collection("solicitacoes").add({
         cliente: nomeCli(), mensagem: "💰 GUIA PAGA: informo o pagamento da guia " + tipo + ". Favor atualizar o status.",
-        status: "Nova", data: agora(), arquivoData: "", arquivoNome: "", origem: "app-guia"
+        status: "Nova", data: agora(), arquivoData: "", arquivoNome: "", origem: "app-guia", criadoEm: firebase.firestore.FieldValue.serverTimestamp()
       }).then(function () { notif2("✅ Escritório avisado do pagamento!"); })
         .catch(function () { notif2("Não consegui atualizar. Avise pela aba Falar com o Escritório.", "warn"); });
     });
@@ -165,7 +165,7 @@
       fr.onload = function () {
         db().collection("enviosCliente").add({
           cliente: nomeCli(), nome: f.name, tipo: "Comprovante — " + tipo,
-          arquivoData: String(fr.result), data: agora(), obrigId: String(id)
+          arquivoData: String(fr.result), data: agora(), obrigId: String(id), criadoEm: firebase.firestore.FieldValue.serverTimestamp()
         }).then(function () { notif2("📤 Comprovante enviado ao escritório!"); })
           .catch(function () { notif2("Erro ao enviar o comprovante.", "warn"); });
       };

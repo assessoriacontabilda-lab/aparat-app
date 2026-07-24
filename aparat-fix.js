@@ -1471,3 +1471,42 @@
   [2000, 5000, 9000].forEach(function (t) { setTimeout(boot, t); });
   setInterval(boot, 6000);
 })();
+
+/* ===== APARAT: Secretario virtual avisa novidades dos clientes em tempo real ===== */
+;(function () {
+  if (window.__APARAT_SECR_AVISO__) return; window.__APARAT_SECR_AVISO__ = 1;
+  var COLS = { solicitacoes: "📨 Nova solicitação", enviosCliente: "📎 Novo arquivo", notas: "🧾 Nova nota fiscal" };
+  function falar(msg) {
+    try {
+      if (typeof notif === "function") notif(msg, "warn");
+      var s = document.getElementById("sync-msg");
+      if (s) s.textContent = "💬 " + msg;
+      var bot = document.getElementById("aparat-bot");
+      if (bot) { bot.classList.remove("pop"); void bot.offsetWidth; bot.classList.add("pop"); }
+    } catch (e) {}
+  }
+  function boot() {
+    try {
+      if (window.__APARAT_SECR_AVISO__ === 2) return;
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) return;
+      var u = firebase.auth().currentUser; if (!u) return;
+      if (typeof ADMIN_EMAIL !== "undefined" && u.email !== ADMIN_EMAIL) return;
+      window.__APARAT_SECR_AVISO__ = 2;
+      var db = firebase.firestore();
+      Object.keys(COLS).forEach(function (coll) {
+        var primeira = true;
+        db.collection(coll).onSnapshot(function (s) {
+          if (primeira) { primeira = false; return; }
+          s.docChanges().forEach(function (ch) {
+            if (ch.type !== "added") return;
+            var d = ch.doc.data() || {};
+            if (coll === "notas" && String(d.origem || "") !== "cliente") return;
+            falar(COLS[coll] + " de " + (d.cliente || "cliente") + "!");
+          });
+        }, function () {});
+      });
+    } catch (e) {}
+  }
+  [2000, 4500, 8000].forEach(function (t) { setTimeout(boot, t); });
+  setInterval(boot, 5000);
+})();
