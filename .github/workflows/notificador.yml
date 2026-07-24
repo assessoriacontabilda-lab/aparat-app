@@ -18,4 +18,8 @@ jobs:
         working-directory: notificador
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+          CALLMEBOT_KEY: ${{ secrets.CALLMEBOT_KEY }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
         run: node enviar.js
