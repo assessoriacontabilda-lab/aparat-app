@@ -1572,12 +1572,11 @@
       if (typeof dbGetAll !== "function") return;
       var el = document.getElementById("dash-obrig"); if (!el) return;
       var os = await dbGetAll("obrigacoes");
-      var ag = new Date(); var mesAtual = ag.getFullYear() + "-" + p2(ag.getMonth() + 1);
       var n = 0;
-      (os || []).forEach(function (o) { var mm = mesDe(o); if (pendente(o) && (mm === mesAtual || mm === "")) n++; });
+      (os || []).forEach(function (o) { if (pendente(o)) n++; });
       el.textContent = n;
       var r = document.getElementById("dash-resumo-ob"); if (r) r.textContent = n;
-      try { var ks = el.parentElement.querySelector(".ks"); if (ks) ks.textContent = "pendentes do mês"; } catch (e) {}
+      try { var ks = el.parentElement.querySelector(".ks"); if (ks) ks.textContent = "pendentes de verdade"; } catch (e) {}
     } catch (e) {}
   }
   window.__APARAT_OBRIG_TEST__ = { mesDe: mesDe, pendente: pendente };
@@ -1655,4 +1654,57 @@
   var iv = setInterval(function () { if (instalar() || ++tent > 60) clearInterval(iv); }, 700);
   setTimeout(render, 4000);
   setInterval(render, 120000);
+})();
+
+/* ===== Baixa rapida de obrigacoes + contador considera todos os meses ===== */
+(function () {
+  if (window.__APARAT_BAIXA__) return; window.__APARAT_BAIXA__ = 1;
+  var CONCLUIDO_POR_TIPO = {
+    "Extrato Bancário": "Recebido",
+    "NF-e Emitida": "Emitida",
+    "Certidão Fiscal": "Conferida",
+    "Lançamento no Domínio": "Lançado"
+  };
+  window.darBaixaObrig = async function (id) {
+    try {
+      var os = await dbGetAll("obrigacoes");
+      var o = os.find(function (x) { return String(x.id) === String(id); });
+      if (!o) return;
+      var novo = CONCLUIDO_POR_TIPO[o.tipo] || "Pago";
+      await dbUpdate("obrigacoes", id, { status: novo, baixadoPeloEscritorio: true, baixadoEm: new Date().toISOString() });
+      if (typeof notif === "function") notif("✔️ Baixa dada: " + (o.tipo || "obrigacao") + " de " + (o.cliente || "") + " → " + novo);
+      if (typeof carregarObrigacoes === "function") await carregarObrigacoes();
+      if (typeof atualizarDashboard === "function") await atualizarDashboard();
+    } catch (e) { console.error("baixa", e); }
+  };
+  var FEITOS = ["pago", "lancado", "lançado", "recebido", "entregue", "enviado", "enviada ao cliente", "emitida", "emitida pelo escritorio", "emitida pelo escritório", "recebida de fornecedor", "conferida", "dispensado"];
+  function pendenteStatus(s) {
+    s = String(s || "").trim().toLowerCase();
+    if (!s) return true;
+    return FEITOS.indexOf(s) === -1;
+  }
+  function injetarBotoes() {
+    try {
+      var tb = document.getElementById("tb-obrig"); if (!tb) return;
+      [].forEach.call(tb.querySelectorAll("tr"), function (tr) {
+        if (tr.getAttribute("data-apbx") === "1") return;
+        var btnEd = tr.querySelector('button[onclick^="editarObrig"]');
+        if (!btnEd) return;
+        tr.setAttribute("data-apbx", "1");
+        var m = String(btnEd.getAttribute("onclick") || "").match(/editarObrig\('([^']+)'\)/);
+        if (!m) return;
+        var tag = tr.querySelector(".tag");
+        var st = tag ? tag.textContent : "";
+        if (!pendenteStatus(st)) return;
+        var b = document.createElement("button");
+        b.className = "btn-sm";
+        b.style.cssText = "background:#0f2a18;border:1px solid #22cc77;color:#22cc77;margin-right:4px";
+        b.textContent = "✔ Dar baixa";
+        b.setAttribute("onclick", "darBaixaObrig('" + m[1] + "')");
+        btnEd.parentElement.insertBefore(b, btnEd);
+      });
+    } catch (e) {}
+  }
+  setInterval(injetarBotoes, 1200);
+  setTimeout(injetarBotoes, 2000);
 })();
