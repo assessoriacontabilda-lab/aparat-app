@@ -1594,3 +1594,65 @@
   setTimeout(recontar, 3000);
   setInterval(recontar, 60000);
 })();
+
+/* ===== Alerta de inadimplencia no Dashboard (admin) ===== */
+(function () {
+  if (window.__APARAT_INAD__) return; window.__APARAT_INAD__ = 1;
+  function p2(n) { return ("0" + n).slice(-2); }
+  function num(v) { v = ("" + (v == null ? "" : v)).replace(/[^0-9,.-]/g, ""); if (v.indexOf(",") > -1) v = v.replace(/\./g, "").replace(",", "."); return parseFloat(v) || 0; }
+  function money(n) { return "R$ " + (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 }); }
+  function hojeISO() { var d = new Date(); return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
+  function dataBR(v) { var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + "/" + m[2] + "/" + m[1] : String(v || ""); }
+  async function render() {
+    try {
+      var ancora = document.getElementById("dash-obrig"); if (!ancora) return;
+      if (typeof dbGetAll !== "function") return;
+      var hs = await dbGetAll("honorarios");
+      var hoje = hojeISO();
+      var atrasados = (hs || []).filter(function (h) {
+        var pago = /pago/i.test(String(h.status || ""));
+        var v = String(h.vencimento || "").slice(0, 10);
+        return !pago && v && v < hoje;
+      });
+      var card = document.getElementById("ap-inad-card");
+      if (!atrasados.length) { if (card) card.style.display = "none"; return; }
+      var porCli = {};
+      atrasados.forEach(function (h) {
+        var n = String(h.cliente || "?").trim();
+        if (!porCli[n]) porCli[n] = { total: 0, maisAntigo: "9999-99-99" };
+        porCli[n].total += num(h.valor);
+        var v = String(h.vencimento || "").slice(0, 10);
+        if (v && v < porCli[n].maisAntigo) porCli[n].maisAntigo = v;
+      });
+      var nomes = Object.keys(porCli).sort(function (a, b) { return porCli[a].maisAntigo.localeCompare(porCli[b].maisAntigo); });
+      var total = 0; nomes.forEach(function (n) { total += porCli[n].total; });
+      if (!card) {
+        card = document.createElement("div");
+        card.id = "ap-inad-card";
+        var alvo = ancora.closest ? ancora.closest(".kcard") : null;
+        var linha = alvo && alvo.parentElement ? alvo.parentElement : null;
+        if (linha && linha.parentElement) linha.parentElement.insertBefore(card, linha.nextSibling);
+        else document.body.appendChild(card);
+      }
+      card.style.display = "";
+      card.style.cssText += ";background:#1a0b12;border:1px solid #ff3355;border-radius:14px;padding:14px 16px;margin:12px 0;box-shadow:0 0 14px rgba(255,51,85,.25)";
+      var linhas = nomes.slice(0, 8).map(function (n) {
+        return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;border-bottom:1px dashed #3a1a24"><span>' + n.replace(/</g, "&lt;") + '</span><span style="white-space:nowrap;color:#ff8899">' + money(porCli[n].total) + ' · desde ' + dataBR(porCli[n].maisAntigo) + "</span></div>";
+      }).join("");
+      var extra = nomes.length > 8 ? '<div style="font-size:11px;color:#8888aa;margin-top:4px">e mais ' + (nomes.length - 8) + " cliente(s)...</div>" : "";
+      card.innerHTML = '<div style="font-weight:800;color:#ff5566;font-size:14px;margin-bottom:6px">&#9888;&#65039; Clientes em atraso: ' + nomes.length + ' &middot; Total ' + money(total) + "</div>" + linhas + extra;
+    } catch (e) {}
+  }
+  function instalar() {
+    if (typeof window.atualizarDashboard !== "function" || window.atualizarDashboard.__apInad) return false;
+    var orig = window.atualizarDashboard;
+    var novo = async function () { try { await orig.apply(this, arguments); } catch (e) {} await render(); };
+    novo.__apInad = 1; window.atualizarDashboard = novo;
+    render();
+    return true;
+  }
+  var tent = 0;
+  var iv = setInterval(function () { if (instalar() || ++tent > 60) clearInterval(iv); }, 700);
+  setTimeout(render, 4000);
+  setInterval(render, 120000);
+})();
