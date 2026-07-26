@@ -1,5 +1,5 @@
 /* APARAT service worker v17 - network-first + auto-atualizar clientes */
-var CACHE = 'aparat-v28';
+var CACHE = 'aparat-v29';
 
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 
