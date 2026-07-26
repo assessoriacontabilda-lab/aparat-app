@@ -1,0 +1,35 @@
+name: Alerta de inadimplencia no painel (v30)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-inad.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=25', 'aparat-fix.js?v=26')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v29', 'aparat-v30')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          ok1 = 'aparat-fix.js?v=26' in io.open('index.html', encoding='utf-8').read()
+          ok2 = '__APARAT_INAD__' in io.open('aparat-fix.js', encoding='utf-8').read()
+          print('index v26:', ok1, '| alerta no aparat-fix:', ok2)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "feat: alerta de inadimplencia no dashboard (sw v30)"
+          git push
