@@ -15,7 +15,7 @@ const ICON = APP_URL + "icon-192.png";
 // Mensagens que o CLIENTE envia -> avisar o ESCRITORIO (role admin)
 const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos", "enviosCliente", "notas"];
 // Avisos que o ESCRITORIO envia -> avisar o CLIENTE (role cliente)
-const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais"];
+const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais", "honorarios", "docs", "agenda"];
 
 // Palavras que indicam "para todos os clientes"
 function ehTodos(dest) {
@@ -73,6 +73,9 @@ function tituloDe(coll, d) {
   if (coll === "urgencias") return { t: d.titulo || "Novo aviso da Aparat", b: d.msg || d.mensagem || "Toque para ver." };
   if (coll === "informativos") return { t: d.titulo || "Novo informativo da Aparat", b: d.msg || d.texto || "Toque para ver." };
   if (coll === "obrigacoes") return { t: "Nova obrigacao lancada", b: (d.tipo || d.guia || "Obrigacao") + (d.mesRef || d.competencia ? " (" + (d.mesRef || d.competencia) + ")" : "") + (d.status ? " - " + d.status : "") };
+  if (coll === "honorarios") return { t: "Novo honorario disponivel", b: (d.referencia ? "Referencia " + d.referencia + ": " : "") + (d.valor ? "R$ " + d.valor : "valor no app") + (d.vencimento ? " - vence " + d.vencimento : "") + ". Abra o app para ver." };
+  if (coll === "docs") return { t: "Novo documento da Aparat", b: (d.tipo ? d.tipo + " - " : "") + (d.nome || "documento disponivel no app") };
+  if (coll === "agenda") return { t: "Novo agendamento da Aparat", b: (d.tipo ? d.tipo + " " : "Compromisso ") + (d.data ? "em " + d.data : "") + (d.hora ? " as " + d.hora : "") + (d.desc ? " - " + d.desc : "") };
   if (coll === "obrigacoesAnuais") return { t: "Nova obrigacao anual", b: (d.tipo || "Obrigacao anual") + (d.exercicio ? " " + d.exercicio : "") + (d.situacao ? " - " + d.situacao : "") };
   return { t: "Aparat Contabilidade", b: "Voce tem uma novidade no app." };
 }
@@ -158,7 +161,7 @@ async function main() {
       } else {
         // para cliente: se for para todos, manda pra todos os clientes;
         // senao, so para o cliente destino (por nome)
-        const alvoTxt = String(d.dest || d.cliente || "").trim();
+        const alvoTxt = String(d.dest || d.cliente || d.publico || "").trim();
         let destinos = tokensCliente;
         if (!ehTodos(alvoTxt)) {
           const alvoNome = alvoTxt.toLowerCase();
