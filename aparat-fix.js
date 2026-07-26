@@ -1545,3 +1545,52 @@
   [1500, 3000, 6000].forEach(function (t) { setTimeout(tick, t); });
   setInterval(tick, 4000);
 })();
+
+/* ===== Contador inteligente de obrigacoes pendentes (Dashboard) ===== */
+(function () {
+  if (window.__APARAT_OBRIG_CONT__) return; window.__APARAT_OBRIG_CONT__ = 1;
+  var CONCLUIDOS = ["pago", "lancado", "lançado", "recebido", "entregue", "enviado", "enviada ao cliente", "emitida", "emitida pelo escritorio", "emitida pelo escritório", "recebida de fornecedor", "conferida", "dispensado"];
+  var MESES = { janeiro: 1, fevereiro: 2, marco: 3, "março": 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+  function p2(n) { return ("0" + n).slice(-2); }
+  function mesDe(o) {
+    var c = ((o.competencia || o.mesRef || "") + "").trim();
+    var m = c.match(/^(\d{1,2})\s*\/\s*(\d{4})$/); if (m) return m[2] + "-" + p2(+m[1]);
+    m = c.match(/^(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + p2(+m[2]);
+    m = c.toLowerCase().match(/^([a-zç]+)\s*\/?\s*(\d{4})$/); if (m && MESES[m[1]]) return m[2] + "-" + p2(MESES[m[1]]);
+    var v = ((o.vencimento || "") + "").trim();
+    m = v.match(/^(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + p2(+m[2]);
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return m[3] + "-" + p2(+m[2]);
+    return "";
+  }
+  function pendente(o) {
+    var s = ((o.status || "") + "").trim().toLowerCase();
+    if (!s) return true;
+    return CONCLUIDOS.indexOf(s) === -1;
+  }
+  async function recontar() {
+    try {
+      if (typeof dbGetAll !== "function") return;
+      var el = document.getElementById("dash-obrig"); if (!el) return;
+      var os = await dbGetAll("obrigacoes");
+      var ag = new Date(); var mesAtual = ag.getFullYear() + "-" + p2(ag.getMonth() + 1);
+      var n = 0;
+      (os || []).forEach(function (o) { var mm = mesDe(o); if (pendente(o) && (mm === mesAtual || mm === "")) n++; });
+      el.textContent = n;
+      var r = document.getElementById("dash-resumo-ob"); if (r) r.textContent = n;
+      try { var ks = el.parentElement.querySelector(".ks"); if (ks) ks.textContent = "pendentes do mês"; } catch (e) {}
+    } catch (e) {}
+  }
+  window.__APARAT_OBRIG_TEST__ = { mesDe: mesDe, pendente: pendente };
+  function instalar() {
+    if (typeof window.atualizarDashboard !== "function" || window.atualizarDashboard.__apObc) return false;
+    var orig = window.atualizarDashboard;
+    var novo = async function () { try { await orig.apply(this, arguments); } catch (e) {} await recontar(); };
+    novo.__apObc = 1; window.atualizarDashboard = novo;
+    recontar();
+    return true;
+  }
+  var tent = 0;
+  var iv = setInterval(function () { if (instalar() || ++tent > 60) clearInterval(iv); }, 500);
+  setTimeout(recontar, 3000);
+  setInterval(recontar, 60000);
+})();
