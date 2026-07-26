@@ -55,7 +55,15 @@ async function main() {
 
   const cliSnap = await db.collection("clientes").get();
   const clientes = [];
-  cliSnap.forEach(function (d) { const n = String(d.data().nome || "").trim(); if (n) clientes.push(n); });
+  const vistos = {};
+  cliSnap.forEach(function (d) {
+    const n = String(d.data().nome || "").trim();
+    if (!n) return;
+    const chave = n.toLowerCase();
+    if (vistos[chave]) { console.log("  - " + n + " : cadastrado em duplicidade - considerando so uma vez."); return; }
+    vistos[chave] = 1;
+    clientes.push(n);
+  });
   console.log("Clientes cadastrados:", clientes.length);
 
   const honSnap = await db.collection("honorarios").get();
