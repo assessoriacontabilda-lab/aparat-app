@@ -1708,3 +1708,42 @@
   setInterval(injetarBotoes, 1200);
   setTimeout(injetarBotoes, 2000);
 })();
+
+/* ===== PIX na tela de honorarios do cliente ===== */
+(function () {
+  if (window.__APARAT_PIX__) return; window.__APARAT_PIX__ = 1;
+  var CHAVE = "e140ad9c-8e55-4fa4-853c-ebbc3a18c3c3";
+  var FAVORECIDO = "APARAT CONTABILIDADE LTDA";
+  window.copiarPixAparat = function () {
+    function feito() { var b = document.getElementById("ap-pix-btn"); if (b) { b.textContent = "✅ Chave copiada!"; setTimeout(function () { b.textContent = "📋 Copiar chave PIX"; }, 2500); } if (typeof notif === "function") notif("Chave PIX copiada! Cole no app do seu banco."); }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(CHAVE).then(feito, fallback); return; }
+      fallback();
+    } catch (e) { fallback(); }
+    function fallback() {
+      try {
+        var t = document.createElement("textarea"); t.value = CHAVE; t.style.cssText = "position:fixed;opacity:0";
+        document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); feito();
+      } catch (e) { alert("Chave PIX: " + CHAVE); }
+    }
+  };
+  function injetar() {
+    try {
+      if (typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE && CURRENT_ROLE !== "cliente") return;
+      var alvo = document.getElementById("ap-honorarios"); if (!alvo) return;
+      if (document.getElementById("ap-pix-card")) return;
+      var c = document.createElement("div");
+      c.id = "ap-pix-card";
+      c.style.cssText = "background:linear-gradient(135deg,#071a2e,#0b2a1a);border:1px solid #22cc77;border-radius:14px;padding:14px 16px;margin:0 0 14px 0;box-shadow:0 0 14px rgba(34,204,119,.2)";
+      c.innerHTML =
+        '<div style="font-weight:800;color:#22cc77;font-size:14px;margin-bottom:4px">&#128179; Pague seus honorários com PIX</div>' +
+        '<div style="font-size:11px;color:#9ab">Favorecido: <b style="color:#fff">' + FAVORECIDO + '</b></div>' +
+        '<div style="font-size:11px;color:#9ab;word-break:break-all;margin:4px 0 8px">Chave (aleatória): <span style="color:#fff">' + CHAVE + '</span></div>' +
+        '<button id="ap-pix-btn" onclick="copiarPixAparat()" style="background:#22cc77;color:#04180c;border:0;border-radius:9px;padding:9px 14px;font-weight:800;font-size:13px;cursor:pointer;width:100%">&#128203; Copiar chave PIX</button>' +
+        '<div style="font-size:10px;color:#8888aa;margin-top:6px">Depois de pagar, use o botão "Já Paguei" para avisar o escritório.</div>';
+      alvo.insertBefore(c, alvo.firstChild);
+    } catch (e) {}
+  }
+  setInterval(injetar, 1500);
+  setTimeout(injetar, 2500);
+})();
