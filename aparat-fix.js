@@ -1747,3 +1747,74 @@
   setInterval(injetar, 1500);
   setTimeout(injetar, 2500);
 })();
+
+/* ===== Relatorio Excel (admin) ===== */
+(function () {
+  if (window.__APARAT_XLS__) return; window.__APARAT_XLS__ = 1;
+  function num(v) { v = ("" + (v == null ? "" : v)).replace(/[^0-9,.-]/g, ""); if (v.indexOf(",") > -1) v = v.replace(/\./g, "").replace(",", "."); return parseFloat(v) || 0; }
+  function carregarLib() {
+    return new Promise(function (res, rej) {
+      if (window.XLSX) return res();
+      var s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = res; s.onerror = function () { rej(new Error("Falha ao carregar biblioteca Excel")); };
+      document.head.appendChild(s);
+    });
+  }
+  window.baixarRelatorioExcel = async function () {
+    var btn = document.getElementById("ap-xls-btn");
+    try {
+      if (btn) btn.textContent = "⏳ Gerando...";
+      await carregarLib();
+      var hs = await dbGetAll("honorarios");
+      var fs = await dbGetAll("faturamento");
+      var os = await dbGetAll("obrigacoes");
+      var wb = XLSX.utils.book_new();
+      var abaHon = (hs || []).map(function (h) { return { Cliente: h.cliente || "", Referencia: h.referencia || "", "Valor (R$)": num(h.valor), Vencimento: h.vencimento || "", Status: h.status || "" }; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaHon.length ? abaHon : [{ Aviso: "Sem dados" }]), "Honorarios");
+      var abaFat = (fs || []).map(function (r) { var f = num(r.faturamento), d = num(r.despesa); return { Cliente: r.cliente || "", "Mes (ref)": r.mesRef || "", "Faturamento (R$)": f, "Despesas (R$)": d, "Resultado (R$)": f - d }; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaFat.length ? abaFat : [{ Aviso: "Sem dados" }]), "Faturamento");
+      var abaObr = (os || []).map(function (o) { return { Cliente: o.cliente || "", Tipo: o.tipo || "", "Valor (R$)": num(o.valor), Vencimento: o.vencimento || "", Competencia: o.competencia || "", Status: o.status || "" }; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaObr.length ? abaObr : [{ Aviso: "Sem dados" }]), "Obrigacoes");
+      var recebido = 0, pendente = 0;
+      (hs || []).forEach(function (h) { if (/pago/i.test(h.status || "")) recebido += (h.valorRecebido != null ? Number(h.valorRecebido) : num(h.valor)); else pendente += num(h.valor); });
+      var fatT = 0, despT = 0;
+      (fs || []).forEach(function (r) { fatT += num(r.faturamento); despT += num(r.despesa); });
+      var abaRes = [
+        { Indicador: "Honorarios recebidos (R$)", Valor: recebido },
+        { Indicador: "Honorarios pendentes (R$)", Valor: pendente },
+        { Indicador: "Faturamento total clientes (R$)", Valor: fatT },
+        { Indicador: "Despesas totais clientes (R$)", Valor: despT },
+        { Indicador: "Resultado total clientes (R$)", Valor: fatT - despT },
+        { Indicador: "Total de lancamentos de honorarios", Valor: (hs || []).length },
+        { Indicador: "Total de obrigacoes registradas", Valor: (os || []).length }
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaRes), "Resumo");
+      var ag = new Date();
+      var nome = "APARAT-relatorio-" + ag.getFullYear() + "-" + ("0" + (ag.getMonth() + 1)).slice(-2) + "-" + ("0" + ag.getDate()).slice(-2) + ".xlsx";
+      XLSX.writeFile(wb, nome);
+      if (typeof notif === "function") notif("📊 Relatorio Excel baixado: " + nome);
+    } catch (e) {
+      alert("Erro ao gerar o Excel: " + (e.message || e));
+    } finally {
+      if (btn) btn.innerHTML = "&#128202; Baixar relatório Excel";
+    }
+  };
+  function injetar() {
+    try {
+      if (typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE !== "admin") return;
+      if (document.getElementById("ap-xls-btn")) return;
+      var ancora = document.getElementById("adm-btn-notif") || document.getElementById("dash-obrig");
+      if (!ancora) return;
+      var b = document.createElement("button");
+      b.id = "ap-xls-btn";
+      b.innerHTML = "&#128202; Baixar relatório Excel";
+      b.style.cssText = "display:block;width:100%;margin:8px 0;background:#0e2033;border:1px solid #4488ff;color:#7fb2ff;border-radius:11px;padding:11px;font-weight:800;font-size:13px;cursor:pointer";
+      b.setAttribute("onclick", "baixarRelatorioExcel()");
+      if (ancora.id === "adm-btn-notif") ancora.parentElement.insertBefore(b, ancora.nextSibling);
+      else { var kc = ancora.closest(".kcard"); var linha = kc && kc.parentElement ? kc.parentElement : null; if (linha && linha.parentElement) linha.parentElement.insertBefore(b, linha); }
+    } catch (e) {}
+  }
+  setInterval(injetar, 1500);
+  setTimeout(injetar, 2500);
+})();
