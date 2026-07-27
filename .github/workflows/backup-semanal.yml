@@ -1,0 +1,27 @@
+name: Backup semanal dos dados
+on:
+  schedule:
+    - cron: '0 7 * * 0'
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependencias
+        working-directory: notificador
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Gerar backup
+        working-directory: notificador
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+        run: node backup.js
+      - name: Guardar backup (privado, 90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-aparat-${{ github.run_number }}
+          path: notificador/backup-aparat.json
+          retention-days: 90
