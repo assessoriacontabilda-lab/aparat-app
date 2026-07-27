@@ -573,7 +573,7 @@ body.foco .cli-top{display:none}
       <div class="fbox">
         <div class="ftitle">📋 Lançar Obrigação / Guia</div>
         <div class="fgrid">
-          <div class="fg"><label>Cliente</label><select id="ob-cli"><option>Mercearia Silva ME</option><option>Tech Soluções LTDA</option><option>Clínica Bem Estar</option></select></div>
+          <div class="fg"><label>Cliente</label><select id="ob-cli"></select></div>
           <div class="fg"><label>Tipo de Guia</label><select id="ob-tipo"><option>DAS Simples Nacional</option><option>DARF IRPJ</option><option>FGTS</option><option>INSS</option><option>ISS</option><option>ICMS</option></select></div>
           <div class="fg"><label>Valor (R$)</label><input id="ob-val" type="number" placeholder="0,00"/></div>
           <div class="fg"><label>Vencimento</label><input id="ob-venc" type="date"/></div>
@@ -641,10 +641,10 @@ body.foco .cli-top{display:none}
         <div class="fgrid">
           <div class="fg"><label>Cliente</label>
             <select id="hon-cli">
-              <option>Mercearia Silva ME</option>
-              <option>Tech Soluções LTDA</option>
-              <option>Clínica Bem Estar</option>
-              <option>Padaria Gostosa ME</option>
+              
+              
+              
+              
             </select>
           </div>
           <div class="fg"><label>Referência (mês)</label><input id="hon-ref" type="text" placeholder="Ex: Julho/2025"/></div>
@@ -802,7 +802,7 @@ body.foco .cli-top{display:none}
       <div class="fbox">
         <div class="ftitle">📅 Criar Agendamento</div>
         <div class="fgrid">
-          <div class="fg"><label>Cliente</label><select id="ag-cli"><option>Mercearia Silva ME</option><option>Tech Soluções LTDA</option></select></div>
+          <div class="fg"><label>Cliente</label><select id="ag-cli"></select></div>
           <div class="fg"><label>Tipo</label><select id="ag-tipo"><option>Reunião presencial</option><option>Videochamada</option><option>Entrega de documentos</option><option>Assinatura</option></select></div>
           <div class="fg"><label>Data</label><input id="ag-data" type="date"/></div>
           <div class="fg"><label>Hora</label><input id="ag-hora" type="time"/></div>
@@ -820,7 +820,7 @@ body.foco .cli-top{display:none}
       <div class="fbox">
         <div class="ftitle">🚨 Enviar Aviso Urgente</div>
         <div class="fgrid">
-          <div class="fg"><label>Destinatário</label><select id="urg-dest"><option>Todos os Clientes</option><option>Mercearia Silva ME</option><option>Tech Soluções LTDA</option></select></div>
+          <div class="fg"><label>Destinatário</label><select id="urg-dest"><option>Todos os Clientes</option></select></div>
           <div class="fg"><label>Prioridade</label><select id="urg-prio"><option>🔴 Alta</option><option>🟡 Média</option><option>🟢 Baixa</option></select></div>
         </div>
         <div class="fg" style="margin-bottom:8px"><label>Título</label><input id="urg-titulo" type="text" placeholder="Título do aviso"/></div>
@@ -901,7 +901,7 @@ body.foco .cli-top{display:none}
       <div class="fbox">
         <div class="ftitle">💰 Lançar Resultado Financeiro</div>
         <div class="fgrid">
-          <div class="fg"><label>Cliente</label><select id="fin-cli"><option>Mercearia Silva ME</option><option>Tech Soluções LTDA</option></select></div>
+          <div class="fg"><label>Cliente</label><select id="fin-cli"></select></div>
           <div class="fg"><label>Competência</label><input id="fin-comp" type="text" placeholder="06/2025"/></div>
           <div class="fg"><label>Receita (R$)</label><input id="fin-rec" type="number" placeholder="0,00" oninput="calcLucro()"/></div>
           <div class="fg"><label>Despesa (R$)</label><input id="fin-des" type="number" placeholder="0,00" oninput="calcLucro()"/></div>
@@ -920,7 +920,7 @@ body.foco .cli-top{display:none}
       <div class="fbox">
         <div class="ftitle">📄 Enviar PDF ao Cliente</div>
         <div class="fgrid">
-          <div class="fg"><label>Cliente</label><select id="doc-cli"><option>Mercearia Silva ME</option><option>Tech Soluções LTDA</option></select></div>
+          <div class="fg"><label>Cliente</label><select id="doc-cli"></select></div>
           <div class="fg"><label>Tipo</label><select id="doc-tipo"><option>Guia de pagamento</option><option>Boleto Honorário</option><option>Boleto em Atraso</option><option>Declaração</option><option>Relatório</option><option>Contrato</option></select></div>
         </div>
         <div class="fg" style="margin-bottom:10px"><label>Nome do Arquivo (opcional)</label><input id="doc-nome" type="text" placeholder="Ex: Declaração 2025.pdf"/></div>
@@ -1030,7 +1030,7 @@ body.foco .cli-top{display:none}
           <h3>Olá, João Silva 👋</h3>
           <h2>Portal Aparat</h2>
           <p>Seus dados contábeis em tempo real</p>
-          <div class="wetag">🏢 Mercearia Silva ME</div>
+          <div class="wetag">🏢 Cliente</div>
         </div>
         <div class="segbadge"><span>🔒</span><span>Conexão segura · Aparat Contabilidade</span></div>
         <div class="qgrid">
@@ -1188,7 +1188,7 @@ body.foco .cli-top{display:none}
 <div class="apage" id="ap-perfil">
         <div class="perfhdr">
           <div class="pavatar">MS</div>
-          <div class="pnome">Mercearia Silva ME</div>
+          <div class="pnome">Cliente</div>
           <div class="pcnpj">CNPJ: 12.345.678/0001-90</div>
           <div class="pregime">📋 Simples Nacional</div>
         </div>
@@ -3169,7 +3169,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
     <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
   </div>
 </div>
-<script defer src="aparat-fix.js?v=28"></script>
+<script defer src="aparat-fix.js?v=29"></script>
 <script defer src="nav-snippet.js?v=5"></script>
 <script defer src="client-pages.js?v=4"></script>
 <script>/*__APARAT_NAV_INLINE__*/
