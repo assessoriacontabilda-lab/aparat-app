@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Teste Instalar APARAT</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="../icon-192.png"/>
+</head>
+<body style="background:#07071a;color:#fff;font-family:sans-serif;padding:30px;text-align:center">
+<h2>Teste de instalação</h2>
+<p id="st">Aguardando o Chrome avaliar...</p>
+<button id="bt" style="display:none;padding:14px 22px;font-size:16px;font-weight:800;background:#3355ff;color:#fff;border:0;border-radius:12px">INSTALAR TESTE</button>
+<script>
+navigator.serviceWorker.register('sw-teste.js');
+var pr=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();pr=e;document.getElementById('st').textContent='✅ INSTALÁVEL! O Chrome liberou a instalação nesta página.';document.getElementById('bt').style.display='inline-block';});
+document.getElementById('bt').onclick=function(){if(pr)pr.prompt();};
+setTimeout(function(){if(!pr)document.getElementById('st').textContent='❌ O Chrome NÃO liberou a instalação nesta página (10s).';},10000);
+</script>
+</body></html>
