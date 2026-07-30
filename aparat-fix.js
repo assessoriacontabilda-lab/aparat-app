@@ -1818,3 +1818,59 @@
   setInterval(injetar, 1500);
   setTimeout(injetar, 2500);
 })();
+
+/* ===== Botao instalar aplicativo (PWA) ===== */
+(function () {
+  if (window.__APARAT_INSTALL__) return; window.__APARAT_INSTALL__ = 1;
+  var promptGuardado = null;
+  function emAppInstalado() {
+    try { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; } catch (e) { return false; }
+  }
+  function ehIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+  function navegadorDentroDeApp() { return /wv\)|FBAN|FBAV|Instagram|WhatsApp|Line\//i.test(navigator.userAgent); }
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    promptGuardado = e;
+    mostrar();
+  });
+  window.addEventListener("appinstalled", function () {
+    promptGuardado = null;
+    var b = document.getElementById("ap-inst-bar"); if (b) b.remove();
+    if (typeof notif === "function") notif("✅ Aplicativo instalado! Procure o ícone APARAT na tela do celular.");
+  });
+  window.instalarAppAparat = async function () {
+    if (promptGuardado) {
+      try {
+        promptGuardado.prompt();
+        var r = await promptGuardado.userChoice;
+        if (r && r.outcome === "accepted") { var b = document.getElementById("ap-inst-bar"); if (b) b.remove(); }
+        promptGuardado = null;
+      } catch (e) {}
+      return;
+    }
+    var msg;
+    if (ehIOS()) {
+      msg = "No iPhone: toque no botao Compartilhar (quadrado com seta) do Safari e escolha \"Adicionar a Tela de Inicio\".";
+    } else if (navegadorDentroDeApp()) {
+      msg = "Voce esta no navegador de dentro do WhatsApp. Toque nos 3 pontinhos no canto e escolha \"Abrir no Chrome\". La, toque de novo em INSTALAR APLICATIVO.";
+    } else {
+      msg = "No Chrome: toque nos 3 pontinhos (menu) e escolha \"Instalar aplicativo\" ou \"Adicionar a tela inicial\".";
+    }
+    alert("📲 COMO INSTALAR O APP APARAT\n\n" + msg);
+  };
+  function mostrar() {
+    try {
+      if (emAppInstalado()) return;
+      if (document.getElementById("ap-inst-bar")) return;
+      var bar = document.createElement("div");
+      bar.id = "ap-inst-bar";
+      bar.style.cssText = "position:fixed;left:10px;right:10px;bottom:10px;z-index:99998;background:linear-gradient(135deg,#101038,#0b2a56);border:1px solid #4488ff;border-radius:14px;padding:11px 13px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.5)";
+      bar.innerHTML =
+        '<div style="flex:1;min-width:0"><div style="font-weight:800;color:#fff;font-size:13px">&#128241; Instale o app APARAT</div><div style="font-size:11px;color:#9ab">Fica na tela do celular, com notificações</div></div>' +
+        '<button onclick="instalarAppAparat()" style="background:#3355ff;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">INSTALAR</button>' +
+        '<button onclick="document.getElementById(\'ap-inst-bar\').remove()" style="background:none;border:0;color:#667;font-size:16px;cursor:pointer">&#10005;</button>';
+      document.body.appendChild(bar);
+    } catch (e) {}
+  }
+  setTimeout(function () { if (!emAppInstalado() && !document.getElementById("ap-inst-bar")) mostrar(); }, 6000);
+})();
