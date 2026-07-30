@@ -1831,6 +1831,7 @@
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
     promptGuardado = e;
+    window.__AP_PROMPT_OK = 1;
     mostrar();
   });
   window.addEventListener("appinstalled", function () {
