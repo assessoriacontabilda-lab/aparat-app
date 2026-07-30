@@ -1874,3 +1874,196 @@
   }
   setTimeout(function () { if (!emAppInstalado() && !document.getElementById("ap-inst-bar")) mostrar(); }, 6000);
 })();
+
+/* ===== Calendario inteligente de vencimentos e agendamentos ===== */
+(function () {
+  if (window.__APARAT_CAL__) return; window.__APARAT_CAL__ = 1;
+  var FEITOS = ["pago", "lancado", "lançado", "recebido", "entregue", "enviado", "enviada ao cliente", "emitida", "emitida pelo escritorio", "emitida pelo escritório", "recebida de fornecedor", "conferida", "dispensado"];
+  var MESES_N = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
+  var calAno = 0, calMes = 0, diaSel = "";
+  function p2(n) { return ("0" + n).slice(-2); }
+  function esc2(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function num(v) { v = ("" + (v == null ? "" : v)).replace(/[^0-9,.-]/g, ""); if (v.indexOf(",") > -1) v = v.replace(/\./g, "").replace(",", "."); return parseFloat(v) || 0; }
+  function money(n) { return "R$ " + (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 }); }
+  function hojeISO() { var d = new Date(); return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
+  function dataISO(v) { var s = String(v || "").trim(); var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return m[1] + "-" + p2(+m[2]) + "-" + p2(+m[3]); m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[3] + "-" + p2(+m[2]) + "-" + p2(+m[1]); return ""; }
+  function dataBR(iso) { var m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + "/" + m[2] : ""; }
+  function pendente(st) { var s = String(st || "").trim().toLowerCase(); if (!s) return true; return FEITOS.indexOf(s) === -1; }
+  function souCliente() { try { return typeof CURRENT_ROLE !== "undefined" && CURRENT_ROLE === "cliente"; } catch (e) { return false; } }
+  function meuNome() { try { return (typeof CURRENT_CLIENTE !== "undefined" && CURRENT_CLIENTE) ? String(CURRENT_CLIENTE).trim().toLowerCase() : ""; } catch (e) { return ""; } }
+
+  async function coletar() {
+    var eventos = [];
+    var cli = souCliente() ? meuNome() : "";
+    function meu(n) { return !cli || String(n || "").trim().toLowerCase() === cli; }
+    try {
+      var hs = await dbGetAll("honorarios");
+      (hs || []).forEach(function (h) {
+        if (!meu(h.cliente)) return;
+        var d = dataISO(h.vencimento); if (!d) return;
+        eventos.push({ data: d, tipo: "hon", titulo: (souCliente() ? "Honorário contábil" : (h.cliente || "")), sub: "Honorário " + (h.referencia || "") + (!pendente(h.status) ? " · ✔ Pago" : ""), valor: num(h.valor), pend: pendente(h.status) });
+      });
+    } catch (e) {}
+    try {
+      var os = await dbGetAll("obrigacoes");
+      (os || []).forEach(function (o) {
+        if (!meu(o.cliente)) return;
+        var d = dataISO(o.vencimento); if (!d) return;
+        eventos.push({ data: d, tipo: "imp", titulo: (souCliente() ? (o.tipo || "Guia") : (o.cliente || "")), sub: (souCliente() ? "" : (o.tipo || "")) + (o.competencia ? " (" + o.competencia + ")" : "") + (!pendente(o.status) ? " · ✔ " + (o.status || "") : ""), valor: num(o.valor), pend: pendente(o.status) });
+      });
+    } catch (e) {}
+    try {
+      var ags = await dbGetAll("agenda");
+      (ags || []).forEach(function (a) {
+        if (!meu(a.cliente)) return;
+        var d = dataISO(a.data); if (!d) return;
+        eventos.push({ data: d, tipo: "age", titulo: (a.tipo || "Compromisso") + (souCliente() ? " com a APARAT" : " — " + (a.cliente || "")), sub: (a.hora ? a.hora + " · " : "") + (a.desc || ""), valor: 0, pend: false, agenda: true });
+      });
+    } catch (e) {}
+    return eventos;
+  }
+
+  window.calMudarMes = function (dir) { calMes += dir; if (calMes < 0) { calMes = 11; calAno--; } if (calMes > 11) { calMes = 0; calAno++; } diaSel = ""; desenhar(); };
+  window.fecharCalendarioAparat = function () { var m = document.getElementById("ap-cal-modal"); if (m) m.remove(); };
+  window.calDiaClique = function (iso) { if (souCliente()) return; diaSel = iso; desenhar(); };
+  window.calSalvarAgendamento = async function () {
+    try {
+      var cli = (document.getElementById("apc-cli") || {}).value || "";
+      var tp = (document.getElementById("apc-tipo") || {}).value || "Reunião";
+      var hr = (document.getElementById("apc-hora") || {}).value || "";
+      var dsc = (document.getElementById("apc-desc") || {}).value || "";
+      if (!cli) { alert("Escolha o cliente."); return; }
+      await dbAdd("agenda", { cliente: cli, tipo: tp, data: diaSel, hora: hr, desc: dsc });
+      if (typeof notif === "function") notif("📅 Agendamento criado! O cliente será avisado no celular.");
+      diaSel = "";
+      desenhar();
+    } catch (e) { alert("Erro ao agendar: " + (e.message || e)); }
+  };
+
+  async function nomesClientes() {
+    var set = {}, out = [];
+    try { var cs = await dbGetAll("clientes"); (cs || []).forEach(function (c) { var n = String(c.nome || "").trim(); if (n && !set[n.toLowerCase()]) { set[n.toLowerCase()] = 1; out.push(n); } }); } catch (e) {}
+    out.sort(function (a, b) { return a.localeCompare(b); });
+    return out;
+  }
+
+  async function desenhar() {
+    var m = document.getElementById("ap-cal-modal"); if (!m) return;
+    var corpo = m.querySelector("#ap-cal-corpo"); if (!corpo) return;
+    var evs = await coletar();
+    var hoje = hojeISO();
+    var mesIni = calAno + "-" + p2(calMes + 1);
+    var porDia = {};
+    evs.forEach(function (e) { if (e.data.slice(0, 7) === mesIni) { if (!porDia[e.data]) porDia[e.data] = []; porDia[e.data].push(e); } });
+    var prim = new Date(calAno, calMes, 1).getDay();
+    var nd = new Date(calAno, calMes + 1, 0).getDate();
+    var h = '<div style="display:flex;justify-content:space-between;align-items:center;background:#12122e;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-weight:800;font-size:14px">' +
+      '<span onclick="calMudarMes(-1)" style="color:#4488ff;cursor:pointer;padding:0 10px;font-size:18px">&#8249;</span>' +
+      "<span>" + MESES_N[calMes] + " / " + calAno + "</span>" +
+      '<span onclick="calMudarMes(1)" style="color:#4488ff;cursor:pointer;padding:0 10px;font-size:18px">&#8250;</span></div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">';
+    h += "<tr>" + ["D", "S", "T", "Q", "Q", "S", "S"].map(function (x) { return '<th style="color:#667;font-size:9px;padding:3px 0">' + x + "</th>"; }).join("") + "</tr><tr>";
+    for (var i = 0; i < prim; i++) h += "<td></td>";
+    var col = prim;
+    for (var d = 1; d <= nd; d++) {
+      var iso = calAno + "-" + p2(calMes + 1) + "-" + p2(d);
+      var lst = porDia[iso] || [];
+      var pts = "";
+      var temAtr = lst.some(function (e) { return e.pend && e.data < hoje; });
+      var visto = {};
+      lst.forEach(function (e) {
+        var cor = e.agenda ? "#33aaff" : (e.pend && e.data < hoje) ? "#ff4455" : (e.tipo === "hon" ? "#22cc77" : "#ffaa22");
+        if (visto[cor]) return; visto[cor] = 1;
+        pts += '<i style="display:inline-block;width:6px;height:6px;border-radius:50%;margin:1px;background:' + cor + '"></i>';
+      });
+      var estilo = "padding:5px 0;height:34px;vertical-align:top;border-radius:8px;cursor:" + (souCliente() ? "default" : "pointer");
+      if (iso === hoje) estilo += ";background:#152a4d;border:1px solid #4488ff";
+      if (iso === diaSel) estilo += ";background:#1d3a1d;border:1px solid #22cc77";
+      h += '<td onclick="calDiaClique(\'' + iso + '\')" style="' + estilo + '"><span style="color:' + (temAtr ? "#ff8899" : "#ccd") + ";font-weight:" + (iso === hoje ? "800" : "400") + '">' + d + "</span><br>" + pts + "</td>";
+      col++;
+      if (col % 7 === 0 && d < nd) h += "</tr><tr>";
+    }
+    h += "</tr></table>";
+    h += '<div style="display:flex;gap:10px;font-size:9px;color:#9ab;margin:8px 0;justify-content:center;flex-wrap:wrap">' +
+      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22cc77;margin-right:3px"></i>Honorário</span>' +
+      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffaa22;margin-right:3px"></i>Imposto/Guia</span>' +
+      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff4455;margin-right:3px"></i>Atraso</span>' +
+      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#33aaff;margin-right:3px"></i>Agendamento</span></div>';
+    if (!souCliente()) {
+      if (diaSel) {
+        var nomes = await nomesClientes();
+        h += '<div style="background:#0f2418;border:1px solid #22cc77;border-radius:12px;padding:10px;margin-bottom:10px">' +
+          '<div style="font-weight:800;color:#22cc77;font-size:12px;margin-bottom:6px">&#10133; Agendar para ' + dataBR(diaSel) + "/" + diaSel.slice(0, 4) + "</div>" +
+          '<select id="apc-cli" style="width:100%;margin-bottom:6px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"><option value="">Escolha o cliente...</option>' + nomes.map(function (n) { return "<option>" + esc2(n) + "</option>"; }).join("") + "</select>" +
+          '<div style="display:flex;gap:6px;margin-bottom:6px"><select id="apc-tipo" style="flex:1;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"><option>Reunião</option><option>Entrega de Documentos</option><option>Visita</option><option>Ligação</option><option>Outro</option></select>' +
+          '<input id="apc-hora" type="time" style="width:96px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"/></div>' +
+          '<input id="apc-desc" placeholder="Descrição (opcional)" style="width:100%;box-sizing:border-box;margin-bottom:8px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"/>' +
+          '<button onclick="calSalvarAgendamento()" style="width:100%;background:#22cc77;color:#04180c;border:0;border-radius:9px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">SALVAR AGENDAMENTO</button></div>';
+      } else {
+        h += '<div style="background:#152a4d;border:1px dashed #4488ff;border-radius:10px;padding:8px;text-align:center;font-size:11px;color:#7fb2ff;font-weight:800;margin-bottom:10px">&#10133; Toque em um dia para AGENDAR</div>';
+      }
+    }
+    var atras = evs.filter(function (e) { return e.pend && e.data < hoje; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var doMesFut = evs.filter(function (e) { return !(e.pend && e.data < hoje) && e.data.slice(0, 7) === mesIni; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var lista = atras.concat(doMesFut).slice(0, 20);
+    h += '<div style="background:#10102a;border:1px solid #232350;border-radius:12px;padding:10px"><div style="font-size:11px;font-weight:800;color:#7fb2ff;margin-bottom:4px">' + (souCliente() ? "O QUE VENCE PARA VOCÊ" : "ATRASADOS E PRÓXIMOS") + "</div>";
+    if (!lista.length) h += '<div style="font-size:11px;color:#667;padding:6px 0">Nada por aqui neste mês ✅</div>';
+    lista.forEach(function (e, ix) {
+      var atr = e.pend && e.data < hoje;
+      var corD = e.agenda ? "background:#0d2438;color:#33aaff" : atr ? "background:#3a1020;color:#ff8899" : "background:#152a4d;color:#7fb2ff";
+      var tag = e.agenda ? ["#0d2438", "#33aaff", "AGENDA"] : atr ? ["#2a0d14", "#ff5566", "ATRASADO"] : e.tipo === "hon" ? ["#0f2a18", "#22cc77", "HONORÁRIO"] : ["#2a1c08", "#ffaa22", "IMPOSTO"];
+      h += '<div style="display:flex;gap:8px;align-items:center;padding:6px 2px;font-size:11px;' + (ix < lista.length - 1 ? "border-bottom:1px dashed #1e1e3e" : "") + '">' +
+        '<span style="border-radius:8px;padding:4px 7px;font-weight:800;font-size:11px;min-width:34px;text-align:center;' + corD + '">' + dataBR(e.data) + "</span>" +
+        '<div style="flex:1;min-width:0"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(e.titulo) + '</div><div style="color:#778;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(e.sub) + "</div></div>" +
+        (e.valor ? '<span style="font-weight:700;white-space:nowrap">' + money(e.valor) + "</span>" : "") +
+        '<span style="font-size:8px;padding:2px 6px;border-radius:6px;font-weight:800;background:' + tag[0] + ";color:" + tag[1] + '">' + tag[2] + "</span></div>";
+    });
+    h += "</div>";
+    corpo.innerHTML = h;
+  }
+
+  window.abrirCalendarioAparat = function () {
+    if (document.getElementById("ap-cal-modal")) return;
+    var ag = new Date(); calAno = ag.getFullYear(); calMes = ag.getMonth(); diaSel = "";
+    var m = document.createElement("div");
+    m.id = "ap-cal-modal";
+    m.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(4,4,16,.92);overflow:auto;padding:14px";
+    m.innerHTML = '<div style="max-width:430px;margin:0 auto;background:#0a0a22;border:1px solid #232350;border-radius:18px;padding:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+      '<div style="font-weight:800;font-size:15px;color:#fff">&#128197; ' + (souCliente() ? "Meus Vencimentos" : "Calendário de Vencimentos") + "</div>" +
+      '<button onclick="fecharCalendarioAparat()" style="background:none;border:0;color:#889;font-size:20px;cursor:pointer">&#10005;</button></div>' +
+      '<div style="font-size:10px;color:#8888aa;margin-bottom:10px">' + (souCliente() ? "Honorários, guias e agendamentos" : "Honorários e impostos de todos os clientes + agenda") + "</div>" +
+      '<div id="ap-cal-corpo" style="color:#fff">Carregando...</div></div>';
+    document.body.appendChild(m);
+    desenhar();
+  };
+
+  function injetarBotoes() {
+    try {
+      if (typeof CURRENT_ROLE === "undefined" || !CURRENT_ROLE) return;
+      if (CURRENT_ROLE === "admin") {
+        if (document.getElementById("ap-cal-btn")) return;
+        var anc = document.getElementById("ap-xls-btn") || document.getElementById("adm-btn-notif");
+        if (!anc) return;
+        var b = document.createElement("button");
+        b.id = "ap-cal-btn";
+        b.innerHTML = "&#128197; Calendário de Vencimentos e Agenda";
+        b.style.cssText = "display:block;width:100%;margin:8px 0;background:#101038;border:1px solid #8866ff;color:#b39bff;border-radius:11px;padding:11px;font-weight:800;font-size:13px;cursor:pointer";
+        b.setAttribute("onclick", "abrirCalendarioAparat()");
+        anc.parentElement.insertBefore(b, anc.nextSibling);
+      } else {
+        if (document.getElementById("ap-cal-fab")) return;
+        if (!document.querySelector(".apbot") && !document.getElementById("ap-honorarios")) return;
+        var f = document.createElement("button");
+        f.id = "ap-cal-fab";
+        f.innerHTML = "&#128197;";
+        f.title = "Meus Vencimentos";
+        f.style.cssText = "position:fixed;left:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9999;width:48px;height:48px;border-radius:50%;background:#101038;border:1px solid #8866ff;color:#b39bff;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)";
+        f.setAttribute("onclick", "abrirCalendarioAparat()");
+        document.body.appendChild(f);
+      }
+    } catch (e) {}
+  }
+  setInterval(injetarBotoes, 1600);
+  setTimeout(injetarBotoes, 2600);
+})();
