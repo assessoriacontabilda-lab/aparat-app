@@ -1,5 +1,5 @@
 /* APARAT service worker v18 - unico: instalacao (fetch/cache) + notificacoes push */
-var CACHE = 'aparat-v38';
+var CACHE = 'aparat-v39';
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
