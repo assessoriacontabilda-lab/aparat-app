@@ -2201,7 +2201,7 @@ async function initPush(role,nome){
     if(!fdb || !('serviceWorker' in navigator) || typeof firebase==='undefined' || !firebase.messaging) return;
     if(!('Notification' in window)) return;
     if(Notification.permission!=='granted'){ var p=await Notification.requestPermission(); if(p!=='granted') return; }
-    var reg=await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    var reg=await navigator.serviceWorker.ready;
     var msg=firebase.messaging();
     var token=await msg.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
     if(token){ try{ await fdb.collection('tokens').doc(token.substring(0,60)).set({token:token,role:role||'',cliente:nome||'',email:(auth&&auth.currentUser?auth.currentUser.email:''),ts:Date.now()}); }catch(e){} }
