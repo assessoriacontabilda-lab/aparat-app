@@ -2005,7 +2005,8 @@
       }
     }
     var atras = evs.filter(function (e) { return e.pend && e.data < hoje; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
-    var doMesFut = evs.filter(function (e) { return !(e.pend && e.data < hoje) && e.data.slice(0, 7) === mesIni; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var mesSeg = (function(){ var a = calAno, m = calMes + 1; if (m > 11) { m = 0; a++; } return a + "-" + p2(m + 1); })();
+    var doMesFut = evs.filter(function (e) { var mm = e.data.slice(0, 7); return !(e.pend && e.data < hoje) && (mm === mesIni || mm === mesSeg) && e.data >= hoje; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
     var lista = atras.concat(doMesFut).slice(0, 20);
     h += '<div style="background:#10102a;border:1px solid #232350;border-radius:12px;padding:10px"><div style="font-size:11px;font-weight:800;color:#7fb2ff;margin-bottom:4px">' + (souCliente() ? "O QUE VENCE PARA VOCÊ" : "ATRASADOS E PRÓXIMOS") + "</div>";
     if (!lista.length) h += '<div style="font-size:11px;color:#667;padding:6px 0">Nada por aqui neste mês ✅</div>';
@@ -2042,19 +2043,10 @@
   function injetarBotoes() {
     try {
       if (typeof CURRENT_ROLE === "undefined" || !CURRENT_ROLE) return;
-      if (CURRENT_ROLE === "admin") {
-        if (document.getElementById("ap-cal-btn")) return;
-        var anc = document.getElementById("ap-xls-btn") || document.getElementById("adm-btn-notif");
-        if (!anc) return;
-        var b = document.createElement("button");
-        b.id = "ap-cal-btn";
-        b.innerHTML = "&#128197; Calendário de Vencimentos e Agenda";
-        b.style.cssText = "display:block;width:100%;margin:8px 0;background:#101038;border:1px solid #8866ff;color:#b39bff;border-radius:11px;padding:11px;font-weight:800;font-size:13px;cursor:pointer";
-        b.setAttribute("onclick", "abrirCalendarioAparat()");
-        anc.parentElement.insertBefore(b, anc.nextSibling);
-      } else {
+      {
+        var velho = document.getElementById("ap-cal-btn"); if (velho) velho.remove();
         if (document.getElementById("ap-cal-fab")) return;
-        if (!document.querySelector(".apbot") && !document.getElementById("ap-honorarios")) return;
+        if (CURRENT_ROLE !== "admin" && !document.querySelector(".apbot") && !document.getElementById("ap-honorarios")) return;
         var f = document.createElement("button");
         f.id = "ap-cal-fab";
         f.innerHTML = "&#128197;";
