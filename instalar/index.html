@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Instalar o App APARAT</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="../icon-192.png"/>
+<meta name="theme-color" content="#0D1A33"/>
+</head>
+<body style="margin:0;background:#0D1A33;color:#fff;font-family:sans-serif;text-align:center;padding:34px 22px">
+<img src="../icon-192.png" style="width:96px;height:96px;border-radius:22px;box-shadow:0 6px 18px rgba(0,0,0,.4)"/>
+<h2 style="margin:14px 0 4px">Instalar o App APARAT</h2>
+<p id="st" style="color:#9ab;font-size:14px">Preparando o motor do aplicativo...</p>
+<button id="bt" style="display:none;width:100%;max-width:340px;padding:16px;font-size:17px;font-weight:800;background:#3355ff;color:#fff;border:0;border-radius:14px;margin-top:8px">📲 INSTALAR AGORA</button>
+<div id="menu" style="display:none;background:#132647;border:1px solid #2a4a7f;border-radius:14px;padding:14px;margin-top:16px;font-size:14px;text-align:left;max-width:340px;margin-left:auto;margin-right:auto">
+<b>Instale pelo menu:</b><br><br>
+1️⃣ Toque nos <b>3 pontinhos ⋮</b> no canto de cima<br>
+2️⃣ Toque em <b>"Instalar aplicativo"</b> ou <b>"Adicionar à tela inicial"</b><br>
+3️⃣ Confirme — o ícone <b>A azul</b> vai para a tela<br><br>
+Depois é só abrir pelo ícone novo!
+</div>
+<script>
+var pr=null, st=document.getElementById('st'), bt=document.getElementById('bt'), menu=document.getElementById('menu');
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();pr=e;st.textContent='✅ Tudo pronto!';bt.style.display='inline-block';menu.style.display='none';});
+bt.onclick=function(){ if(pr){ pr.prompt(); pr.userChoice.then(function(r){ if(r&&r.outcome==='accepted'){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; } }); } };
+window.addEventListener('appinstalled',function(){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; menu.style.display='none'; });
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('../sw.js',{updateViaCache:'none'}).then(function(){
+    navigator.serviceWorker.ready.then(function(){
+      setTimeout(function(){ if(!pr){ st.textContent='✅ Motor pronto. Agora instale pelo menu:'; menu.style.display='block'; } },6000);
+    });
+  }).catch(function(){ st.textContent='Erro ao preparar. Recarregue a página.'; });
+} else { st.textContent='Navegador sem suporte. Use o Chrome.'; }
+</script>
+</body></html>
