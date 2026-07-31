@@ -1,5 +1,32 @@
-/* APARAT service worker v17 - network-first + auto-atualizar clientes */
-var CACHE = 'aparat-v35';
+/* APARAT service worker v18 - unico: instalacao (fetch/cache) + notificacoes push */
+var CACHE = 'aparat-v36';
+
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+firebase.initializeApp({
+  apiKey: "AIzaSyB5uHbMeK9OWUVYaaLv7oQr7NeHZDsVsMQ",
+  authDomain: "aparat-contabilidade.firebaseapp.com",
+  projectId: "aparat-contabilidade",
+  storageBucket: "aparat-contabilidade.firebasestorage.app",
+  messagingSenderId: "657898871170",
+  appId: "1:657898871170:web:26cbb9c9eaf2929bddd79b"
+});
+var messaging = firebase.messaging();
+messaging.onBackgroundMessage(function (payload) {
+  var n = payload.notification || {};
+  var t = n.title || 'Aparat Contabilidade';
+  var b = n.body || 'Você tem uma novidade no app.';
+  self.registration.showNotification(t, { body: b, icon: 'icone-aparat.png', badge: 'icone-aparat.png', tag: 'aparat' });
+  try { if (self.navigator && self.navigator.setAppBadge) self.navigator.setAppBadge(1); } catch (e) {}
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  try { if (self.navigator && self.navigator.clearAppBadge) self.navigator.clearAppBadge(); } catch (err) {}
+  e.waitUntil(clients.matchAll({ type: 'window' }).then(function (cl) {
+    for (var i = 0; i < cl.length; i++) { if ('focus' in cl[i]) return cl[i].focus(); }
+    if (clients.openWindow) return clients.openWindow('./');
+  }));
+});
 
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 
@@ -14,7 +41,10 @@ self.addEventListener('activate', function (e) {
   })());
 });
 
-self.addEventListener('message', function (e) { if (e.data === 'skipWaiting' || (e.data && e.data.type === 'skipWaiting')) self.skipWaiting(); });
+self.addEventListener('message', function (e) {
+  if (e.data === 'skipWaiting' || (e.data && e.data.type === 'skipWaiting')) self.skipWaiting();
+  if (e.data === 'limpar-bolinha') { try { if (self.navigator && self.navigator.clearAppBadge) self.navigator.clearAppBadge(); } catch (err) {} }
+});
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;
