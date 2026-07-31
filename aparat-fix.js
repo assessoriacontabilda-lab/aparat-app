@@ -2234,13 +2234,14 @@
 /* ===== Editar cadastro de cliente ===== */
 (function () {
   if (window.__APARAT_CLIEDIT__) return; window.__APARAT_CLIEDIT__ = 1;
-  var editando = null;
+  var editando = null, nomeAntigo = "";
   window.editarClienteAparat = async function (id) {
     try {
       var cs = await dbGetAll("clientes");
       var c = cs.find(function (x) { return String(x.id) === String(id); });
       if (!c) return;
       editando = id;
+      nomeAntigo = c.nome || "";
       setVal("cli-nome", c.nome || ""); setVal("cli-cnpj", c.cnpj || "");
       setVal("cli-resp", c.responsavel || ""); setVal("cli-wpp", c.whatsapp || "");
       setVal("cli-email", c.email || ""); setVal("cli-hon", c.honorario || "");
@@ -2284,7 +2285,29 @@
       if (!nome || !cnpj) { notif("⚠ Preencha Razão Social e CNPJ", "warn"); return; }
       var dados = { nome: nome, cnpj: cnpj, responsavel: val("cli-resp"), whatsapp: val("cli-wpp"), email: val("cli-email"), regime: val("cli-reg"), honorario: val("cli-hon") || "0", dia: val("cli-dia") };
       await dbUpdate("clientes", editando, dados);
-      if (typeof notif === "function") notif("✅ Cadastro de " + nome + " atualizado!");
+      if (nomeAntigo && nomeAntigo.trim().toLowerCase() !== nome.trim().toLowerCase()) {
+        if (typeof notif === "function") notif("🔄 Nome mudou — atualizando todos os registros do cliente...");
+        var ALVOS = [["usuarios", "clienteNome"], ["honorarios", "cliente"], ["obrigacoes", "cliente"], ["obrigacoesAnuais", "cliente"], ["faturamento", "cliente"], ["agenda", "cliente"], ["docs", "cliente"], ["notas", "cliente"], ["solicitacoes", "cliente"], ["enviosCliente", "cliente"], ["recebidos", "cliente"], ["dados", "cliente"], ["tokens", "cliente"]];
+        var trocados = 0;
+        var velho = nomeAntigo.trim().toLowerCase();
+        for (var ai = 0; ai < ALVOS.length; ai++) {
+          try {
+            var docs = await dbGetAll(ALVOS[ai][0]);
+            for (var di = 0; di < (docs || []).length; di++) {
+              var dd = docs[di];
+              if (String(dd[ALVOS[ai][1]] || "").trim().toLowerCase() === velho) {
+                var up = {}; up[ALVOS[ai][1]] = nome;
+                await dbUpdate(ALVOS[ai][0], dd.id, up);
+                trocados++;
+              }
+            }
+          } catch (e) {}
+        }
+        if (typeof notif === "function") notif("✅ Cadastro atualizado e nome trocado em " + trocados + " registro(s)! O cliente vê o nome novo ao reabrir o app.");
+      } else {
+        if (typeof notif === "function") notif("✅ Cadastro de " + nome + " atualizado!");
+      }
+      nomeAntigo = "";
       window.cancelarEdicaoCliente();
       if (typeof carregarClientes === "function") await carregarClientes();
       if (typeof atualizarSelects === "function") await atualizarSelects();
