@@ -2230,3 +2230,90 @@
     desenhar();
   };
 })();
+
+/* ===== Editar cadastro de cliente ===== */
+(function () {
+  if (window.__APARAT_CLIEDIT__) return; window.__APARAT_CLIEDIT__ = 1;
+  var editando = null;
+  window.editarClienteAparat = async function (id) {
+    try {
+      var cs = await dbGetAll("clientes");
+      var c = cs.find(function (x) { return String(x.id) === String(id); });
+      if (!c) return;
+      editando = id;
+      setVal("cli-nome", c.nome || ""); setVal("cli-cnpj", c.cnpj || "");
+      setVal("cli-resp", c.responsavel || ""); setVal("cli-wpp", c.whatsapp || "");
+      setVal("cli-email", c.email || ""); setVal("cli-hon", c.honorario || "");
+      setVal("cli-dia", c.dia || "");
+      try { var rg = document.getElementById("cli-reg"); if (rg && c.regime) rg.value = c.regime; } catch (e) {}
+      trocarBotao(true);
+      try { var f = document.getElementById("cli-nome"); if (f) { f.scrollIntoView({ behavior: "smooth", block: "center" }); f.focus(); } } catch (e) {}
+      if (typeof notif === "function") notif("✏️ Editando " + (c.nome || "cliente") + " — altere os campos e toque em Atualizar.");
+    } catch (e) {}
+  };
+  window.cancelarEdicaoCliente = function () {
+    editando = null;
+    ["cli-nome", "cli-cnpj", "cli-resp", "cli-wpp", "cli-email", "cli-hon", "cli-dia", "cli-senha"].forEach(function (i) { try { setVal(i, ""); } catch (e) {} });
+    trocarBotao(false);
+  };
+  function botaoCadastrar() {
+    return [].find.call(document.querySelectorAll("button"), function (b) { return /Cadastrar Cliente|Atualizar Cliente/.test(b.textContent); });
+  }
+  function trocarBotao(edicao) {
+    var b = botaoCadastrar(); if (!b) return;
+    b.innerHTML = edicao ? "✏️ Atualizar Cliente" : "💾 Cadastrar Cliente";
+    var canc = document.getElementById("cli-canc-edit");
+    if (edicao) {
+      if (!canc) {
+        canc = document.createElement("button");
+        canc.id = "cli-canc-edit";
+        canc.className = b.className;
+        canc.style.cssText = "background:#2a1c1c;border:1px solid #885555;color:#dd9999;margin-left:8px";
+        canc.textContent = "✖ Cancelar edição";
+        canc.setAttribute("onclick", "cancelarEdicaoCliente()");
+        b.parentElement.insertBefore(canc, b.nextSibling);
+      }
+    } else if (canc) canc.remove();
+  }
+  function instalar() {
+    if (typeof window.cadastrarCliente !== "function" || window.cadastrarCliente.__apEd) return false;
+    var orig = window.cadastrarCliente;
+    var novo = async function () {
+      if (!editando) { return orig.apply(this, arguments); }
+      var nome = val("cli-nome"), cnpj = val("cli-cnpj");
+      if (!nome || !cnpj) { notif("⚠ Preencha Razão Social e CNPJ", "warn"); return; }
+      var dados = { nome: nome, cnpj: cnpj, responsavel: val("cli-resp"), whatsapp: val("cli-wpp"), email: val("cli-email"), regime: val("cli-reg"), honorario: val("cli-hon") || "0", dia: val("cli-dia") };
+      await dbUpdate("clientes", editando, dados);
+      if (typeof notif === "function") notif("✅ Cadastro de " + nome + " atualizado!");
+      window.cancelarEdicaoCliente();
+      if (typeof carregarClientes === "function") await carregarClientes();
+      if (typeof atualizarSelects === "function") await atualizarSelects();
+      if (typeof atualizarDashboard === "function") await atualizarDashboard();
+    };
+    novo.__apEd = 1; window.cadastrarCliente = novo;
+    return true;
+  }
+  function injetarBotoes() {
+    try {
+      var tb = document.getElementById("tb-clientes"); if (!tb) return;
+      [].forEach.call(tb.querySelectorAll("tr"), function (tr) {
+        if (tr.getAttribute("data-aped") === "1") return;
+        var btnEx = tr.querySelector('button[onclick^="excluirCliente"]');
+        if (!btnEx) return;
+        tr.setAttribute("data-aped", "1");
+        var m = String(btnEx.getAttribute("onclick") || "").match(/excluirCliente\('([^']+)'\)/);
+        if (!m) return;
+        var b = document.createElement("button");
+        b.className = "btn-sm";
+        b.style.cssText = "background:#0e2033;border:1px solid #4488ff;color:#7fb2ff;margin-right:4px";
+        b.textContent = "✏️ Editar";
+        b.setAttribute("onclick", "editarClienteAparat('" + m[1] + "')");
+        btnEx.parentElement.insertBefore(b, btnEx);
+      });
+    } catch (e) {}
+  }
+  var tent = 0;
+  var iv = setInterval(function () { if (instalar() && ++tent > 3) clearInterval(iv); tent++; if (tent > 80) clearInterval(iv); }, 700);
+  setInterval(injetarBotoes, 1300);
+  setTimeout(injetarBotoes, 2000);
+})();
