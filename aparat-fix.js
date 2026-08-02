@@ -2089,6 +2089,34 @@
     return evs;
   }
 
+  var TIPOS_FIXOS = ["Reunião", "Entrega de Documentos", "Entrega de Impostos do Cliente", "Entrega de Notas Fiscais", "Visita", "Ligação", "Outro"];
+  async function tiposAg() {
+    var out = TIPOS_FIXOS.slice();
+    try { (await dbGetAll("agendaTipos") || []).forEach(function (t) { var n = String(t.nome || "").trim(); if (n && out.indexOf(n) < 0) out.push(n); }); } catch (e) {}
+    return out;
+  }
+  window.calTipoChange = async function (sel) {
+    if (sel.value !== "__novo__") return;
+    var n = prompt("Digite o nome do novo tipo de agendamento:");
+    if (n && n.trim()) {
+      n = n.trim();
+      try { await dbAdd("agendaTipos", { nome: n }); if (typeof notif === "function") notif("✅ Tipo \"" + n + "\" cadastrado!"); } catch (e) { alert("Não consegui salvar o tipo: " + (e.message || e)); }
+      var o = document.createElement("option"); o.textContent = n;
+      var nv = sel.querySelector('option[value="__novo__"]');
+      sel.insertBefore(o, nv); sel.value = n;
+    } else { sel.value = TIPOS_FIXOS[0]; }
+  };
+  window.calGoogleAg = async function (id) {
+    try {
+      var ags = await dbGetAll("agenda"); var a = ags.find(function (x) { return String(x.id) === String(id); }); if (!a) return;
+      var d = dataISO(a.data).replace(/-/g, ""); if (!d) return;
+      var hm = String(a.hora || "09:00").match(/(\d{1,2}):(\d{2})/) || [0, "09", "00"];
+      var ini = d + "T" + p2(+hm[1]) + hm[2] + "00";
+      var fim = d + "T" + p2(Math.min(+hm[1] + 1, 23)) + hm[2] + "00";
+      var url = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent((a.tipo || "Compromisso") + " — " + (a.cliente || "")) + "&dates=" + ini + "/" + fim + "&ctz=America/Sao_Paulo&details=" + encodeURIComponent((a.desc || "") + "\n(Agendado pelo app APARAT)");
+      window.open(url, "_blank");
+    } catch (e) {}
+  };
   window.calMudarMes = function (dir) { calMes += dir; if (calMes < 0) { calMes = 11; calAno--; } if (calMes > 11) { calMes = 0; calAno++; } diaSel = ""; editId = ""; desenhar(); };
   window.fecharCalendarioAparat = function () { var m = document.getElementById("ap-cal-modal"); if (m) m.remove(); };
   window.calDiaClique = function (iso) { if (souCliente()) return; diaSel = iso; editId = ""; preencher = null; desenhar(); };
@@ -2177,11 +2205,12 @@
     if (!souCliente()) {
       if (diaSel) {
         var nomes = await nomesClientes();
+        var tipos = await tiposAg();
         var pf = preencher || {};
         h += '<div style="background:#0f2418;border:1px solid #22cc77;border-radius:12px;padding:10px;margin-bottom:10px">' +
           '<div style="font-weight:800;color:#22cc77;font-size:12px;margin-bottom:6px">' + (editId ? "&#9999;&#65039; Editar agendamento de " : "&#10133; Agendar para ") + dataBR(diaSel) + "/" + diaSel.slice(0, 4) + "</div>" +
           '<select id="apc-cli" style="width:100%;margin-bottom:6px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"><option value="">Escolha o cliente...</option>' + nomes.map(function (n) { return "<option" + (norm(n) === norm(pf.cliente) ? " selected" : "") + ">" + esc2(n) + "</option>"; }).join("") + "</select>" +
-          '<div style="display:flex;gap:6px;margin-bottom:6px"><select id="apc-tipo" style="flex:1;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px">' + ["Reunião", "Entrega de Documentos", "Visita", "Ligação", "Outro"].map(function (t) { return "<option" + (t === pf.tipo ? " selected" : "") + ">" + t + "</option>"; }).join("") + "</select>" +
+          '<div style="display:flex;gap:6px;margin-bottom:6px"><select id="apc-tipo" onchange="calTipoChange(this)" style="flex:1;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px">' + tipos.map(function (t) { return "<option" + (t === pf.tipo ? " selected" : "") + ">" + esc2(t) + "</option>"; }).join("") + '<option value="__novo__">➕ Cadastrar novo tipo...</option></select>' +
           '<input id="apc-hora" type="time" value="' + esc2(pf.hora || "") + '" style="width:96px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"/></div>' +
           '<input id="apc-desc" placeholder="Descrição (opcional)" value="' + esc2(pf.desc || "") + '" style="width:100%;box-sizing:border-box;margin-bottom:8px;background:#0a0a22;color:#fff;border:1px solid #232350;border-radius:8px;padding:8px;font-size:12px"/>' +
           '<button onclick="calSalvarAgendamento()" style="width:100%;background:#22cc77;color:#04180c;border:0;border-radius:9px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">' + (editId ? "SALVAR ALTERAÇÕES" : "SALVAR AGENDAMENTO") + "</button></div>";
@@ -2201,7 +2230,7 @@
       var tag = e.agenda ? ["#0d2438", "#33aaff", "AGENDA"] : atr ? ["#2a0d14", "#ff5566", "ATRASADO"] : e.tipo === "hon" ? ["#0f2a18", "#22cc77", "HONORÁRIO"] : ["#2a1c08", "#ffaa22", "IMPOSTO"];
       var acoes = "";
       if (!souCliente()) {
-        if (e.agenda) acoes = '<span onclick="calEditarAg(\'' + e.id + '\')" style="cursor:pointer;font-size:13px;margin-left:4px" title="Editar">&#9999;&#65039;</span><span onclick="calExcluirAg(\'' + e.id + '\')" style="cursor:pointer;font-size:13px;margin-left:4px" title="Excluir">&#128465;&#65039;</span>';
+        if (e.agenda) acoes = '<span onclick="calGoogleAg(\'' + e.id + '\')" style="cursor:pointer;font-size:13px;margin-left:4px" title="Adicionar ao Google Agenda">&#128198;</span><span onclick="calEditarAg(\'' + e.id + '\')" style="cursor:pointer;font-size:13px;margin-left:4px" title="Editar">&#9999;&#65039;</span><span onclick="calExcluirAg(\'' + e.id + '\')" style="cursor:pointer;font-size:13px;margin-left:4px" title="Excluir">&#128465;&#65039;</span>';
         else if (e.pend) acoes = '<span onclick="calBaixa(\'' + e.coll + "','" + e.id + '\')" style="cursor:pointer;font-size:11px;margin-left:4px;background:#0f2a18;color:#22cc77;border:1px solid #22cc77;border-radius:6px;padding:2px 6px;font-weight:800" title="Dar baixa">&#10004;</span>';
       }
       h += '<div style="display:flex;gap:7px;align-items:center;padding:6px 2px;font-size:11px;' + (ix < lista.length - 1 ? "border-bottom:1px dashed #1e1e3e" : "") + '">' +
