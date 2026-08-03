@@ -73,6 +73,7 @@ async function main() {
     let sh = doc.sheetsByTitle[titulo];
     if (!sh) sh = await doc.addSheet({ title: titulo, headerValues: cab, index: indice });
     await sh.clear();
+    try { await sh.resize({ rowCount: Math.max(dados.length + 5, 20), columnCount: Math.max(cab.length, 8) }); } catch (e) {}
     await sh.setHeaderRow(cab);
     if (dados.length) await sh.addRows(dados);
     try { await sh.updateProperties({ index: indice, gridProperties: { frozenRowCount: 1, rowCount: dados.length + 5, columnCount: cab.length } }); } catch (e) {}
