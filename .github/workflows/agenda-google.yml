@@ -1,0 +1,23 @@
+name: Agenda do app na Google Agenda
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      SIMULACAO:
+        description: "1 = simulacao (nao grava), 0 = valendo"
+        required: false
+        default: "0"
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save firebase-admin google-auth-library
+      - run: node notificador/agenda-google.js
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+          SIMULACAO: ${{ github.event.inputs.SIMULACAO || '0' }}
