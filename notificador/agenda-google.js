@@ -11,7 +11,7 @@
 const admin = require("firebase-admin");
 const { JWT } = require("google-auth-library");
 
-const CALENDARIO = "assessoriacontabil.da@gmail.com";
+const CALENDARIO = "daniel16993542962@gmail.com";
 
 const EMOJI = {
   "reuniao": "\u{1F91D}",
