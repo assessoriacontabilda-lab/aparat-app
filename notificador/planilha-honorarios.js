@@ -52,7 +52,7 @@ async function main() {
     const vMes = doMes.length ? doMes.reduce((s, h) => s + num(h.valor), 0) : num(c.honorario);
     const venc = doMes.length ? (doMes[0].vencimento || "") : "";
     return {
-      "": bol, "Cliente": c.nome || "", ["Mês " + refAtual]: sit, "Valor do mês (R$)": brl(vMes), "Vencimento": venc,
+      "●": bol, "Cliente": c.nome || "", ["Mês " + refAtual]: sit, "Valor do mês (R$)": brl(vMes), "Vencimento": venc,
       "Recebido total (R$)": brl(recAno), "Pendente total (R$)": brl(pendTot), "Honorário cadastro (R$)": brl(num(c.honorario))
     };
   });
@@ -61,7 +61,7 @@ async function main() {
   const linhas = hs.map(h => {
     const atras = !pago(h.status) && String(h.vencimento || "").slice(0, 10) < hoje;
     return {
-      "": pago(h.status) ? "🟢" : atras ? "🔴" : "🟡",
+      "●": pago(h.status) ? "🟢" : atras ? "🔴" : "🟡",
       "Cliente": h.cliente || "", "Referência": h.referencia || "", "Valor (R$)": brl(num(h.valor)), "Vencimento": h.vencimento || "",
       "Status": pago(h.status) ? "PAGO" : atras ? "ATRASADO" : (h.status || "Pendente").toUpperCase(),
       "Baixa pelo cliente": h.pagoPeloCliente ? "Sim" : "", "Gerado automático": h.geradoAutomatico ? "Sim" : ""
@@ -87,8 +87,8 @@ async function main() {
     console.log("aba '" + titulo + "':", dados.length, "linha(s)");
     return sh;
   }
-  const shP = await aba("Painel de Clientes", ["", "Cliente", "Mês " + refAtual, "Valor do mês (R$)", "Vencimento", "Recebido total (R$)", "Pendente total (R$)", "Honorário cadastro (R$)"], painel, 0);
-  const shH = await aba("Honorários", ["", "Cliente", "Referência", "Valor (R$)", "Vencimento", "Status", "Baixa pelo cliente", "Gerado automático"], linhas, 1);
+  const shP = await aba("Painel de Clientes", ["●", "Cliente", "Mês " + refAtual, "Valor do mês (R$)", "Vencimento", "Recebido total (R$)", "Pendente total (R$)", "Honorário cadastro (R$)"], painel, 0);
+  const shH = await aba("Honorários", ["●", "Cliente", "Referência", "Valor (R$)", "Vencimento", "Status", "Baixa pelo cliente", "Gerado automático"], linhas, 1);
   const shM = await aba("Resumo Mensal", ["Mês", "Previsto (R$)", "Recebido (R$)", "Falta (R$)"], resumoMes, 2);
   const velha = doc.sheetsByTitle["Resumo por Cliente"]; if (velha) { try { await velha.delete(); } catch (e) {} }
 
