@@ -76,7 +76,7 @@ async function main() {
     try { await sh.resize({ rowCount: Math.max(dados.length + 5, 20), columnCount: Math.max(cab.length, 8) }); } catch (e) {}
     await sh.setHeaderRow(cab);
     if (dados.length) await sh.addRows(dados);
-    try { await sh.updateProperties({ index: indice, gridProperties: { frozenRowCount: 1, rowCount: dados.length + 5, columnCount: cab.length } }); } catch (e) {}
+    try { await sh.updateProperties({ index: indice, gridProperties: { frozenRowCount: 1, rowCount: Math.max(dados.length + 5, 20), columnCount: Math.max(cab.length, 12) } }); } catch (e) {}
     console.log("aba '" + titulo + "':", dados.length, "linha(s)");
     return sh;
   }
