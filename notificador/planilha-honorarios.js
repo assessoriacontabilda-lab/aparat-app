@@ -105,7 +105,8 @@ async function main() {
   reqs.push(corSe(sidP, "C", "FALTA EMITIR", COR.cinza));
   reqs.push(corSe(sidH, "F", "PAGO", COR.verde));
   reqs.push(corSe(sidH, "F", "ATRASADO", COR.vermelho));
-  reqs.push({ addConditionalFormatRule: { rule: { ranges: [{ sheetId: sidH, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 }], booleanRule: { condition: { type: "CUSTOM_FORMULA", values: [{ userEnteredValue: '=AND($F2<>"PAGO",$F2<>"ATRASADO",$F2<>"")' }] }, format: { backgroundColor: COR.amarelo } } }, index: 0 } });
+  reqs.push(corSe(sidH, "F", "PENDENTE", COR.amarelo));
+  reqs.push(corSe(sidH, "F", "A PAGAR", COR.amarelo));
   for (const sid of [sidP, sidH, sidM]) {
     reqs.push({ repeatCell: { range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { backgroundColor: COR.azul, textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } } } }, fields: "userEnteredFormat(backgroundColor,textFormat)" } });
     reqs.push({ autoResizeDimensions: { dimensions: { sheetId: sid, dimension: "COLUMNS", startIndex: 0, endIndex: 8 } } });
