@@ -9,7 +9,14 @@ const { JWT } = require("google-auth-library");
 const SHEET_ID = "1aAAilcSTH3-d7x21L8n7Ui6nnMG6gj2vHvmptbsFzTQ";
 
 function num(v) { v = ("" + (v == null ? "" : v)).replace(/[^0-9,.-]/g, ""); if (v.indexOf(",") > -1) v = v.replace(/\./g, "").replace(",", "."); return parseFloat(v) || 0; }
-function mesDe(ref) { const m = String(ref || "").match(/^(\d{1,2})\s*\/\s*(\d{4})$/); return m ? m[2] + "-" + ("0" + m[1]).slice(-2) : String(ref || ""); }
+const MESES_NOME = { janeiro: 1, fevereiro: 2, marco: 3, "março": 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+function mesDe(ref) {
+  const c = String(ref || "").trim();
+  let m = c.match(/^(\d{1,2})\s*\/\s*(\d{4})$/); if (m) return m[2] + "-" + ("0" + m[1]).slice(-2);
+  m = c.match(/^(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + ("0" + m[2]).slice(-2);
+  m = c.toLowerCase().match(/^([a-zç]+)\s*\/?\s*(\d{4})$/); if (m && MESES_NOME[m[1]]) return m[2] + "-" + ("0" + MESES_NOME[m[1]]).slice(-2);
+  return c;
+}
 function brl(n) { return (n || 0).toFixed(2).replace(".", ","); }
 function nrm(t) { return String(t || "").trim().toLowerCase(); }
 function hojeISO() { const s = new Date().toLocaleString("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }); return s.match(/\d{4}-\d{2}-\d{2}/)[0]; }
