@@ -2369,3 +2369,186 @@
   setInterval(injetarBotoes, 1300);
   setTimeout(injetarBotoes, 2000);
 })();
+
+/* APARAT - Card "Proximo vencimento" na home do cliente */
+;(function(){
+  if(window.__APARAT_PROXVENC__) return; window.__APARAT_PROXVENC__=1;
+  function num(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.,-]/g,'').replace(',','.'));return isNaN(n)?0:n;}
+  function hojeISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function dtBR(iso){var p=String(iso||'').split('-');return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):iso;}
+  function dias(iso){try{return Math.round((new Date(iso+'T00:00:00')-new Date(hojeISO()+'T00:00:00'))/86400000);}catch(e){return 9999;}}
+  function moeda(v){try{return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}catch(e){return 'R$ '+v;}}
+  async function coletar(nome){
+    var itens=[];
+    try{
+      var h=await fdb.collection('honorarios').where('cliente','==',nome).get();
+      h.forEach(function(d){var x=d.data();var st=String(x.status||'').toLowerCase();
+        if(st.indexOf('pago')<0 && x.vencimento) itens.push({desc:'Honorário '+(x.referencia||''),valor:num(x.valor),venc:String(x.vencimento)});});
+    }catch(e){}
+    try{
+      var o=await fdb.collection('obrigacoes').where('cliente','==',nome).get();
+      o.forEach(function(d){var x=d.data();var st=String(x.status||'').toLowerCase();
+        if(!/pago|conclu|entreg|recebid|emitid|lanc/.test(st) && x.vencimento) itens.push({desc:x.tipo||x.titulo||'Guia/Imposto',valor:num(x.valor),venc:String(x.vencimento)});});
+    }catch(e){}
+    return itens.filter(function(i){return /^\d{4}-\d{2}-\d{2}/.test(i.venc);});
+  }
+  function card(){
+    var h=document.getElementById('ap-home'); if(!h) return null;
+    var c=document.getElementById('ap-proxvenc');
+    if(!c){c=document.createElement('div');c.id='ap-proxvenc';c.style.cssText='margin:0 0 11px 0';var ref=h.querySelector('.qgrid');if(ref)h.insertBefore(c,ref);else h.appendChild(c);}
+    return c;
+  }
+  var ocupado=false;
+  async function tick(){
+    if(ocupado) return; ocupado=true;
+    try{
+      if(typeof CURRENT_CLIENTE==='undefined'||!CURRENT_CLIENTE||typeof fdb==='undefined'){ocupado=false;return;}
+      var c=card(); if(!c){ocupado=false;return;}
+      var itens=await coletar(CURRENT_CLIENTE);
+      itens.sort(function(a,b){return a.venc<b.venc?-1:1;});
+      var atras=itens.filter(function(i){return dias(i.venc)<0;});
+      var prox=itens.filter(function(i){return dias(i.venc)>=0;});
+      var html;
+      if(atras.length){
+        var a=atras[0];
+        html='<div style="background:linear-gradient(135deg,#2a0f16,#3d1420);border:1px solid rgba(255,77,90,.55);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:26px">⚠️</div><div style="flex:1"><div style="font-size:10px;color:#ff8f9a;font-weight:800;letter-spacing:.5px">EM ATRASO</div>'
+          +'<div style="font-size:13px;font-weight:800;color:#fff">'+a.desc+'</div>'
+          +'<div style="font-size:11px;color:#ffb3ba">'+(a.valor?moeda(a.valor)+' · ':'')+'venceu em '+dtBR(a.venc)+'</div></div></div>';
+      }else if(prox.length){
+        var p=prox[0]; var dd=dias(p.venc);
+        var quando=dd===0?'vence HOJE':(dd===1?'vence amanhã':'vence em '+dd+' dias');
+        var urg=dd<=3;
+        html='<div style="background:linear-gradient(135deg,'+(urg?'#2a2210,#3d3114':'#0f1c28,#14293d')+');border:1px solid '+(urg?'rgba(255,193,7,.55)':'rgba(59,130,246,.5)')+';border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:26px">⏰</div><div style="flex:1"><div style="font-size:10px;color:'+(urg?'#ffd54f':'#7DB8FF')+';font-weight:800;letter-spacing:.5px">PRÓXIMO VENCIMENTO</div>'
+          +'<div style="font-size:13px;font-weight:800;color:#fff">'+p.desc+'</div>'
+          +'<div style="font-size:11px;color:#c9d6e8">'+(p.valor?moeda(p.valor)+' · ':'')+quando+' ('+dtBR(p.venc)+')</div></div></div>';
+      }else{
+        html='<div style="background:linear-gradient(135deg,#0f2818,#143d24);border:1px solid rgba(52,211,153,.5);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:26px">✅</div><div><div style="font-size:13px;font-weight:800;color:#fff">Tudo em dia!</div>'
+          +'<div style="font-size:11px;color:#9fe8c5">Nenhum pagamento pendente no momento.</div></div></div>';
+      }
+      c.innerHTML=html;
+    }catch(e){}
+    ocupado=false;
+  }
+  [1500,4000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,90000);
+})();
+
+/* APARAT - Botao WhatsApp flutuante no app do cliente */
+;(function(){
+  if(window.__APARAT_WAFLUT__) return; window.__APARAT_WAFLUT__=1;
+  function tick(){
+    try{
+      var va=document.getElementById('view-app'); if(!va) return;
+      var b=document.getElementById('ap-wa-flut');
+      if(!b){
+        b=document.createElement('a'); b.id='ap-wa-flut';
+        b.href='https://wa.me/5516988699203?text='+encodeURIComponent('Olá, Daniel! Sou cliente da APARAT e preciso de ajuda.');
+        b.target='_blank'; b.rel='noopener';
+        b.style.cssText='position:fixed;right:14px;bottom:92px;z-index:95;width:52px;height:52px;border-radius:50%;background:#25D366;display:none;align-items:center;justify-content:center;font-size:27px;box-shadow:0 4px 14px rgba(0,0,0,.45),0 0 14px rgba(37,211,102,.55);text-decoration:none';
+        b.textContent='💬';
+        document.body.appendChild(b);
+      }
+      var vis = va.style.display!=='none' && va.offsetParent!==null && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE;
+      b.style.display=vis?'flex':'none';
+    }catch(e){}
+  }
+  [800,2000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,2500);
+})();
+
+/* APARAT - Nomes mais simples + icones maiores no app do cliente */
+;(function(){
+  if(window.__APARAT_NOMES__) return; window.__APARAT_NOMES__=1;
+  var MAPA={'Guias e Obrigações':'Minhas Guias','Faturamento':'Minhas Vendas','Obrigações':'Minhas Guias'};
+  function css(){
+    if(document.getElementById('ap-nomes-css')) return;
+    var st=document.createElement('style'); st.id='ap-nomes-css';
+    st.textContent='.qc-icon{font-size:32px !important}.qc-lbl{font-size:12px !important;font-weight:800 !important}';
+    document.head.appendChild(st);
+  }
+  function tick(){
+    try{
+      css();
+      var t=document.getElementById('ap-backtit');
+      if(t && MAPA[t.textContent]) t.textContent=MAPA[t.textContent];
+      var fin=document.querySelector('#nb-financeiro .nbl'); if(fin && fin.textContent==='Finanças') fin.textContent='Vendas';
+      var qs=document.querySelectorAll('#ap-home .qcard');
+      qs.forEach(function(q){
+        var l=q.querySelector('.qc-lbl'); if(!l) return;
+        if(l.textContent==='Guias') l.textContent='Minhas Guias';
+        if(l.textContent==='Finanças') l.textContent='Minhas Vendas';
+      });
+    }catch(e){}
+  }
+  [600,1500,3000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,3000);
+})();
+
+/* APARAT - Bolinha de novidade nas abas do cliente + resumos reais na home */
+;(function(){
+  if(window.__APARAT_ABADOT__) return; window.__APARAT_ABADOT__=1;
+  var SECS=[
+    {sec:'honorarios', nb:'nb-honorarios', col:'honorarios'},
+    {sec:'obrig',      nb:'nb-obrig',      col:'obrigacoes'},
+    {sec:'docs',       nb:'nb-docs',       col:'docs'},
+    {sec:'urgencias',  nb:'nb-urgencias',  col:'urgencias'}
+  ];
+  var contagens={};
+  function chave(sec){return 'apSeen_'+(CURRENT_CLIENTE||'')+'_'+sec;}
+  function lida(sec){try{return parseInt(localStorage.getItem(chave(sec))||'0',10)||0;}catch(e){return 0;}}
+  function marcar(sec){try{if(contagens[sec]!=null)localStorage.setItem(chave(sec),String(contagens[sec]));}catch(e){} dot(sec,false);}
+  function dot(sec,mostrar){
+    var s=SECS.find(function(x){return x.sec===sec;}); if(!s) return;
+    var nb=document.getElementById(s.nb); if(!nb) return;
+    nb.style.position='relative';
+    var velho=nb.querySelector('.nbdot'); if(velho) velho.style.display='none';
+    var d=nb.querySelector('.ap-tabdot');
+    if(!d){d=document.createElement('span');d.className='ap-tabdot';d.style.cssText='position:absolute;top:2px;right:10px;width:8px;height:8px;background:#ff4d5a;border-radius:50%;box-shadow:0 0 6px rgba(255,77,90,.8);display:none';nb.appendChild(d);}
+    d.style.display=mostrar?'block':'none';
+  }
+  async function contar(nome){
+    for(var i=0;i<SECS.length;i++){
+      var s=SECS[i]; var n=0;
+      try{var r=await fdb.collection(s.col).where('cliente','==',nome).get(); n+=r.size;}catch(e){}
+      if(s.col==='urgencias'){
+        try{var r2=await fdb.collection('urgencias').where('dest','==',nome).get(); n+=r2.size;}catch(e){}
+      }
+      contagens[s.sec]=n;
+      dot(s.sec, n>lida(s.sec));
+    }
+  }
+  function resumo(){
+    try{
+      var qs=document.querySelectorAll('#ap-home .qcard');
+      qs.forEach(function(q){
+        var l=q.querySelector('.qc-lbl'), sub=q.querySelector('.qc-sub'); if(!l||!sub) return;
+        var tx=l.textContent;
+        if(/Guias/.test(tx) && contagens.obrig!=null) sub.textContent=contagens.obrig>0?(contagens.obrig+' no total'):'Nenhuma';
+        if(/Avisos/.test(tx) && contagens.urgencias!=null){var nov=Math.max(0,contagens.urgencias-lida('urgencias'));sub.textContent=nov>0?(nov+' novo'+(nov>1?'s':'')):'Sem novidades';}
+        if(/Vendas|Finanças/.test(tx)) sub.textContent='Ver resumo';
+      });
+    }catch(e){}
+  }
+  function wrap(){
+    if(typeof window.aPage!=='function'||window.aPage.__apDotWrapped) return;
+    var orig=window.aPage;
+    var w=function(key){var r=orig.apply(this,arguments);try{marcar(key);resumo();}catch(e){}return r;};
+    w.__apDotWrapped=1; window.aPage=w;
+  }
+  var ocupado=false;
+  async function tick(){
+    if(ocupado) return; ocupado=true;
+    try{
+      wrap();
+      if(typeof CURRENT_CLIENTE!=='undefined'&&CURRENT_CLIENTE&&typeof fdb!=='undefined'){
+        await contar(CURRENT_CLIENTE); resumo();
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [2000,5000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,60000);
+})();
