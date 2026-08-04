@@ -50,7 +50,12 @@
     if(!b){
       b=document.createElement('div'); b.id='ap-backbar';
       b.style.cssText='display:none;align-items:center;gap:10px;padding:10px 12px;position:sticky;top:0;z-index:80;background:rgba(10,10,24,.97);border-bottom:1px solid #222248';
-      b.innerHTML='<button id="ap-backbtn" style="background:#1a1a35;border:1px solid #33335f;border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;cursor:pointer;line-height:1">&#8592;</button><span id="ap-backtit" style="color:#fff;font-weight:700;font-size:14px;cursor:pointer">Voltar</span>';
+      b.innerHTML='<button id="ap-backbtn" style="background:#12122e;border:2px solid #3B82F6;border-radius:50%;width:40px;height:40px;color:#7DB8FF;font-size:20px;cursor:pointer;line-height:1;box-shadow:0 0 8px #3B82F6,0 0 18px rgba(59,130,246,.55),inset 0 0 6px rgba(59,130,246,.35);text-shadow:0 0 6px #3B82F6;animation:apNeonPulse 1.6s ease-in-out infinite">&#8592;</button><span id="ap-backtit" style="color:#fff;font-weight:700;font-size:14px;cursor:pointer">Voltar</span>';
+      if(!document.getElementById('ap-neon-css')){
+        var st=document.createElement('style'); st.id='ap-neon-css';
+        st.textContent='@keyframes apNeonPulse{0%,100%{box-shadow:0 0 8px #3B82F6,0 0 18px rgba(59,130,246,.55),inset 0 0 6px rgba(59,130,246,.35)}50%{box-shadow:0 0 14px #3B82F6,0 0 30px rgba(59,130,246,.85),inset 0 0 10px rgba(59,130,246,.5)}}';
+        document.head.appendChild(st);
+      }
       va.insertBefore(b, va.firstChild);
       b.addEventListener('click', function(){ try{ window.aPage('home'); }catch(e){} });
     }
