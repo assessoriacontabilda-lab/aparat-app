@@ -5,6 +5,10 @@
 <title>Instalar o App APARAT</title>
 <link rel="manifest" href="manifest.json"/>
 <link rel="icon" href="../icon-192.png"/>
+<link rel="apple-touch-icon" href="../icon-192.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Aparat"/>
 <meta name="theme-color" content="#0D1A33"/>
 </head>
 <body style="margin:0;background:#0D1A33;color:#fff;font-family:sans-serif;text-align:center;padding:34px 22px">
@@ -19,17 +23,39 @@
 3️⃣ Confirme — o ícone <b>A azul</b> vai para a tela<br><br>
 Depois é só abrir pelo ícone novo!
 </div>
+<div id="ios" style="display:none;background:#132647;border:1px solid #2a4a7f;border-radius:14px;padding:14px;margin-top:16px;font-size:14px;text-align:left;max-width:340px;margin-left:auto;margin-right:auto">
+<b>📱 No iPhone, instale assim:</b><br><br>
+1️⃣ Abra este link no <b>Safari</b> (navegador da bússola 🧭)<br>
+2️⃣ Toque no botão <b>Compartilhar</b> <span style="display:inline-block;border:1px solid #7db8ff;border-radius:6px;padding:0 7px;color:#7db8ff;font-weight:800">⬆︎</span> (quadrado com seta, na barra de baixo)<br>
+3️⃣ Role a lista e toque em <b>"Adicionar à Tela de Início"</b><br>
+4️⃣ Toque em <b>"Adicionar"</b> — o ícone <b>A azul</b> vai para a tela<br><br>
+⚠️ Se o link abriu dentro do WhatsApp, toque nos <b>3 pontinhos</b> e escolha <b>"Abrir no Safari"</b> primeiro.
+</div>
+<div id="iosalerta" style="display:none;background:#3d2a14;border:1px solid #7f5a2a;border-radius:14px;padding:12px;margin-top:12px;font-size:13px;max-width:340px;margin-left:auto;margin-right:auto">
+Você está no iPhone, mas fora do Safari. Toque na barra de endereço, copie o link e abra no <b>Safari</b> para instalar.
+</div>
 <script>
+var ua=navigator.userAgent||'';
+var isIOS=/iPad|iPhone|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+var isSafari=isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Instagram|FBAN|FBAV|WhatsApp/.test(ua);
+var jaInstalado=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
 var pr=null, st=document.getElementById('st'), bt=document.getElementById('bt'), menu=document.getElementById('menu');
-window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();pr=e;st.textContent='✅ Tudo pronto!';bt.style.display='inline-block';menu.style.display='none';});
-bt.onclick=function(){ if(pr){ pr.prompt(); pr.userChoice.then(function(r){ if(r&&r.outcome==='accepted'){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; } }); } };
-window.addEventListener('appinstalled',function(){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; menu.style.display='none'; });
+if(jaInstalado){ st.textContent='🎉 O app já está instalado! Procure o ícone A azul na tela do celular.'; }
+else if(isIOS){
+  st.textContent='✅ Tudo pronto para instalar no seu iPhone:';
+  document.getElementById('ios').style.display='block';
+  if(!isSafari){ document.getElementById('iosalerta').style.display='block'; }
+}else{
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();pr=e;st.textContent='✅ Tudo pronto!';bt.style.display='inline-block';menu.style.display='none';});
+  bt.onclick=function(){ if(pr){ pr.prompt(); pr.userChoice.then(function(r){ if(r&&r.outcome==='accepted'){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; } }); } };
+  window.addEventListener('appinstalled',function(){ st.textContent='🎉 Instalado! Procure o ícone A azul na tela do celular.'; bt.style.display='none'; menu.style.display='none'; });
+}
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('../sw.js',{updateViaCache:'none'}).then(function(){
     navigator.serviceWorker.ready.then(function(){
-      setTimeout(function(){ if(!pr){ st.textContent='✅ Motor pronto. Agora instale pelo menu:'; menu.style.display='block'; } },6000);
+      setTimeout(function(){ if(!pr && !isIOS && !jaInstalado){ st.textContent='✅ Motor pronto. Agora instale pelo menu:'; menu.style.display='block'; } },6000);
     });
-  }).catch(function(){ st.textContent='Erro ao preparar. Recarregue a página.'; });
-} else { st.textContent='Navegador sem suporte. Use o Chrome.'; }
+  }).catch(function(){ if(!isIOS){ st.textContent='Erro ao preparar. Recarregue a página.'; } });
+} else if(!isIOS) { st.textContent='Navegador sem suporte. Use o Chrome.'; }
 </script>
 </body></html>
