@@ -2693,3 +2693,22 @@
   [1500,4000,8000].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,60000);
 })();
+
+/* APARAT v39 - Esconde secoes vazias no app do cliente (reaparecem quando tiverem conteudo) */
+;(function(){
+  if(window.__APARAT_SECVAZIA__) return; window.__APARAT_SECVAZIA__=1;
+  function tick(){
+    try{
+      var vc=document.getElementById('view-cliente'); if(!vc) return;
+      vc.querySelectorAll('.cli-sec').forEach(function(s){
+        var head=s.querySelector('.asec');
+        var corpo=(s.textContent||'').replace(head?head.textContent:'','').trim();
+        var temForm=!!s.querySelector('input,textarea,select,button');
+        var vazia=/^Nenhum/i.test(corpo) && !temForm;
+        s.style.display=vazia?'none':'';
+      });
+    }catch(e){}
+  }
+  [1200,3000,6000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,5000);
+})();
