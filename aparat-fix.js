@@ -2552,3 +2552,144 @@
   [2000,5000].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,60000);
 })();
+
+/* APARAT v38 - Melhorias na TELA REAL do cliente (view-cliente) */
+;(function(){
+  if(window.__APARAT_CLIUI2__) return; window.__APARAT_CLIUI2__=1;
+  function num(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.,-]/g,'').replace(',','.'));return isNaN(n)?0:n;}
+  function hojeISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function dtBR(iso){var p=String(iso||'').split('-');return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):iso;}
+  function dias(iso){try{return Math.round((new Date(iso+'T00:00:00')-new Date(hojeISO()+'T00:00:00'))/86400000);}catch(e){return 9999;}}
+  function moeda(v){try{return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}catch(e){return 'R$ '+v;}}
+  function vcVisivel(){var vc=document.getElementById('view-cliente');return vc && vc.style.display!=='none' && vc.offsetParent!==null;}
+
+  /* 1) Card Proximo Vencimento no topo */
+  async function coletar(nome){
+    var itens=[];
+    try{
+      var h=await fdb.collection('honorarios').where('cliente','==',nome).get();
+      h.forEach(function(d){var x=d.data();var st=String(x.status||'').toLowerCase();
+        if(st.indexOf('pago')<0 && x.vencimento) itens.push({desc:'Honorário '+(x.referencia||''),valor:num(x.valor),venc:String(x.vencimento)});});
+    }catch(e){}
+    try{
+      var o=await fdb.collection('obrigacoes').where('cliente','==',nome).get();
+      o.forEach(function(d){var x=d.data();var st=String(x.status||'').toLowerCase();
+        if(!/pago|conclu|entreg|recebid|emitid|lanc/.test(st) && x.vencimento) itens.push({desc:x.tipo||x.titulo||'Guia/Imposto',valor:num(x.valor),venc:String(x.vencimento)});});
+    }catch(e){}
+    return itens.filter(function(i){return /^\d{4}-\d{2}-\d{2}/.test(i.venc);});
+  }
+  async function cardVenc(nome){
+    var topo=document.getElementById('cli-topo'); if(!topo) return;
+    var c=document.getElementById('ap-proxvenc2');
+    if(!c){c=document.createElement('div');c.id='ap-proxvenc2';c.style.cssText='margin:10px 0';topo.parentNode.insertBefore(c,topo.nextSibling);}
+    var itens=await coletar(nome);
+    itens.sort(function(a,b){return a.venc<b.venc?-1:1;});
+    var atras=itens.filter(function(i){return dias(i.venc)<0;});
+    var prox=itens.filter(function(i){return dias(i.venc)>=0;});
+    var html;
+    if(atras.length){
+      var a=atras[0];
+      html='<div style="background:linear-gradient(135deg,#2a0f16,#3d1420);border:1px solid rgba(255,77,90,.55);border-radius:13px;padding:13px 15px;display:flex;align-items:center;gap:12px">'
+        +'<div style="font-size:28px">⚠️</div><div style="flex:1"><div style="font-size:10px;color:#ff8f9a;font-weight:800;letter-spacing:.5px">EM ATRASO</div>'
+        +'<div style="font-size:14px;font-weight:800;color:#fff">'+a.desc+'</div>'
+        +'<div style="font-size:12px;color:#ffb3ba">'+(a.valor?moeda(a.valor)+' · ':'')+'venceu em '+dtBR(a.venc)+'</div></div></div>';
+    }else if(prox.length){
+      var p=prox[0]; var dd=dias(p.venc);
+      var quando=dd===0?'vence HOJE':(dd===1?'vence amanhã':'vence em '+dd+' dias');
+      var urg=dd<=3;
+      html='<div style="background:linear-gradient(135deg,'+(urg?'#2a2210,#3d3114':'#0f1c28,#14293d')+');border:1px solid '+(urg?'rgba(255,193,7,.55)':'rgba(59,130,246,.5)')+';border-radius:13px;padding:13px 15px;display:flex;align-items:center;gap:12px">'
+        +'<div style="font-size:28px">⏰</div><div style="flex:1"><div style="font-size:10px;color:'+(urg?'#ffd54f':'#7DB8FF')+';font-weight:800;letter-spacing:.5px">PRÓXIMO VENCIMENTO</div>'
+        +'<div style="font-size:14px;font-weight:800;color:#fff">'+p.desc+'</div>'
+        +'<div style="font-size:12px;color:#c9d6e8">'+(p.valor?moeda(p.valor)+' · ':'')+quando+' ('+dtBR(p.venc)+')</div></div></div>';
+    }else{
+      html='<div style="background:linear-gradient(135deg,#0f2818,#143d24);border:1px solid rgba(52,211,153,.5);border-radius:13px;padding:13px 15px;display:flex;align-items:center;gap:12px">'
+        +'<div style="font-size:28px">✅</div><div><div style="font-size:14px;font-weight:800;color:#fff">Tudo em dia!</div>'
+        +'<div style="font-size:12px;color:#9fe8c5">Nenhum pagamento pendente no momento.</div></div></div>';
+    }
+    c.innerHTML=html;
+  }
+
+  /* 2) Botao WhatsApp flutuante */
+  function botaoWa(){
+    var b=document.getElementById('ap-wa-flut2');
+    if(!b){
+      b=document.createElement('a'); b.id='ap-wa-flut2';
+      b.href='https://wa.me/5516988699203?text='+encodeURIComponent('Olá, Daniel! Sou cliente da APARAT e preciso de ajuda.');
+      b.target='_blank'; b.rel='noopener'; b.title='Falar com a APARAT no WhatsApp';
+      b.style.cssText='position:fixed;left:14px;bottom:150px;z-index:96;width:52px;height:52px;border-radius:50%;background:#25D366;display:none;align-items:center;justify-content:center;font-size:27px;box-shadow:0 4px 14px rgba(0,0,0,.45),0 0 14px rgba(37,211,102,.55);text-decoration:none';
+      b.textContent='💬';
+      document.body.appendChild(b);
+    }
+    b.style.display=(vcVisivel() && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE)?'flex':'none';
+  }
+
+  /* 3) Nomes mais simples */
+  function nomes(){
+    try{
+      if(typeof CLI_NOMES!=='undefined'){CLI_NOMES.fat='Minhas Vendas';CLI_NOMES.obr='Minhas Guias';}
+      var sf=document.querySelector('#sec-fat .asec'); if(sf && /Controle de Faturamento/.test(sf.textContent)) sf.textContent='📈 Minhas Vendas';
+      var so=document.querySelector('#sec-obr .asec'); if(so && /Suas Obrigações/.test(so.textContent)) so.textContent='📋 Minhas Guias';
+      document.querySelectorAll('.botnav button').forEach(function(bt){
+        if(/Faturam\./.test(bt.textContent)) bt.innerHTML=bt.innerHTML.replace('Faturam.','Vendas');
+        if(/Obrig\./.test(bt.textContent)) bt.innerHTML=bt.innerHTML.replace('Obrig.','Guias');
+      });
+    }catch(e){}
+  }
+
+  /* 4) Bolinha de novidade nas secoes */
+  var SECS=[
+    {sec:'sec-hon', col:'honorarios'},
+    {sec:'sec-obr', col:'obrigacoes'},
+    {sec:'sec-doc', col:'docs'},
+    {sec:'sec-age', col:'agenda'}
+  ];
+  var contagens={};
+  function chave(sec){return 'apSeen2_'+(CURRENT_CLIENTE||'')+'_'+sec;}
+  function lida(sec){try{return parseInt(localStorage.getItem(chave(sec))||'0',10)||0;}catch(e){return 0;}}
+  function marcar(sec){try{if(contagens[sec]!=null)localStorage.setItem(chave(sec),String(contagens[sec]));}catch(e){} dot(sec,false);}
+  function dot(sec,mostrar){
+    var s=document.getElementById(sec); if(!s) return;
+    var h=s.querySelector('.asec'); if(!h) return;
+    h.style.position='relative';
+    var d=h.querySelector('.ap-secdot');
+    if(!d){d=document.createElement('span');d.className='ap-secdot';d.style.cssText='display:none;margin-left:8px;width:9px;height:9px;background:#ff4d5a;border-radius:50%;box-shadow:0 0 7px rgba(255,77,90,.85);vertical-align:middle';h.appendChild(d);}
+    d.style.display=mostrar?'inline-block':'none';
+    var bt=document.querySelector('.botnav button[data-go="'+sec+'"]');
+    if(bt){
+      bt.style.position='relative';
+      var bd=bt.querySelector('.ap-secdot');
+      if(!bd){bd=document.createElement('span');bd.className='ap-secdot';bd.style.cssText='display:none;position:absolute;top:3px;right:8px;width:8px;height:8px;background:#ff4d5a;border-radius:50%;box-shadow:0 0 6px rgba(255,77,90,.8)';bt.appendChild(bd);}
+      bd.style.display=mostrar?'block':'none';
+    }
+  }
+  async function contar(nome){
+    for(var i=0;i<SECS.length;i++){
+      var s=SECS[i]; var n=0;
+      try{var r=await fdb.collection(s.col).where('cliente','==',nome).get(); n=r.size;}catch(e){}
+      contagens[s.sec]=n;
+      dot(s.sec, n>lida(s.sec));
+    }
+  }
+  function wrapGo(){
+    if(typeof window.cliGo!=='function'||window.cliGo.__apDot2) return;
+    var orig=window.cliGo;
+    var w=function(id,el){var r=orig.apply(this,arguments);try{marcar(id);}catch(e){}return r;};
+    w.__apDot2=1; window.cliGo=w;
+  }
+
+  var ocupado=false;
+  async function tick(){
+    if(ocupado) return; ocupado=true;
+    try{
+      wrapGo(); botaoWa();
+      if(vcVisivel() && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE && typeof fdb!=='undefined'){
+        nomes();
+        await cardVenc(CURRENT_CLIENTE);
+        await contar(CURRENT_CLIENTE);
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1500,4000,8000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,60000);
+})();
