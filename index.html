@@ -2514,7 +2514,7 @@ async function renderClientePortal(nome){
         +'<div class="cli-sec" id="sec-fat"><div class="asec">📈 Controle de Faturamento</div><div id="cli-fat"></div></div>'
         +'<div class="cli-sec" id="sec-dados"><div class="asec" style="margin-top:12px">📑 Meus Dados Cadastrais</div><div id="cli-dados"></div></div>'
         +'<div class="cli-sec" id="sec-docs"><div class="asec" style="margin-top:12px">🔒 Meus Documentos</div><div id="cli-docs-carousel"><div id="cli-docs-cards"></div><div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-top:10px"><button onclick="navDoc(-1)" style="background:#1a1a35;border:1px solid #222248;border-radius:50%;width:34px;height:34px;color:#fff;cursor:pointer;font-size:18px">&#8249;</button><span id="doc-nav-info" style="font-size:12px;color:#9090b8">1 / 3</span><button onclick="navDoc(1)" style="background:#1a1a35;border:1px solid #222248;border-radius:50%;width:34px;height:34px;color:#fff;cursor:pointer;font-size:18px">&#8250;</button></div></div></div>'
-        +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon"></div></div>'
+        +'<div class="cli-sec" id="sec-hon"><div class="asec" style="margin-top:12px">💳 Honorários</div><div id="cli-hon-lista"></div></div>'
         +'<div class="cli-sec" id="sec-obr"><div class="asec" style="margin-top:12px">📋 Suas Obrigações</div><div id="cli-obr"></div></div>'
         +'<div class="cli-sec" id="sec-age"><div class="asec" style="margin-top:12px">📅 Agendamentos</div><div id="cli-age"></div></div>'
         +'<div class="cli-sec" id="sec-doc"><div class="asec" style="margin-top:12px">📄 Documentos</div><div id="cli-doc"></div></div>'
@@ -2557,7 +2557,7 @@ async function renderClientePortal(nome){
     +'</div>';
   // Honorários
   const hon=await getMine('honorarios',nome); _seedVistos('honorarios',hon);
-  const ch=document.getElementById('cli-hon');
+  const ch=document.getElementById('cli-hon-lista');
   ch.innerHTML = hon.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum honorário lançado.</div>';
   hon.forEach(h=>{const sc=(/pago/i.test(h.status||''))?'tp':'tn'; const pdf=h.arquivoData?(' · <a href="'+blobUrl(h.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄 baixar</a>'):'';
     ch.innerHTML+='<div'+_neonAttrs('honorarios',h.id)+'><div class="lcico lc-pu">💳</div><div class="lcinfo"><strong>Honorário '+esc(h.referencia||'')+_tagNovo('honorarios',h.id)+'</strong><span>R$ '+esc(h.valor||'')+' · venc. '+fmtData(h.vencimento)+pdf+'</span></div><span class="tag '+sc+'">'+esc(h.status||'Pendente')+'</span></div>';});
