@@ -1,0 +1,27 @@
+name: App do cliente em quadradinhos (v40)
+on:
+  push:
+    paths:
+      - ".github/workflows/bump-tiles.yml"
+  workflow_dispatch:
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trocar versao do aparat-fix
+        run: |
+          python3 - <<'PY'
+          s = open('index.html', encoding='utf-8').read()
+          s = s.replace('aparat-fix.js?v=39', 'aparat-fix.js?v=40')
+          open('index.html', 'w', encoding='utf-8').write(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "aparat-bot"
+          git config user.email "bot@aparat.com"
+          git add index.html
+          git commit -m "App do cliente em quadradinhos + assistente professor (v40)" || echo "nada a mudar"
+          git push
