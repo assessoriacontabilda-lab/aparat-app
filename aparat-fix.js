@@ -2926,3 +2926,31 @@
   [800,2000,4000].forEach(function(t){setTimeout(instalar,t);});
   setInterval(instalar,5000);
 })();
+
+/* APARAT v42 - Faturamento do cliente de volta ao quadradinho + seletor de mes visivel */
+;(function(){
+  if(window.__APARAT_FATFIX__) return; window.__APARAT_FATFIX__=1;
+  function css(){
+    if(document.getElementById('ap-fatfix-css')) return;
+    var st=document.createElement('style'); st.id='ap-fatfix-css';
+    st.textContent='#cli-fat-mes{font-size:15px !important;padding:10px !important;font-weight:700;border-radius:10px;background:#101a3a;color:#fff;border:1.5px solid #2c4370}'
+      +'#view-cliente.ap-open #cli-fat .lcard{font-size:14px}';
+    document.head.appendChild(st);
+  }
+  function tick(){
+    try{
+      css();
+      // desligar o modulo antigo que roubava o faturamento para a tela escondida
+      var fin=document.getElementById('ap-financeiro');
+      if(fin) fin.id='ap-financeiro-off';
+      // trazer o conteudo de volta para dentro do quadradinho Faturamento
+      var cf=document.getElementById('cli-fat');
+      var sf=document.getElementById('sec-fat');
+      if(cf && sf && cf.parentElement!==sf){
+        sf.appendChild(cf);
+      }
+    }catch(e){}
+  }
+  [800,2000,4000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,2000);
+})();
