@@ -2712,3 +2712,200 @@
   [1200,3000,6000].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,5000);
 })();
+
+/* APARAT v40 - APP DO CLIENTE EM QUADRADINHOS (tela unica + paginas) */
+;(function(){
+  if(window.__APARAT_TILES__) return; window.__APARAT_TILES__=1;
+  var TILES=[
+    {k:'hon',    ic:'💳', lb:'Honorários',     alvos:['sec-hon'],                       col:'honorarios'},
+    {k:'obr',    ic:'📋', lb:'Minhas Guias',   alvos:['sec-obr'],                       col:'obrigacoes'},
+    {k:'fat',    ic:'📈', lb:'Faturamento',    alvos:['sec-fat'],                       col:null},
+    {k:'avisos', ic:'🔔', lb:'Avisos',         alvos:['ap-blk-avisos','sec-inf'],       col:null},
+    {k:'dados',  ic:'👤', lb:'Meus Dados',     alvos:['sec-dados','sec-docs','sec-doc'],col:'docs'},
+    {k:'nota',   ic:'🧾', lb:'Enviar Nota',    alvos:['sec-notas'],                     col:null},
+    {k:'extrato',ic:'📤', lb:'Enviar Extrato', alvos:['ap-blk-arq'],                    col:null},
+    {k:'falar',  ic:'💬', lb:'Falar Conosco',  alvos:['ap-blk-falar'],                  col:null}
+  ];
+  var SETA='<svg viewBox="0 0 24 24" fill="none" style="width:26px;height:26px"><path d="M15.5 4 8 12l7.5 8" stroke="#9cc4ff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function css(){
+    if(document.getElementById('ap-tiles-css')) return;
+    var st=document.createElement('style'); st.id='ap-tiles-css';
+    st.textContent=
+      'body.ap-tiles-on #view-cliente .cli-atalhos,body.ap-tiles-on #view-cliente .cli-grid,body.ap-tiles-on .botnav{display:none !important}'
+      +'#view-cliente{font-size:15px}'
+      +'#ap-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:14px 0 8px;max-width:520px;margin-left:auto;margin-right:auto}'
+      +'.ap-tile{position:relative;aspect-ratio:1/1;border-radius:19px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:linear-gradient(160deg,#1b2b4f 0%,#131f3a 70%);border:1.5px solid #31497c;box-shadow:0 6px 16px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.06);cursor:pointer}'
+      +'.ap-tile .ic{width:50px;height:50px;border-radius:14px;background:rgba(91,141,255,.14);border:1px solid rgba(91,141,255,.3);display:flex;align-items:center;justify-content:center;font-size:28px}'
+      +'.ap-tile .lb{font-size:14px;font-weight:800;text-align:center;line-height:1.15;padding:0 4px;color:#eef3fc}'
+      +'.ap-tile .dt{position:absolute;top:8px;right:8px;min-width:16px;height:16px;background:#ff2d40;border-radius:9px;border:2.5px solid #131f3a;box-shadow:0 0 8px rgba(255,45,64,.9);display:none}'
+      +'#ap-pg{position:fixed;inset:0;z-index:88;background:linear-gradient(180deg,#0d1530,#0a0f1e 40%);overflow-y:auto;display:none;padding:0 14px 30px}'
+      +'#ap-pg-top{position:sticky;top:0;z-index:5;background:rgba(10,15,30,.97);border-bottom:1px solid #223258;display:flex;align-items:center;gap:13px;padding:12px 14px;margin:0 -14px 14px}'
+      +'#ap-pg-volta{width:48px;height:48px;border-radius:50%;background:#101a3a;border:3px solid #3B82F6;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px #3B82F6,0 0 24px rgba(59,130,246,.55);cursor:pointer;flex-shrink:0}'
+      +'#ap-pg-tit{font-size:21px;font-weight:800}'
+      +'#ap-pg-cli{font-size:13px;color:#8fa5c9;margin-top:1px}'
+      +'#ap-pg-logo{margin-left:auto;width:38px;height:38px;border-radius:11px;background:#0D1A33;border:1.5px solid #2c4370;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#5b8dff}'
+      +'#ap-pg-body{max-width:640px;margin:0 auto}'
+      +'#ap-pg .cli-sec{display:block !important}'
+      +'#ap-pg .asec{display:none !important}'
+      +'#ap-pg,#ap-pg .lcinfo strong{font-size:16px}'
+      +'#ap-pg .lcinfo span{font-size:13.5px}'
+      +'#ap-pg .tag{font-size:13px;padding:6px 12px}'
+      +'#ap-pg .asec2{font-size:16px !important}'
+      +'#ap-pg input,#ap-pg textarea{font-size:15px !important;padding:12px !important}'
+      +'#ap-pg .btn{font-size:16px !important;padding:14px !important;border-radius:13px !important}'
+      +'#ap-pg .fbox-light{background:transparent;border:0;padding:0}';
+    document.head.appendChild(st);
+  }
+  function vcOk(){var vc=document.getElementById('view-cliente');return vc&&vc.querySelector('.cli-grid')&&typeof CURRENT_CLIENTE!=='undefined'&&CURRENT_CLIENTE;}
+  function blocos(){
+    var fb=document.querySelector('#sec-sol .fbox-light'); if(!fb||fb.dataset.apBlk) return; fb.dataset.apBlk='1';
+    var mapa=[{id:'ap-blk-avisos',re:/Avisos/},{id:'ap-blk-falar',re:/Falar com o Escrit/},{id:'ap-blk-arq',re:/Enviar Arquivos/}];
+    var atual=null; var kids=[].slice.call(fb.childNodes);
+    kids.forEach(function(nd){
+      if(nd.nodeType===1 && nd.classList && nd.classList.contains('asec2')){
+        var m=mapa.find(function(x){return x.re.test(nd.textContent);});
+        if(m){ atual=document.createElement('div'); atual.id=m.id; fb.insertBefore(atual,nd); }
+      }
+      if(atual && nd!==atual) atual.appendChild(nd);
+    });
+    var f=document.getElementById('ap-blk-falar');
+    if(f && !document.getElementById('ap-blk-zap')){
+      var z=document.createElement('a'); z.id='ap-blk-zap';
+      z.href='https://wa.me/5516988699203?text='+encodeURIComponent('Olá, Daniel! Sou cliente da APARAT.');
+      z.target='_blank'; z.rel='noopener';
+      z.style.cssText='display:flex;align-items:center;gap:12px;background:linear-gradient(160deg,#0f2e1c,#0c2416);border:1.5px solid rgba(52,211,153,.5);border-radius:14px;padding:14px;margin-top:12px;text-decoration:none;color:#fff';
+      z.innerHTML='<span style="font-size:28px">💬</span><span><b style="font-size:15px">WhatsApp direto</b><br><span style="font-size:13px;color:#9fe8c5">(16) 98869-9203 · resposta mais rápida</span></span>';
+      f.appendChild(z);
+    }
+  }
+  var movidos=[];
+  function abrir(t){
+    css(); blocos();
+    var pg=pagEl();
+    document.getElementById('ap-pg-tit').textContent=t.ic+' '+t.lb;
+    document.getElementById('ap-pg-cli').textContent=CURRENT_CLIENTE||'';
+    var body=document.getElementById('ap-pg-body'); 
+    fechar(false);
+    t.alvos.forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      var ph=document.createComment('ap-ph-'+id);
+      el.parentNode.insertBefore(ph,el);
+      movidos.push({el:el,ph:ph});
+      body.appendChild(el);
+    });
+    pg.style.display='block'; pg.scrollTop=0;
+    try{marcarVisto(t);}catch(e){}
+    try{ if(!(history.state&&history.state.apTile)) history.pushState({apTile:1},''); }catch(e){}
+  }
+  function fechar(pop){
+    var pg=document.getElementById('ap-pg'); if(!pg) return;
+    movidos.forEach(function(m){ if(m.ph.parentNode){ m.ph.parentNode.insertBefore(m.el,m.ph); m.ph.parentNode.removeChild(m.ph); } });
+    movidos=[];
+    pg.style.display='none';
+    if(pop!==false){ try{ if(history.state&&history.state.apTile) history.back(); }catch(e){} }
+  }
+  window.addEventListener('popstate',function(){ var pg=document.getElementById('ap-pg'); if(pg&&pg.style.display!=='none') fechar(false); });
+  function pagEl(){
+    var pg=document.getElementById('ap-pg');
+    if(!pg){
+      pg=document.createElement('div'); pg.id='ap-pg';
+      pg.innerHTML='<div id="ap-pg-top"><div id="ap-pg-volta">'+SETA+'</div><div><div id="ap-pg-tit"></div><div id="ap-pg-cli"></div></div><div id="ap-pg-logo">A</div></div><div id="ap-pg-body"></div>';
+      document.body.appendChild(pg);
+      document.getElementById('ap-pg-volta').onclick=function(){fechar();};
+    }
+    return pg;
+  }
+  function chave(k){return 'apSeen2_'+(CURRENT_CLIENTE||'')+'_tile_'+k;}
+  var contagens={};
+  function marcarVisto(t){ if(contagens[t.k]!=null){ try{localStorage.setItem(chave(t.k),String(contagens[t.k]));}catch(e){} } var d=document.querySelector('.ap-tile[data-k="'+t.k+'"] .dt'); if(d)d.style.display='none'; }
+  async function badges(){
+    for(var i=0;i<TILES.length;i++){
+      var t=TILES[i]; if(!t.col) continue;
+      var n=0; try{var r=await fdb.collection(t.col).where('cliente','==',CURRENT_CLIENTE).get(); n=r.size;}catch(e){}
+      contagens[t.k]=n;
+      var vis=0; try{vis=parseInt(localStorage.getItem(chave(t.k))||'0',10)||0;}catch(e){}
+      var d=document.querySelector('.ap-tile[data-k="'+t.k+'"] .dt'); if(d)d.style.display=(n>vis)?'block':'none';
+    }
+    // avisos: urgencias por dest
+    var n2=0;
+    try{var a=await fdb.collection('urgencias').where('dest','==',CURRENT_CLIENTE).get(); n2+=a.size;}catch(e){}
+    try{var b=await fdb.collection('urgencias').where('dest','==','Todos os Clientes').get(); n2+=b.size;}catch(e){}
+    contagens['avisos']=n2;
+    var v2=0; try{v2=parseInt(localStorage.getItem(chave('avisos'))||'0',10)||0;}catch(e){}
+    var d2=document.querySelector('.ap-tile[data-k="avisos"] .dt'); if(d2)d2.style.display=(n2>v2)?'block':'none';
+  }
+  function grade(){
+    if(document.getElementById('ap-grid')){ document.body.classList.add('ap-tiles-on'); return; }
+    var seg=document.querySelector('#view-cliente .segbadge'); if(!seg) return;
+    var g=document.createElement('div'); g.id='ap-grid';
+    TILES.forEach(function(t){
+      var d=document.createElement('div'); d.className='ap-tile'; d.setAttribute('data-k',t.k);
+      d.innerHTML='<span class="dt"></span><div class="ic">'+t.ic+'</div><div class="lb">'+t.lb+'</div>';
+      d.onclick=function(){abrir(t);};
+      g.appendChild(d);
+    });
+    seg.parentNode.insertBefore(g,seg.nextSibling);
+    document.body.classList.add('ap-tiles-on');
+  }
+  var ocupado=false;
+  async function tick(){
+    if(ocupado)return; ocupado=true;
+    try{
+      if(vcOk()){ css(); blocos(); grade(); await badges(); }
+      else if(!document.getElementById('view-cliente') || !CURRENT_CLIENTE){ document.body.classList.remove('ap-tiles-on'); }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1200,3000,6000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,8000);
+})();
+
+/* APARAT v40 - Assistente virtual PROFESSOR do novo app */
+;(function(){
+  if(window.__APARAT_BOT2__) return; window.__APARAT_BOT2__=1;
+  function pronto(){return typeof window.responderAssistente==='function' && !window.responderAssistente.__apBot2;}
+  function instalar(){
+    if(!pronto()) return;
+    var orig=window.responderAssistente;
+    var GUIA='A tela inicial do app tem <b>quadradinhos</b> — cada um abre uma função:<br>'
+      +'💳 <b>Honorários</b> — seus boletos e o PIX para pagar<br>'
+      +'📋 <b>Minhas Guias</b> — DAS e impostos com vencimento<br>'
+      +'📈 <b>Faturamento</b> — suas vendas mês a mês e o limite anual<br>'
+      +'🔔 <b>Avisos</b> — recados do escritório (bolinha vermelha = novidade)<br>'
+      +'👤 <b>Meus Dados</b> — CNPJ, inscrições e documentos da empresa<br>'
+      +'🧾 <b>Enviar Nota</b> — mandar nota fiscal para a Aparat<br>'
+      +'📤 <b>Enviar Extrato</b> — mandar o extrato do banco (PDF/OFX)<br>'
+      +'💬 <b>Falar Conosco</b> — mensagem direta para o Daniel<br><br>'
+      +'Para <b>voltar</b>, toque na <b>seta azul brilhante ←</b> no topo. E o 📅 no canto abre o calendário de vencimentos!';
+    var w=async function(q){
+      var t=(q||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      function has(){for(var i=0;i<arguments.length;i++){if(t.indexOf(arguments[i])>-1)return true;}return false;}
+      if(has('quadradinho','quadrado','icone','ícone','tela inicial','como usar o app','como mexer','me ensina o app','nao acho','não acho','onde fica','como abro','sumiu','cade o menu','navegar'))
+        return GUIA;
+      if(has('voltar','seta'))
+        return 'Para voltar à tela dos quadradinhos, toque na <b>seta azul brilhante ←</b> que fica no canto de cima, à esquerda. Ela aparece em todas as telas abertas. 😊';
+      if(has('bolinha vermelha','bolinha no'))
+        return 'A <b>bolinha vermelha</b> em cima de um quadradinho significa que tem <b>novidade</b> ali (uma guia nova, um aviso, um documento). É só tocar no quadradinho que ela some. 😊';
+      var r=await orig.apply(this,arguments);
+      return r;
+    };
+    w.__apBot2=1; window.responderAssistente=w;
+    // chip extra de ajuda
+    if(typeof window.mostrarChips==='function' && !window.mostrarChips.__apBot2){
+      var oc=window.mostrarChips;
+      var w2=function(){ oc.apply(this,arguments);
+        try{
+          var m=document.getElementById('apchat-msgs'); var d=m&&m.querySelector('.apchat-chips:last-child');
+          if(d && !d.querySelector('.ap-chip-usar')){
+            var b=document.createElement('span'); b.className='apchat-chip ap-chip-usar'; b.textContent='❓ Como usar o app';
+            b.onclick=function(){ document.getElementById('apchat-in').value='como usar o app'; enviarChat(); };
+            d.insertBefore(b,d.firstChild);
+          }
+        }catch(e){}
+      };
+      w2.__apBot2=1; window.mostrarChips=w2;
+    }
+  }
+  [800,2000,4000].forEach(function(t){setTimeout(instalar,t);});
+  setInterval(instalar,5000);
+})();
