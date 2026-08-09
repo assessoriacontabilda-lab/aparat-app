@@ -2954,3 +2954,41 @@
   [800,2000,4000].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,2000);
 })();
+
+/* APARAT v43 - Cartao PIX dentro do quadradinho Honorarios */
+;(function(){
+  if(window.__APARAT_PIX2__) return; window.__APARAT_PIX2__=1;
+  var CHAVE='e140ad9c-8e55-4fa4-853c-ebbc3a18c3c3';
+  function copiar(){
+    try{
+      navigator.clipboard.writeText(CHAVE).then(function(){
+        var b=document.getElementById('ap-pix2-btn');
+        if(b){ b.textContent='✅ Chave copiada! Cole no app do seu banco'; setTimeout(function(){ b.textContent='📋 Copiar chave PIX'; },4000); }
+      });
+    }catch(e){
+      try{
+        var ta=document.createElement('textarea'); ta.value=CHAVE; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        var b2=document.getElementById('ap-pix2-btn');
+        if(b2){ b2.textContent='✅ Chave copiada!'; setTimeout(function(){ b2.textContent='📋 Copiar chave PIX'; },4000); }
+      }catch(e2){}
+    }
+  }
+  window.copiarPixAparat2=copiar;
+  function tick(){
+    try{
+      var sh=document.getElementById('sec-hon'); if(!sh) return;
+      if(document.getElementById('ap-pix2')) return;
+      var d=document.createElement('div'); d.id='ap-pix2';
+      d.innerHTML=
+        '<div style="background:linear-gradient(160deg,#0f2e1c,#0c2416);border:1.5px solid rgba(52,211,153,.5);border-radius:15px;padding:15px;margin-top:14px">'
+        +'<div style="font-size:16px;font-weight:800;color:#fff">Pagar com PIX</div>'
+        +'<div style="font-size:14px;color:#b9e8cd;margin-top:7px;line-height:1.55;word-break:break-all"><b>Favorecido:</b> APARAT CONTABILIDADE LTDA<br><b>Chave:</b> '+CHAVE+'</div>'
+        +'</div>'
+        +'<button id="ap-pix2-btn" onclick="copiarPixAparat2()" style="display:block;width:100%;background:linear-gradient(150deg,#2b6dff,#1a3fd6);color:#fff;border:0;border-radius:13px;padding:15px;font-size:16px;font-weight:800;margin-top:10px;cursor:pointer;box-shadow:0 5px 14px rgba(43,109,255,.4)">📋 Copiar chave PIX</button>';
+      sh.appendChild(d);
+    }catch(e){}
+  }
+  [1500,3500,7000].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,5000);
+})();
