@@ -1,0 +1,27 @@
+name: PIX no quadradinho Honorarios (v43)
+on:
+  push:
+    paths:
+      - ".github/workflows/bump-pix2.yml"
+  workflow_dispatch:
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trocar versao do aparat-fix
+        run: |
+          python3 - <<'PY'
+          s = open('index.html', encoding='utf-8').read()
+          s = s.replace('aparat-fix.js?v=42', 'aparat-fix.js?v=43')
+          open('index.html', 'w', encoding='utf-8').write(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "aparat-bot"
+          git config user.email "bot@aparat.com"
+          git add index.html
+          git commit -m "PIX no quadradinho Honorarios (v43)" || echo "nada a mudar"
+          git push
