@@ -1,0 +1,34 @@
+name: Ajustes finais do tema claro (v46)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-tema3.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Atualizar versoes
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=45', 'aparat-fix.js?v=46')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v43', 'aparat-v44')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          print('index v46:', 'aparat-fix.js?v=46' in io.open('index.html', encoding='utf-8').read())
+          print('tema v46:', 'window.__APARAT_TEMA__=46' in io.open('aparat-fix.js', encoding='utf-8').read())
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "fix: cartao PIX, etiqueta NOVO e carrossel de documentos no tema claro (v46)"
+          git push
