@@ -2993,10 +2993,10 @@
   setInterval(tick,5000);
 })();
 
-/* APARAT v45 - TEMA CLARO DO APP DO CLIENTE + MENU COM CHAVE DE TEMA
+/* APARAT v46 - TEMA CLARO DO APP DO CLIENTE + MENU COM CHAVE DE TEMA
    Escopo: somente a area do cliente (#view-cliente). O painel administrativo nao muda. */
 ;(function(){
-  if(window.__APARAT_TEMA__) return; window.__APARAT_TEMA__=45;
+  if(window.__APARAT_TEMA__) return; window.__APARAT_TEMA__=46;
 
   var CHAVE='apTemaCliente';           /* claro | escuro */
   function lido(){ try{return localStorage.getItem(CHAVE)||'claro';}catch(e){return 'claro';} }
@@ -3136,6 +3136,21 @@
 
     /* barra da LGPD e rodape */
     +P+'#lgpd-bar{background:#FFFFFF;border-top:1px solid #E6EDF7;color:#4B5565}'
+
+    /* etiqueta NOVO nas listas (nao pode esticar) */
+    +V+'.lcinfo span.tag-novo{display:inline-block;width:auto;color:#FFFFFF;margin-top:4px}'
+    /* cartao do PIX */
+    +P+'#ap-pix2>div{background:linear-gradient(135deg,#F0F6FF,#FFFFFF) !important;'
+      +'border:1.5px solid #C9DDFB !important;border-radius:16px !important}'
+    +P+'#ap-pix2>div>div{color:#0F1B33 !important}'
+    +P+'#ap-pix2>div b{color:#0F1B33 !important}'
+    /* setas do carrossel de documentos */
+    +V+'#cli-docs-carousel button{background:#FFFFFF !important;border:1px solid #D8E3F2 !important;color:#2E7DF6 !important}'
+    +V+'#doc-nav-info{color:#66748C !important}'
+    /* barra de progresso do faturamento */
+    +V+'.lcard div[style*="#0a0a18"]{background:#EDF2FA !important;border-color:#D8E3F2 !important}'
+    /* cartao de boas-vindas com o gradiente novo */
+    +V+'.wcard{background:linear-gradient(92deg,#0B2A8A 0%,#3355FF 55%,#2E9BF6 100%) !important}'
 
     /* ---------- ajustes de blocos com estilo embutido ---------- */
     /* barra superior do aplicativo */
