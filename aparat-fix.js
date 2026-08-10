@@ -3321,10 +3321,10 @@
   setInterval(tick,6000);
 })();
 
-/* APARAT v47 - TEMA CLARO DO PAINEL DO ESCRITORIO + CHAVE NO MENU LATERAL
+/* APARAT v48 - TEMA CLARO DO PAINEL DO ESCRITORIO + CHAVE NO MENU LATERAL
    Escopo: somente o painel administrativo (#view-painel e a barra do topo). */
 ;(function(){
-  if(window.__APARAT_TEMA_ESC__) return; window.__APARAT_TEMA_ESC__=47;
+  if(window.__APARAT_TEMA_ESC__) return; window.__APARAT_TEMA_ESC__=48;
 
   var CHAVE='apTemaEscritorio';        /* claro | escuro */
   function lido(){ try{return localStorage.getItem(CHAVE)||'claro';}catch(e){return 'claro';} }
@@ -3436,6 +3436,12 @@
       +A+'label[style*="color:#fff"]:not([style*="background"]){color:#0F1B33 !important}'
     +A+'.btn:not(.btn-az):not(.btn-vd){background:#FFFFFF;border:1px solid #D8E3F2;color:#2E7DF6}'
     +A+'.btn[style*="color:#fff"]:not(.btn-az){color:#2E7DF6 !important;background:#FFFFFF !important;border:1px solid #D8E3F2 !important}'
+
+    /* cartoes de acesso rapido dentro do painel */
+    +A+'#ap-quick-cards>div{background:#FFFFFF !important;border:1px solid #E6EDF7 !important;'
+      +'box-shadow:0 1px 2px rgba(16,24,40,.05),0 8px 22px rgba(16,24,40,.06)}'
+    +A+'#ap-quick-cards>div>div{color:#0F1B33 !important}'
+    +A+'#ap-quick-cards>div>div>div+div{color:#66748C !important}'
 
     /* honorarios e listas dentro do painel */
     +A+'.hon-card{background:#FFFFFF;border:1px solid #E6EDF7;border-radius:16px}'
