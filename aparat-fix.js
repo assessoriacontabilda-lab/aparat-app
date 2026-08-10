@@ -2993,10 +2993,10 @@
   setInterval(tick,5000);
 })();
 
-/* APARAT v44 - TEMA CLARO DO APP DO CLIENTE + MENU COM CHAVE DE TEMA
+/* APARAT v45 - TEMA CLARO DO APP DO CLIENTE + MENU COM CHAVE DE TEMA
    Escopo: somente a area do cliente (#view-cliente). O painel administrativo nao muda. */
 ;(function(){
-  if(window.__APARAT_TEMA__) return; window.__APARAT_TEMA__=44;
+  if(window.__APARAT_TEMA__) return; window.__APARAT_TEMA__=45;
 
   var CHAVE='apTemaCliente';           /* claro | escuro */
   function lido(){ try{return localStorage.getItem(CHAVE)||'claro';}catch(e){return 'claro';} }
@@ -3136,6 +3136,31 @@
 
     /* barra da LGPD e rodape */
     +P+'#lgpd-bar{background:#FFFFFF;border-top:1px solid #E6EDF7;color:#4B5565}'
+
+    /* ---------- ajustes de blocos com estilo embutido ---------- */
+    /* barra superior do aplicativo */
+    +P+'.top-switch{background:#FFFFFF;border-bottom:1px solid #E6EDF7}'
+    +P+'.ts-logo span{color:#0F1B33}'
+    +P+'.ts-logo small{color:#2E7DF6}'
+    +P+'.ts-info{color:#66748C}'+P+'.ts-info strong{color:#0F1B33}'
+    +P+'.live-row{color:#66748C}'
+    +P+'.switcher{background:#F5F8FD;border:1px solid #E6EDF7}'
+    +P+'.sw-btn{color:#66748C}'
+    +P+'.sw-btn.active{background:#3355FF;color:#fff}'
+    /* barra de foco do escritorio */
+    +P+'.foco-bar{background:#FFFFFF;border:1px solid #E6EDF7}'
+    +P+'.foco-bar b{color:#0F1B33}'+P+'.foco-bar .fb-sub{color:#66748C}'
+    +P+'.foco-bar .fb-logo{background:#EAF1FF;color:#3355FF}'
+    /* cartao do proximo vencimento */
+    +P+'#ap-proxvenc2>div{background:#FFFFFF !important;border-width:1px;border-left-width:5px;'
+      +'border-radius:14px !important;box-shadow:0 1px 2px rgba(16,24,40,.05),0 8px 20px rgba(16,24,40,.06)}'
+    +P+'#ap-proxvenc2>div>div>div:first-child{color:#0F1B33 !important}'
+    +P+'#ap-proxvenc2>div>div>div+div{color:#4B5565 !important}'
+    /* barra de instalacao do aplicativo */
+    +P+'#ap-inst-bar{background:#FFFFFF !important;border:1px solid #C9DDFB !important;'
+      +'box-shadow:0 8px 26px rgba(16,24,40,.14)}'
+    +P+'#ap-inst-bar div{color:#0F1B33 !important}'
+    +P+'#ap-inst-bar div[style*="11px"]{color:#66748C !important}'
 
     /* assistente virtual */
     +P+'.apchat{background:#FFFFFF;border:1px solid #D8E3F2;box-shadow:0 12px 44px rgba(16,24,40,.22)}'
