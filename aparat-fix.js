@@ -3320,3 +3320,194 @@
   [900,2200,4500,8000].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,6000);
 })();
+
+/* APARAT v47 - TEMA CLARO DO PAINEL DO ESCRITORIO + CHAVE NO MENU LATERAL
+   Escopo: somente o painel administrativo (#view-painel e a barra do topo). */
+;(function(){
+  if(window.__APARAT_TEMA_ESC__) return; window.__APARAT_TEMA_ESC__=47;
+
+  var CHAVE='apTemaEscritorio';        /* claro | escuro */
+  function lido(){ try{return localStorage.getItem(CHAVE)||'claro';}catch(e){return 'claro';} }
+  function grava(v){ try{localStorage.setItem(CHAVE,v);}catch(e){} }
+
+  function fonte(){
+    if(document.getElementById('ap-fonte-poppins')) return;
+    var l=document.createElement('link'); l.id='ap-fonte-poppins'; l.rel='stylesheet';
+    l.href='https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(l);
+  }
+
+  function css(){
+    if(document.getElementById('ap-tema-esc-css')) return;
+    var P='body.ap-esc-claro ';
+    var A=P+'#view-painel ';
+    var st=document.createElement('style'); st.id='ap-tema-esc-css';
+    st.textContent=
+
+    /* variaveis reescritas dentro do painel */
+    P+'#view-painel{'
+      +'--azul:#3355FF;--azul2:#2E7DF6;--azul-light:#2E7DF6;'
+      +'--escuro:#F4F7FC;--card:#FFFFFF;--card2:#F5F8FD;--border:#E6EDF7;'
+      +'--branco:#0F1B33;--cinza:#66748C;'
+      +'--verde:#0E9F6E;--vermelho:#D92D20;--laranja:#B45309;'
+      +"color:#0F1B33;font-family:'Poppins','Segoe UI',sans-serif}"
+    +P+'{background:#F4F7FC}'
+    +P+'.layout{background:#F4F7FC}'
+
+    /* ---------- barra do topo ---------- */
+    +P+'.top-switch{background:#FFFFFF;border-bottom:1px solid #E6EDF7;padding:12px 20px}'
+    +P+'.ts-logo span{color:#0F1B33;font-size:15px}'
+    +P+'.ts-logo small{color:#2E7DF6}'
+    +P+'.ts-info{color:#66748C;font-size:11px}'
+    +P+'.ts-info strong{color:#0F1B33}'
+    +P+'.live-row{color:#66748C}'
+    +P+'.switcher{background:#F5F8FD;border:1px solid #E6EDF7;border-radius:12px}'
+    +P+'.sw-btn{color:#66748C;font-size:12px;padding:8px 16px}'
+    +P+'.sw-btn.active{background:#3355FF;color:#FFFFFF;box-shadow:0 3px 10px rgba(51,85,255,.30)}'
+
+    /* ---------- menu lateral ---------- */
+    +A+'.sidebar{background:#FFFFFF;border-right:1px solid #E6EDF7;width:216px}'
+    +A+'.nav-sec{color:#8A97AD;font-size:10px;padding:14px 16px 4px}'
+    +A+'.nav-item{color:#42506B;font-size:13px;padding:10px 16px;border-left:3px solid transparent}'
+    +A+'.nav-item:hover{background:#EAF1FF;color:#0F1B33}'
+    +A+'.nav-item.active{background:#EAF1FF;color:#3355FF;border-left:3px solid #3355FF}'
+    +A+'.nav-item .ni{font-size:15px}'
+    +A+'.nav-dot{box-shadow:0 0 0 2px #FFFFFF}'
+    +A+'.sidebar-foot{border-top:1px solid #E6EDF7;color:#8A97AD;font-size:10px}'
+    +A+'.sidebar-foot span[style]{color:#8A97AD !important}'
+
+    /* ---------- area principal ---------- */
+    +A+'.pmain{background:#F4F7FC;padding:22px 26px}'
+    +A+'.sec{color:#0F1B33;font-size:15px;margin-bottom:10px}'
+    +A+'.sec a{color:#2E7DF6;font-size:12px}'
+
+    /* cartoes de indicadores */
+    +A+'.kcard{background:#FFFFFF;border:1px solid #E6EDF7;border-radius:16px;padding:16px 18px;'
+      +'box-shadow:0 1px 2px rgba(16,24,40,.05),0 10px 26px rgba(16,24,40,.05)}'
+    +A+'.kcard .kl{color:#66748C;font-size:11px;font-weight:600;letter-spacing:0}'
+    +A+'.kcard .kv{font-size:24px}'
+    +A+'.kcard .ks{font-size:11px}'
+    +A+'.c-az{color:#2E7DF6}'+A+'.c-gr{color:#0E9F6E}'
+    +A+'.c-rd{color:#D92D20}'+A+'.c-or{color:#B45309}'
+
+    /* caixas e graficos */
+    +A+'.cbox,'+A+'.tbox,'+A+'.fbox,'+A+'.segr{background:#FFFFFF;border:1px solid #E6EDF7;border-radius:16px;'
+      +'box-shadow:0 1px 2px rgba(16,24,40,.05),0 10px 26px rgba(16,24,40,.05)}'
+    +A+'.cbox{padding:16px}'
+    +A+'.bar2.r{background:linear-gradient(180deg,#5B8DFF,#3355FF)}'
+    +A+'.bar2.d{background:linear-gradient(180deg,#FFB4AC,#F1705E)}'
+    +A+'.bl2,'+A+'.li2{color:#66748C;font-size:11px}'
+    +A+'#pp-dash strong{color:#0F1B33 !important}'
+
+    /* tabelas */
+    +A+'th{background:#F5F8FD;color:#66748C;font-size:11px;padding:11px 14px;letter-spacing:.2px}'
+    +A+'td{color:#0F1B33;font-size:13px;padding:12px 14px;border-top:1px solid #E6EDF7}'
+    +A+'tr:hover td{background:#F8FAFF}'
+    +A+'td[style*="var(--cinza)"]{color:#8A97AD !important}'
+
+    /* etiquetas */
+    +A+'.tag{border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700}'
+    +A+'.tp{background:#E7F8EF;color:#0E9F6E}'
+    +A+'.ta{background:#FDECEA;color:#D92D20}'
+    +A+'.tn{background:#FDF3E4;color:#B45309}'
+    +A+'.ti{background:#EAF1FF;color:#3355FF}'
+
+    /* formularios */
+    +A+'.ftitle{color:#0F1B33;font-size:14px;border-bottom:1px solid #E6EDF7;padding-bottom:10px;margin-bottom:14px}'
+    +A+'label{color:#66748C;font-size:12px;font-weight:600}'
+    +A+'input,'+A+'select,'+A+'textarea{background:#FFFFFF;border:1px solid #D8E3F2;color:#0F1B33;'
+      +'border-radius:10px;padding:10px 12px;font-size:13.5px;font-family:inherit}'
+    +A+'input:focus,'+A+'select:focus,'+A+'textarea:focus{border-color:#3355FF;box-shadow:0 0 0 4px rgba(51,85,255,.12)}'
+    +A+'input::placeholder,'+A+'textarea::placeholder{color:#A6B2C6}'
+
+    /* botoes */
+    +A+'.btn{border-radius:10px;font-size:13px;padding:10px 18px;font-weight:700}'
+    +A+'.btn-az{background:linear-gradient(92deg,#0B2A8A 0%,#3355FF 55%,#2E9BF6 100%);color:#fff;'
+      +'box-shadow:0 4px 12px rgba(51,85,255,.28)}'
+    +A+'.btn-sm{background:#FFFFFF;border:1px solid #D8E3F2;color:#2E7DF6;border-radius:8px;font-size:11.5px;padding:5px 10px}'
+    +A+'.btn-vd{background:#E7F8EF;color:#0E9F6E;border:1px solid #B7E9D1}'
+
+    /* textos e campos que tinham cor branca fixa */
+    +A+'input[style*="color:#fff"],'+A+'select[style*="color:#fff"],'+A+'textarea[style*="color:#fff"]{color:#0F1B33 !important}'
+    +A+'div[style*="color:#fff"]:not([style*="background"]),'
+      +A+'span[style*="color:#fff"]:not([style*="background"]),'
+      +A+'b[style*="color:#fff"]:not([style*="background"]),'
+      +A+'strong[style*="color:#fff"]:not([style*="background"]),'
+      +A+'label[style*="color:#fff"]:not([style*="background"]){color:#0F1B33 !important}'
+    +A+'.btn:not(.btn-az):not(.btn-vd){background:#FFFFFF;border:1px solid #D8E3F2;color:#2E7DF6}'
+    +A+'.btn[style*="color:#fff"]:not(.btn-az){color:#2E7DF6 !important;background:#FFFFFF !important;border:1px solid #D8E3F2 !important}'
+
+    /* honorarios e listas dentro do painel */
+    +A+'.hon-card{background:#FFFFFF;border:1px solid #E6EDF7;border-radius:16px}'
+    +A+'.hon-title{color:#0F1B33}'
+    +A+'.hon-row{background:#F8FAFF;border:1px solid #E6EDF7;border-radius:12px}'
+    +A+'.hon-info strong{color:#0F1B33}'
+    +A+'.hon-valor{color:#2E7DF6}'
+    +A+'.segr .st strong{color:#0F1B33}'
+    +A+'.segr .st span{color:#66748C}'
+
+    /* barra de foco e atalhos do cliente vistos pelo escritorio */
+    +A+'.foco-bar{background:#FFFFFF;border:1px solid #E6EDF7;border-radius:14px}'
+    +A+'.foco-bar b{color:#0F1B33}'+A+'.foco-bar .fb-sub{color:#66748C}'
+    +A+'.foco-bar .fb-logo{background:#EAF1FF;color:#3355FF}'
+    +A+'.cli-atalhos button{background:#FFFFFF;border:1px solid #D8E3F2;color:#0F1B33;border-radius:10px}'
+    +A+'.cli-atalhos button:hover{border-color:#3355FF;background:#EAF1FF}'
+
+    /* previa do aplicativo dentro do painel */
+    +P+'.app-wrap{background:#F4F7FC}'
+
+    /* indicador de sincronizacao */
+    +P+'#sync-ind{background:#FFFFFF;border:1px solid #E6EDF7;color:#66748C;'
+      +'box-shadow:0 4px 16px rgba(16,24,40,.10)}'
+
+    /* ---------- chave de tema no menu ---------- */
+    +'#ap-esc-tema{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:13px;'
+      +'font-weight:600;color:#9090b8;cursor:pointer}'
+    +P+'#ap-esc-tema{color:#42506B}'
+    +'#ap-esc-tema:hover{background:rgba(51,85,255,.14)}'
+    +P+'#ap-esc-tema:hover{background:#EAF1FF}'
+    +'#ap-esc-tema .ei{width:18px;text-align:center;font-size:15px}'
+    +'#ap-esc-tema .chave{margin-left:auto;width:44px;height:25px;border-radius:999px;position:relative;'
+      +'flex:0 0 auto;background:#3355FF;transition:.22s}'
+    +'#ap-esc-tema .chave::after{content:"";position:absolute;top:3px;left:22px;width:19px;height:19px;'
+      +'border-radius:50%;background:#fff;transition:.22s;box-shadow:0 2px 6px rgba(0,0,0,.3)}'
+    +P+'#ap-esc-tema .chave{background:#D8E3F2}'
+    +P+'#ap-esc-tema .chave::after{left:3px}';
+
+    document.head.appendChild(st);
+  }
+
+  function aplicar(t){
+    document.body.classList.toggle('ap-esc-claro', t==='claro');
+    var ic=document.getElementById('ap-esc-ic'), tx=document.getElementById('ap-esc-tx');
+    if(ic) ic.textContent = (t==='claro') ? '\u{1F319}' : '☀️';
+    if(tx) tx.textContent = (t==='claro') ? 'Tema escuro' : 'Tema claro';
+  }
+  function trocar(){
+    var novo = (lido()==='claro') ? 'escuro' : 'claro';
+    grava(novo); aplicar(novo);
+  }
+
+  function item(){
+    var nav=document.querySelector('#view-painel .sidebar .nav');
+    if(!nav || document.getElementById('ap-esc-tema')) return;
+    var sec=document.createElement('div'); sec.className='nav-sec'; sec.id='ap-esc-sec';
+    sec.textContent='Aparência';
+    var it=document.createElement('div'); it.id='ap-esc-tema';
+    it.innerHTML='<span class="ei" id="ap-esc-ic">\u{1F319}</span><span id="ap-esc-tx">Tema escuro</span><span class="chave"></span>';
+    it.onclick=trocar;
+    nav.appendChild(sec); nav.appendChild(it);
+  }
+
+  function tick(){
+    try{
+      var p=document.getElementById('view-painel');
+      var ativo = p && p.classList.contains('active');
+      if(!ativo){ document.body.classList.remove('ap-esc-claro'); return; }
+      fonte(); css(); item(); aplicar(lido());
+    }catch(e){}
+  }
+  [700,2000,4200,7500].forEach(function(t){setTimeout(tick,t);});
+  setInterval(tick,5000);
+  document.addEventListener('click',function(){setTimeout(tick,250);},true);
+})();
