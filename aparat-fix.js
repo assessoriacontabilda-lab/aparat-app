@@ -1351,7 +1351,7 @@
   if (window.__APARAT_CLISEL__) return; window.__APARAT_CLISEL__ = 1;
   var NOMES = {};
   var DEMO = { "Mercearia Silva ME": 1, "Tech Soluções LTDA": 1, "Clínica Bem Estar": 1, "Padaria Gostosa ME": 1 };
-  var IDS = ["ob-cli", "hon-cli", "nf-cli", "dad-cli", "fat-cli", "ag-cli", "doc-cli", "acc-cli", "oba-cli", "urg-dest", "docs-cli-sel", "fin-cli"];
+  var IDS = ["ob-cli", "hon-cli", "nf-cli", "dad-cli", "fat-cli", "ag-cli", "doc-cli", "acc-cli", "oba-cli", "urg-dest", "docs-cli-sel", "fin-cli", "ped-cli"];
   function coletar(db) {
     var specs = [["clientes", "nome"], ["dados", "cliente"], ["faturamento", "cliente"], ["honorarios", "cliente"], ["obrigacoes", "cliente"], ["usuarios", "clienteNome"]];
     specs.forEach(function (sp) {
@@ -2722,6 +2722,7 @@
     {k:'fat',    ic:'\u{1F4C8}', lb:'Faturamento',    alvos:['sec-fat'],                       col:null},
     {k:'avisos', ic:'\u{1F514}', lb:'Avisos',         alvos:['ap-blk-avisos','sec-inf'],       col:null},
     {k:'dados',  ic:'\u{1F464}', lb:'Meus Dados',     alvos:['sec-dados','sec-docs','sec-doc'],col:'docs'},
+    {k:'pedidos',ic:'\u{1F4E8}', lb:'Meus Pedidos',   alvos:['sec-pedidos'],                   col:'pedidos'},
     {k:'nota',   ic:'\u{1F9FE}', lb:'Enviar Nota',    alvos:['sec-notas'],                     col:null},
     {k:'extrato',ic:'\u{1F4E4}', lb:'Enviar Extrato', alvos:['ap-blk-arq'],                    col:null},
     {k:'falar',  ic:'\u{1F4AC}', lb:'Falar Conosco',  alvos:['ap-blk-falar'],                  col:null}
@@ -3516,4 +3517,395 @@
   [700,2000,4200,7500].forEach(function(t){setTimeout(tick,t);});
   setInterval(tick,5000);
   document.addEventListener('click',function(){setTimeout(tick,250);},true);
+})();
+
+/* APARAT v49 - ABA "DOCUMENTOS SOLICITADOS" (escritorio envia ate 25 MB; cliente baixa) */
+;(function(){
+  if(window.__APARAT_PEDIDOS__) return; window.__APARAT_PEDIDOS__=1;
+  var COL='pedidos', MAXMB=25, PASTA='documentos/pedidos/';
+  var editId=null, enviando=false;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function st(){ try{ if(window.firebase && firebase.apps && firebase.apps.length && firebase.storage) return firebase.storage(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function el(id){ return document.getElementById(id); }
+  function v(id){ var e=el(id); return e?String(e.value||'').trim():''; }
+  function setV(id,x){ var e=el(id); if(e) e.value=x; }
+  function tam(b){ b=Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
+  function hoje(){ return new Date().toLocaleDateString('pt-BR'); }
+  function limpo(n){ return String(n||'arquivo').replace(/[^\w.\-]+/g,'_').slice(-70); }
+  function icone(n){
+    var e=String(n||'').split('.').pop().toLowerCase();
+    if(e==='pdf') return '\u{1F4C4}';
+    if(['jpg','jpeg','png','webp','gif','bmp'].indexOf(e)>=0) return '\u{1F5BC}️';
+    if(['xls','xlsx','csv','ods'].indexOf(e)>=0) return '\u{1F4CA}';
+    if(['zip','rar','7z'].indexOf(e)>=0) return '\u{1F5DC}️';
+    if(['xml','txt','ofx'].indexOf(e)>=0) return '\u{1F4C3}';
+    if(['doc','docx','odt'].indexOf(e)>=0) return '\u{1F4DD}';
+    return '\u{1F4CE}';
+  }
+  function ehAdmin(){
+    try{
+      var u=firebase.auth().currentUser; if(!u) return false;
+      if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /* ---------- estilo proprio (funciona no tema claro e no escuro) ---------- */
+  function css(){
+    if(el('ap-ped-css')) return;
+    var s=document.createElement('style'); s.id='ap-ped-css';
+    s.textContent=
+      '#pp-pedidos .ped-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin-bottom:8px;flex-wrap:wrap}'
+      +'#pp-pedidos .ped-ic{width:40px;height:40px;border-radius:11px;background:rgba(51,85,255,.14);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto}'
+      +'#pp-pedidos .ped-inf{flex:1;min-width:150px}'
+      +'#pp-pedidos .ped-inf b{display:block;font-size:13px}'
+      +'#pp-pedidos .ped-inf span{display:block;font-size:11px;color:var(--cinza);margin-top:2px}'
+      +'#pp-pedidos .ped-bts{display:flex;gap:6px;flex-wrap:wrap}'
+      +'#pp-pedidos .ped-bt{font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block}'
+      +'#pp-pedidos .ped-bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#pp-pedidos .ped-bt.vm{border-color:rgba(217,45,32,.55);color:#d92d20}'
+      +'#pp-pedidos .ped-gru{margin:12px 0 6px;font-size:12px;font-weight:800;color:var(--azul-light);border-bottom:1px solid var(--border);padding-bottom:5px}'
+      +'#pp-pedidos .ped-vazio{font-size:12px;color:var(--cinza);padding:6px 0}'
+      +'#pp-pedidos .ped-tag{font-size:10px;font-weight:700;border-radius:8px;padding:3px 8px}'
+      +'#sec-pedidos .ped-cli{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:9px;flex-wrap:wrap}'
+      +'#sec-pedidos .ped-cli .ic{width:44px;height:44px;border-radius:12px;background:rgba(51,85,255,.14);display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto}'
+      +'#sec-pedidos .ped-cli .inf{flex:1;min-width:140px}'
+      +'#sec-pedidos .ped-cli .inf b{display:block;font-size:15px}'
+      +'#sec-pedidos .ped-cli .inf span{display:block;font-size:12px;color:var(--cinza);margin-top:2px}'
+      +'#sec-pedidos .ped-dl{background:var(--azul);color:#fff;border:0;border-radius:11px;padding:11px 16px;font-size:14px;font-weight:800;text-decoration:none;cursor:pointer;display:inline-block}';
+    document.head.appendChild(s);
+  }
+
+  /* ================= PAINEL DO ESCRITORIO ================= */
+  function menu(){
+    var nv=document.querySelector('#view-painel .sidebar .nav'); if(!nv || el('ap-nav-ped')) return;
+    var ref=null;
+    [].slice.call(nv.querySelectorAll('.nav-item')).forEach(function(it){
+      if(/Documentos/.test(it.textContent||'') && !/Solicitad/.test(it.textContent||'')) ref=it;
+    });
+    var it=document.createElement('div');
+    it.className='nav-item'; it.id='ap-nav-ped';
+    it.innerHTML='<span class="ni">\u{1F4E8}</span>Doc. Solicitados<span class="nav-dot" id="dot-ped"></span>';
+    it.onclick=function(){ abrir(it); };
+    if(ref && ref.parentNode) ref.parentNode.insertBefore(it, ref.nextSibling); else nv.appendChild(it);
+  }
+
+  function abrir(item){
+    try{ if(typeof pPage==='function'){ pPage('pedidos', item); } }catch(e){}
+    var p=el('pp-pedidos'); if(p) p.classList.add('active');
+    listarSolic(); listar();
+  }
+
+  function pagina(){
+    if(el('pp-pedidos')) return;
+    var base=el('pp-docs'); if(!base || !base.parentNode) return;
+    var p=document.createElement('div'); p.className='ppage'; p.id='pp-pedidos';
+    p.innerHTML=
+      '<div class="sec">\u{1F4E8} Pedidos dos clientes</div>'
+      +'<div id="ped-sols"></div>'
+      +'<div class="fbox" id="ped-form" style="margin-top:12px">'
+        +'<div class="ftitle" id="ped-ftit">\u{1F4E4} Enviar documento ao cliente</div>'
+        +'<div class="fgrid">'
+          +'<div class="fg"><label>Cliente</label><select id="ped-cli"><option value="">Selecione o cliente...</option></select></div>'
+          +'<div class="fg"><label>Título do documento</label><input id="ped-tit" type="text" placeholder="Ex.: Certidão Negativa de Débitos"/></div>'
+        +'</div>'
+        +'<div class="fg" style="margin-bottom:10px"><label>Observação para o cliente (opcional)</label><input id="ped-desc" type="text" placeholder="Ex.: validade de 90 dias"/></div>'
+        +'<div class="fg" style="margin-bottom:10px"><label>Arquivo (PDF, imagem, XML, Excel, ZIP · máx. '+MAXMB+' MB)</label><input id="ped-file" type="file"/></div>'
+        +'<div id="ped-prog" style="display:none;font-size:12px;color:var(--cinza);margin-bottom:10px">Enviando... <b id="ped-prog-n">0%</b></div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+          +'<button class="btn btn-az" id="ped-btn">\u{1F4E4} Enviar ao cliente</button>'
+          +'<button class="btn" id="ped-cancel" style="display:none;background:transparent;border:1px solid var(--border);color:var(--cinza)">✖ Cancelar edição</button>'
+        +'</div>'
+      +'</div>'
+      +'<div class="sec" style="margin-top:16px">\u{1F4C2} Documentos enviados</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+        +'<div class="fg" style="flex:1;min-width:180px;margin:0"><select id="ped-filtro"><option value="">Todos os clientes</option></select></div>'
+        +'<button class="ped-bt" id="ped-recarrega">🔄 Atualizar lista</button>'
+      +'</div>'
+      +'<div id="ped-lista"><div class="ped-vazio">Carregando...</div></div>';
+    base.parentNode.insertBefore(p, base.nextSibling);
+    el('ped-btn').onclick=enviar;
+    el('ped-cancel').onclick=function(){ limparForm(); };
+    el('ped-filtro').onchange=listar;
+    el('ped-recarrega').onclick=function(){ listarSolic(); listar(); };
+    try{ if(window.ABA_NOMES) window.ABA_NOMES.pedidos='Documentos Solicitados'; }catch(e){}
+  }
+
+  function limparForm(){
+    editId=null;
+    setV('ped-tit',''); setV('ped-desc','');
+    var f=el('ped-file'); if(f) f.value='';
+    var t=el('ped-ftit'); if(t) t.innerHTML='\u{1F4E4} Enviar documento ao cliente';
+    var b=el('ped-btn'); if(b) b.innerHTML='\u{1F4E4} Enviar ao cliente';
+    var c=el('ped-cancel'); if(c) c.style.display='none';
+    window.__apPedSolic=null;
+  }
+
+  /* --------- lista de solicitacoes (o que o cliente pediu) --------- */
+  async function listarSolic(){
+    var box=el('ped-sols'); if(!box) return;
+    var d=db(); if(!d){ box.innerHTML='<div class="ped-vazio">Sem conexão com a nuvem.</div>'; return; }
+    var itens=[];
+    try{
+      var s=await d.collection('solicitacoes').get();
+      s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; itens.push(o); });
+    }catch(e){ box.innerHTML='<div class="ped-vazio">Não foi possível carregar os pedidos.</div>'; return; }
+    if(!itens.length){ box.innerHTML='<div class="ped-vazio">Nenhum pedido em aberto. Você também pode enviar um documento por conta própria no formulário abaixo.</div>'; return; }
+    itens.reverse();
+    box.innerHTML=itens.map(function(x){
+      var feito=/atend/i.test(String(x.status||''));
+      var tag=feito
+        ? '<span class="ped-tag" style="background:rgba(14,159,110,.16);color:#0e9f6e">Atendido ✔</span>'
+        : '<span class="ped-tag" style="background:rgba(180,83,9,.16);color:#b45309">Aguardando</span>';
+      return '<div class="ped-item">'
+        +'<div class="ped-ic">✉️</div>'
+        +'<div class="ped-inf"><b>'+esc(x.cliente||'(sem cliente)')+'</b><span>'+esc(x.mensagem||'')+'</span><span>'+esc(x.data||'')+'</span></div>'
+        +'<div class="ped-bts">'+tag
+        +'<button class="ped-bt az" data-ped-resp="'+esc(x.id)+'">\u{1F4CE} Responder com arquivo</button>'
+        +'</div></div>';
+    }).join('');
+    [].slice.call(box.querySelectorAll('[data-ped-resp]')).forEach(function(b){
+      b.onclick=function(){
+        var id=b.getAttribute('data-ped-resp');
+        var x=itens.filter(function(i){ return String(i.id)===String(id); })[0]; if(!x) return;
+        responder(x);
+      };
+    });
+  }
+
+  function responder(x){
+    limparForm();
+    window.__apPedSolic={id:x.id, cliente:x.cliente||''};
+    var sel=el('ped-cli');
+    if(sel && x.cliente){
+      var tem=false;
+      [].forEach.call(sel.options,function(o){ if(o.value===x.cliente) tem=true; });
+      if(!tem){ var o=document.createElement('option'); o.value=x.cliente; o.textContent=x.cliente; sel.appendChild(o); }
+      sel.value=x.cliente;
+    }
+    setV('ped-tit', String(x.mensagem||'Documento solicitado').slice(0,60));
+    var t=el('ped-ftit'); if(t) t.innerHTML='\u{1F4E4} Respondendo o pedido de '+esc(x.cliente||'cliente');
+    try{ el('ped-form').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+    try{ el('ped-file').focus(); }catch(e){}
+  }
+
+  /* --------- enviar / atualizar --------- */
+  async function enviar(){
+    if(enviando) return;
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return; }
+    var cli=v('ped-cli'), tit=v('ped-tit'), desc=v('ped-desc');
+    if(!cli){ aviso('⚠ Selecione o cliente','warn'); return; }
+    var fi=el('ped-file'), file=(fi && fi.files && fi.files[0]) ? fi.files[0] : null;
+    if(!editId && !file){ aviso('⚠ Escolha o arquivo','warn'); return; }
+    if(file && file.size > MAXMB*1024*1024){ aviso('⚠ Arquivo muito grande (máximo '+MAXMB+' MB)','warn'); return; }
+    if(!tit) tit = file ? file.name : 'Documento';
+
+    enviando=true;
+    var bt=el('ped-btn'); if(bt){ bt.disabled=true; bt.innerHTML='⏳ Enviando...'; }
+    try{
+      var dados={cliente:cli, titulo:tit, descricao:desc};
+      if(file){
+        var s=st(); if(!s) throw new Error('Armazenamento indisponível');
+        var caminho=PASTA+limpo(cli)+'/'+Date.now()+'_'+limpo(file.name);
+        var url=await subir(s.ref(caminho), file);
+        dados.arquivoNome=file.name;
+        dados.arquivoUrl=url;
+        dados.arquivoPath=caminho;
+        dados.tamanho=file.size;
+      }
+      if(editId){
+        var antigo=null;
+        if(file){ try{ var sn=await d.collection(COL).doc(editId).get(); antigo=(sn.data()||{}).arquivoPath||null; }catch(e){} }
+        await d.collection(COL).doc(editId).update(dados);
+        if(file && antigo) apagarArquivo(antigo);
+        aviso('✏️ Documento atualizado!');
+      }else{
+        dados.data=hoje();
+        dados.ts=Date.now();
+        var sol=window.__apPedSolic;
+        if(sol && sol.id) dados.solicitacaoId=sol.id;
+        await d.collection(COL).add(dados);
+        if(sol && sol.id){
+          try{ await d.collection('solicitacoes').doc(sol.id).update({status:'Atendida ✔'}); }catch(e){}
+        }
+        aviso('\u{1F4E8} Documento enviado para '+cli+'!');
+        try{ if(typeof syncAnim==='function') syncAnim('Documento → '+cli); }catch(e){}
+      }
+      limparForm();
+      await listar(); await listarSolic();
+    }catch(e){
+      aviso('Erro ao enviar: '+(e && e.message ? e.message : e),'warn');
+    }
+    var pg=el('ped-prog'); if(pg) pg.style.display='none';
+    if(bt){ bt.disabled=false; bt.innerHTML=editId?'✏️ Salvar alterações':'\u{1F4E4} Enviar ao cliente'; }
+    enviando=false;
+  }
+
+  function subir(ref, file){
+    return new Promise(function(ok,err){
+      var pg=el('ped-prog'), pn=el('ped-prog-n');
+      if(pg) pg.style.display='block';
+      var task=ref.put(file,{contentType:file.type||'application/octet-stream'});
+      task.on('state_changed', function(sn){
+        if(pn && sn.totalBytes) pn.textContent=Math.round((sn.bytesTransferred/sn.totalBytes)*100)+'%';
+      }, err, function(){
+        ref.getDownloadURL().then(ok).catch(err);
+      });
+    });
+  }
+
+  function apagarArquivo(caminho){
+    try{ var s=st(); if(s && caminho) s.ref(caminho).delete().catch(function(){}); }catch(e){}
+  }
+
+  /* --------- lista de documentos enviados (editar / excluir) --------- */
+  async function listar(){
+    var box=el('ped-lista'); if(!box) return;
+    var d=db(); if(!d){ box.innerHTML='<div class="ped-vazio">Sem conexão com a nuvem.</div>'; return; }
+    var itens=[];
+    try{
+      var s=await d.collection(COL).get();
+      s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; itens.push(o); });
+    }catch(e){ box.innerHTML='<div class="ped-vazio">Não foi possível carregar a lista.</div>'; return; }
+
+    var filtro=el('ped-filtro');
+    if(filtro){
+      var atual=filtro.value, nomes=[];
+      itens.forEach(function(x){ if(x.cliente && nomes.indexOf(x.cliente)<0) nomes.push(x.cliente); });
+      nomes.sort(function(a,b){ return a.localeCompare(b); });
+      filtro.innerHTML='<option value="">Todos os clientes</option>'+nomes.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
+      if(atual && nomes.indexOf(atual)>=0) filtro.value=atual;
+    }
+    var sel=(filtro && filtro.value)||'';
+    itens.sort(function(a,b){ return (Number(b.ts)||0)-(Number(a.ts)||0); });
+
+    var grupos={};
+    itens.forEach(function(x){
+      var c=x.cliente||'(sem cliente)';
+      if(sel && c!==sel) return;
+      (grupos[c]=grupos[c]||[]).push(x);
+    });
+    var clientes=Object.keys(grupos).sort(function(a,b){ return a.localeCompare(b); });
+    if(!clientes.length){ box.innerHTML='<div class="ped-vazio">Nenhum documento enviado ainda.</div>'; return; }
+
+    box.innerHTML=clientes.map(function(c){
+      return '<div class="ped-gru">\u{1F464} '+esc(c)+' <span style="color:var(--cinza);font-weight:400;font-size:10px">('+grupos[c].length+')</span></div>'
+        +grupos[c].map(function(x){
+          var sub=[x.descricao||'', x.arquivoNome||'', x.tamanho?tam(x.tamanho):'', x.data||''].filter(function(t){ return t; }).join(' · ');
+          var link=x.arquivoUrl?('<a class="ped-bt az" href="'+esc(x.arquivoUrl)+'" target="_blank" rel="noopener">⬇️ Abrir</a>'):'';
+          return '<div class="ped-item">'
+            +'<div class="ped-ic">'+icone(x.arquivoNome)+'</div>'
+            +'<div class="ped-inf"><b>'+esc(x.titulo||'Documento')+'</b><span>'+esc(sub)+'</span></div>'
+            +'<div class="ped-bts">'+link
+            +'<button class="ped-bt" data-ped-edit="'+esc(x.id)+'">✏️ Editar</button>'
+            +'<button class="ped-bt vm" data-ped-del="'+esc(x.id)+'">\u{1F5D1}️ Excluir</button>'
+            +'</div></div>';
+        }).join('');
+    }).join('');
+
+    [].slice.call(box.querySelectorAll('[data-ped-edit]')).forEach(function(b){
+      b.onclick=function(){
+        var x=itens.filter(function(i){ return String(i.id)===String(b.getAttribute('data-ped-edit')); })[0];
+        if(x) editar(x);
+      };
+    });
+    [].slice.call(box.querySelectorAll('[data-ped-del]')).forEach(function(b){
+      b.onclick=function(){
+        var x=itens.filter(function(i){ return String(i.id)===String(b.getAttribute('data-ped-del')); })[0];
+        if(x) excluir(x);
+      };
+    });
+  }
+
+  function editar(x){
+    limparForm();
+    editId=x.id;
+    var sel=el('ped-cli');
+    if(sel && x.cliente){
+      var tem=false; [].forEach.call(sel.options,function(o){ if(o.value===x.cliente) tem=true; });
+      if(!tem){ var o=document.createElement('option'); o.value=x.cliente; o.textContent=x.cliente; sel.appendChild(o); }
+      sel.value=x.cliente;
+    }
+    setV('ped-tit', x.titulo||''); setV('ped-desc', x.descricao||'');
+    var t=el('ped-ftit'); if(t) t.innerHTML='✏️ Editando: '+esc(x.titulo||'documento');
+    var b=el('ped-btn'); if(b) b.innerHTML='✏️ Salvar alterações';
+    var c=el('ped-cancel'); if(c) c.style.display='inline-block';
+    try{ el('ped-form').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+
+  async function excluir(x){
+    if(!confirm('Excluir "'+(x.titulo||'documento')+'" de '+(x.cliente||'')+'?\n\nO cliente deixa de ver este arquivo no app.')) return;
+    var d=db(); if(!d) return;
+    try{
+      await d.collection(COL).doc(x.id).delete();
+      if(x.arquivoPath) apagarArquivo(x.arquivoPath);
+      aviso('Documento excluído.','info');
+      if(String(editId)===String(x.id)) limparForm();
+      await listar();
+    }catch(e){ aviso('Erro ao excluir: '+(e && e.message ? e.message : e),'warn'); }
+  }
+
+  /* ================= APP DO CLIENTE ================= */
+  function blocoCliente(){
+    var vc=document.getElementById('view-cliente'); if(!vc) return null;
+    var left=vc.querySelector('.cli-left'); if(!left) return null;
+    var b=el('sec-pedidos');
+    if(!b){
+      b=document.createElement('div'); b.className='cli-sec'; b.id='sec-pedidos';
+      b.innerHTML='<div class="asec" style="margin-top:12px">\u{1F4E8} Meus Pedidos</div><div id="cli-ped"><div style="font-size:13px;color:var(--cinza);padding:4px 0">Carregando...</div></div>';
+      var ref=el('sec-doc');
+      if(ref && ref.parentNode===left) left.insertBefore(b, ref.nextSibling); else left.appendChild(b);
+    }
+    return b;
+  }
+
+  var ultimoCli='';
+  async function listarCliente(){
+    if(typeof CURRENT_CLIENTE==='undefined' || !CURRENT_CLIENTE) return;
+    if(!blocoCliente()) return;
+    var alvo=el('cli-ped'); if(!alvo) return;
+    var d=db(); if(!d) return;
+    var itens=[];
+    try{
+      var s=await d.collection(COL).where('cliente','==',CURRENT_CLIENTE).get();
+      s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; itens.push(o); });
+    }catch(e){ return; }
+    itens.sort(function(a,b){ return (Number(b.ts)||0)-(Number(a.ts)||0); });
+    ultimoCli=CURRENT_CLIENTE;
+    if(!itens.length){
+      alvo.innerHTML='<div style="font-size:13px;color:var(--cinza);padding:4px 0">\u{1F4ED} Ainda não há documentos aqui. Quando você pedir um documento ao escritório, ele aparece nesta tela para baixar.</div>';
+      return;
+    }
+    alvo.innerHTML=itens.map(function(x){
+      var sub=[x.descricao||'', x.arquivoNome||'', x.tamanho?tam(x.tamanho):'', x.data||''].filter(function(t){ return t; }).join(' · ');
+      var bt=x.arquivoUrl
+        ? '<a class="ped-dl" href="'+esc(x.arquivoUrl)+'" target="_blank" rel="noopener" download>⬇️ Baixar</a>'
+        : '';
+      return '<div class="ped-cli">'
+        +'<div class="ic">'+icone(x.arquivoNome)+'</div>'
+        +'<div class="inf"><b>'+esc(x.titulo||'Documento')+'</b><span>'+esc(sub)+'</span></div>'
+        +bt+'</div>';
+    }).join('');
+  }
+
+  /* ================= RELOGIO ================= */
+  var ocupado=false, voltas=0;
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      css();
+      var painel=el('view-painel');
+      if(painel && painel.classList.contains('active') && ehAdmin()){ menu(); pagina(); }
+      var vc=el('view-cliente');
+      if(vc && vc.querySelector('.cli-grid') && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE){
+        if(!el('cli-ped') || CURRENT_CLIENTE!==ultimoCli || voltas%5===0) await listarCliente();
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1500,3500,7000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,6000);
 })();
