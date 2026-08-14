@@ -3737,6 +3737,7 @@
       }else{
         dados.data=hoje();
         dados.ts=Date.now();
+        try{ dados.criadoEm=firebase.firestore.FieldValue.serverTimestamp(); }catch(e){}
         var sol=window.__apPedSolic;
         if(sol && sol.id) dados.solicitacaoId=sol.id;
         await d.collection(COL).add(dados);

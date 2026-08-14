@@ -1,7 +1,7 @@
 # MEMÓRIA TÉCNICA DO APP APARAT (para agentes de IA)
 
 > Leia este arquivo ANTES de qualquer alteração. Ele substitui a releitura do histórico de conversas.
-> Última atualização: 08/08/2026 (v43).
+> Última atualização: 14/08/2026 (v51).
 
 ## O QUE É
 PWA da APARAT Contabilidade (Daniel de Andrade Silva, Franca-SP, tel 16-98869-9203).
@@ -25,8 +25,8 @@ CUIDADO: conferir o cwd antes de `cat >>` (já quase subiu arquivo de 755 bytes 
 Se a extensão do Chrome não conectar: Daniel precisa abrir o Chrome e o painel da extensão pode estar deslogado (botão "Fazer login").
 
 ## VERSÕES ATUAIS (index.html carrega)
-- aparat-fix.js?v=43 · nav-snippet.js?v=6 · client-pages.js?v=4
-- sw.js ÚNICO (CACHE 'aparat-v41'): fetch network-first no-store + Firebase messaging.
+- aparat-fix.js?v=51 · nav-snippet.js?v=6 · client-pages.js?v=4
+- sw.js ÚNICO (CACHE 'aparat-v49'): fetch network-first no-store + Firebase messaging.
   NUNCA registrar firebase-messaging-sw.js (2 SWs no mesmo escopo quebrou a instalação no passado).
   index usa `navigator.serviceWorker.ready` no initPush.
 
@@ -43,6 +43,19 @@ dados(sec-dados+sec-docs+sec-doc), nota(sec-notas), extrato(ap-blk-arq), falar(a
 - `__APARAT_BOT2__`: assistente virtual ensina o layout novo (chip "❓ Como usar o app").
 - `__APARAT_SECVAZIA__`: esconde seções vazias (texto "Nenhum...") sem formulário.
 - Outros módulos ativos (flags __APARAT_*__): OBRIG_CONT, INAD, BAIXA, PIX, XLS, INSTALL, CAL2 (calendário FAB), CLIEDIT (editar cliente + renomear em cascata), PROXVENC (card próximo vencimento), WAFLUT/ap-wa-flut2 (WhatsApp), NOMES, ABADOT.
+
+## ABA "DOCUMENTOS SOLICITADOS" (v49-v51, módulo `__APARAT_PEDIDOS__`)
+Coleção Firestore `pedidos` {cliente,titulo,descricao,arquivoNome,arquivoUrl,arquivoPath,arquivoData,tamanho,data,ts,criadoEm,solicitacaoId}.
+- ADMIN: menu "📨 Doc. Solicitados" (#ap-nav-ped) + página #pp-pedidos criada por JS depois de #pp-docs.
+  Lista `solicitacoes` (botão "Responder com arquivo" → marca status "Atendida ✔"), formulário de envio, lista com Abrir/Editar/Excluir.
+- CLIENTE: seção #sec-pedidos (criada em .cli-left depois de #sec-doc) + tile `pedidos` no `__APARAT_TILES__` (badge pela coleção).
+- 3 formas de anexo: Storage até 25 MB (`documentos/pedidos/<cliente>/<ts>_<arquivo>`), arquivo ≤700 KB em base64 no próprio doc
+  (campo arquivoData, via lerArquivoBase64) e link colado do Google Drive. `checarStorage()` testa o bucket 1x e mostra aviso se faltar.
+- Excluir apaga o doc e o arquivo no Storage.
+- FIREBASE (feito em 14/08/2026): regra do Firestore para /pedidos (admin escreve; cliente lê só onde
+  resource.data.cliente == usuarios/{uid}.clienteNome) e Storage ATIVADO (bucket aparat-contabilidade.firebasestorage.app,
+  US-EAST1 gratuito, regra: leitura/gravação só do e-mail admin; cliente baixa pelo token da URL).
+- Push: `criadoEm` (serverTimestamp) é gravado no doc e "pedidos" entrou em ESCRITORIO_PARA_CLIENTE no notificador/enviar.js.
 
 ## ARMADILHAS CONHECIDAS
 - IDs DUPLICADOS: form admin usa ids cli-* (cli-hon era duplicado → lista do cliente virou cli-hon-lista). Painel admin (pp-*) existe no DOM para todos.
