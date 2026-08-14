@@ -3522,8 +3522,8 @@
 /* APARAT v49 - ABA "DOCUMENTOS SOLICITADOS" (escritorio envia ate 25 MB; cliente baixa) */
 ;(function(){
   if(window.__APARAT_PEDIDOS__) return; window.__APARAT_PEDIDOS__=1;
-  var COL='pedidos', MAXMB=25, PASTA='documentos/pedidos/';
-  var editId=null, enviando=false;
+  var COL='pedidos', MAXMB=25, PASTA='documentos/pedidos/', LIMBD=700*1024;
+  var editId=null, enviando=false, storageOk=null;
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
@@ -3613,7 +3613,9 @@
           +'<div class="fg"><label>Título do documento</label><input id="ped-tit" type="text" placeholder="Ex.: Certidão Negativa de Débitos"/></div>'
         +'</div>'
         +'<div class="fg" style="margin-bottom:10px"><label>Observação para o cliente (opcional)</label><input id="ped-desc" type="text" placeholder="Ex.: validade de 90 dias"/></div>'
+        +'<div id="ped-aviso" style="display:none;font-size:12px;line-height:1.5;background:rgba(180,83,9,.12);color:#b45309;border:1px solid rgba(180,83,9,.35);border-radius:10px;padding:10px 12px;margin-bottom:10px"></div>'
         +'<div class="fg" style="margin-bottom:10px"><label>Arquivo (PDF, imagem, XML, Excel, ZIP · máx. '+MAXMB+' MB)</label><input id="ped-file" type="file"/></div>'
+        +'<div class="fg" style="margin-bottom:10px"><label>Ou cole o link do arquivo (Google Drive, OneDrive · opcional)</label><input id="ped-link" type="text" placeholder="https://drive.google.com/..."/></div>'
         +'<div id="ped-prog" style="display:none;font-size:12px;color:var(--cinza);margin-bottom:10px">Enviando... <b id="ped-prog-n">0%</b></div>'
         +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
           +'<button class="btn btn-az" id="ped-btn">\u{1F4E4} Enviar ao cliente</button>'
@@ -3631,12 +3633,13 @@
     el('ped-cancel').onclick=function(){ limparForm(); };
     el('ped-filtro').onchange=listar;
     el('ped-recarrega').onclick=function(){ listarSolic(); listar(); };
+    checarStorage();
     try{ if(window.ABA_NOMES) window.ABA_NOMES.pedidos='Documentos Solicitados'; }catch(e){}
   }
 
   function limparForm(){
     editId=null;
-    setV('ped-tit',''); setV('ped-desc','');
+    setV('ped-tit',''); setV('ped-desc',''); setV('ped-link','');
     var f=el('ped-file'); if(f) f.value='';
     var t=el('ped-ftit'); if(t) t.innerHTML='\u{1F4E4} Enviar documento ao cliente';
     var b=el('ped-btn'); if(b) b.innerHTML='\u{1F4E4} Enviar ao cliente';
@@ -3696,11 +3699,15 @@
   async function enviar(){
     if(enviando) return;
     var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return; }
-    var cli=v('ped-cli'), tit=v('ped-tit'), desc=v('ped-desc');
+    var cli=v('ped-cli'), tit=v('ped-tit'), desc=v('ped-desc'), link=v('ped-link');
     if(!cli){ aviso('⚠ Selecione o cliente','warn'); return; }
     var fi=el('ped-file'), file=(fi && fi.files && fi.files[0]) ? fi.files[0] : null;
-    if(!editId && !file){ aviso('⚠ Escolha o arquivo','warn'); return; }
+    if(!editId && !file && !link){ aviso('⚠ Escolha o arquivo ou cole o link','warn'); return; }
     if(file && file.size > MAXMB*1024*1024){ aviso('⚠ Arquivo muito grande (máximo '+MAXMB+' MB)','warn'); return; }
+    if(link && !/^https?:\/\//i.test(link)){ aviso('⚠ O link precisa começar com https://','warn'); return; }
+    if(file && file.size > LIMBD && storageOk===false){
+      aviso('⚠ Arquivo acima de 700 KB. Ative o Armazenamento no Firebase ou envie o link do Google Drive.','warn'); return;
+    }
     if(!tit) tit = file ? file.name : 'Documento';
 
     enviando=true;
@@ -3708,14 +3715,19 @@
     try{
       var dados={cliente:cli, titulo:tit, descricao:desc};
       if(file){
-        var s=st(); if(!s) throw new Error('Armazenamento indisponível');
-        var caminho=PASTA+limpo(cli)+'/'+Date.now()+'_'+limpo(file.name);
-        var url=await subir(s.ref(caminho), file);
         dados.arquivoNome=file.name;
-        dados.arquivoUrl=url;
-        dados.arquivoPath=caminho;
         dados.tamanho=file.size;
+        dados.arquivoUrl=''; dados.arquivoData=''; dados.arquivoPath='';
+        if(file.size<=LIMBD && storageOk!==true){
+          dados.arquivoData=await base64(file);   // cabe no banco, funciona sempre
+        }else{
+          var s=st(); if(!s) throw new Error('Armazenamento indisponível');
+          var caminho=PASTA+limpo(cli)+'/'+Date.now()+'_'+limpo(file.name);
+          dados.arquivoUrl=await subir(s.ref(caminho), file);
+          dados.arquivoPath=caminho;
+        }
       }
+      if(link){ dados.arquivoUrl=link; if(!file){ dados.arquivoNome=''; dados.arquivoPath=''; dados.arquivoData=''; } }
       if(editId){
         var antigo=null;
         if(file){ try{ var sn=await d.collection(COL).doc(editId).get(); antigo=(sn.data()||{}).arquivoPath||null; }catch(e){} }
@@ -3744,17 +3756,53 @@
     enviando=false;
   }
 
+  function base64(file){
+    if(typeof lerArquivoBase64==='function') return lerArquivoBase64(file);
+    return new Promise(function(ok,err){
+      var fr=new FileReader();
+      fr.onload=function(){ ok(fr.result); };
+      fr.onerror=function(){ err(new Error('Não foi possível ler o arquivo')); };
+      fr.readAsDataURL(file);
+    });
+  }
+
   function subir(ref, file){
     return new Promise(function(ok,err){
-      var pg=el('ped-prog'), pn=el('ped-prog-n');
+      var pg=el('ped-prog'), pn=el('ped-prog-n'), pronto=false;
       if(pg) pg.style.display='block';
+      var relogio=setTimeout(function(){
+        if(pronto) return; pronto=true;
+        err(new Error('O envio não respondeu. O Armazenamento (Storage) do Firebase parece não estar ativado — use o link do Google Drive ou ative o Storage no console.'));
+      },60000);
       var task=ref.put(file,{contentType:file.type||'application/octet-stream'});
       task.on('state_changed', function(sn){
         if(pn && sn.totalBytes) pn.textContent=Math.round((sn.bytesTransferred/sn.totalBytes)*100)+'%';
-      }, err, function(){
-        ref.getDownloadURL().then(ok).catch(err);
+      }, function(e){ if(pronto) return; pronto=true; clearTimeout(relogio); err(e); },
+      function(){
+        ref.getDownloadURL().then(function(u){ if(pronto) return; pronto=true; clearTimeout(relogio); ok(u); })
+                            .catch(function(e){ if(pronto) return; pronto=true; clearTimeout(relogio); err(e); });
       });
     });
+  }
+
+  /* verifica uma unica vez se o Armazenamento (Storage) esta ativado no projeto */
+  function checarStorage(){
+    if(storageOk!==null) return;
+    storageOk=false;
+    var b='';
+    try{ b=(firebase.app().options||{}).storageBucket||''; }catch(e){}
+    if(!b){ mostrarAviso(); return; }
+    fetch('https://firebasestorage.googleapis.com/v0/b/'+b+'/o?maxResults=1')
+      .then(function(r){ storageOk=(r.status!==404); mostrarAviso(); })
+      .catch(function(){ storageOk=false; mostrarAviso(); });
+  }
+  function mostrarAviso(){
+    var a=el('ped-aviso'); if(!a) return;
+    if(storageOk===true){ a.style.display='none'; return; }
+    a.style.display='block';
+    a.innerHTML='⚠️ <b>Armazenamento de arquivos grandes ainda não ativado</b> no Firebase.'
+      +'<br>Por enquanto: arquivos de <b>até 700 KB</b> vão normalmente pelo app, e para arquivos maiores cole o <b>link do Google Drive</b> no campo abaixo.'
+      +'<br>Para liberar até '+MAXMB+' MB: Firebase → Storage → Começar (é preciso plano Blaze).';
   }
 
   function apagarArquivo(caminho){
@@ -3795,7 +3843,8 @@
       return '<div class="ped-gru">\u{1F464} '+esc(c)+' <span style="color:var(--cinza);font-weight:400;font-size:10px">('+grupos[c].length+')</span></div>'
         +grupos[c].map(function(x){
           var sub=[x.descricao||'', x.arquivoNome||'', x.tamanho?tam(x.tamanho):'', x.data||''].filter(function(t){ return t; }).join(' · ');
-          var link=x.arquivoUrl?('<a class="ped-bt az" href="'+esc(x.arquivoUrl)+'" target="_blank" rel="noopener">⬇️ Abrir</a>'):'';
+          var end=x.arquivoUrl||x.arquivoData||'';
+          var link=end?('<a class="ped-bt az" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(x.arquivoNome||x.titulo||'documento')+'">⬇️ Abrir</a>'):'';
           return '<div class="ped-item">'
             +'<div class="ped-ic">'+icone(x.arquivoNome)+'</div>'
             +'<div class="ped-inf"><b>'+esc(x.titulo||'Documento')+'</b><span>'+esc(sub)+'</span></div>'
@@ -3830,6 +3879,7 @@
       sel.value=x.cliente;
     }
     setV('ped-tit', x.titulo||''); setV('ped-desc', x.descricao||'');
+    if(x.arquivoUrl && !x.arquivoPath) setV('ped-link', x.arquivoUrl);
     var t=el('ped-ftit'); if(t) t.innerHTML='✏️ Editando: '+esc(x.titulo||'documento');
     var b=el('ped-btn'); if(b) b.innerHTML='✏️ Salvar alterações';
     var c=el('ped-cancel'); if(c) c.style.display='inline-block';
@@ -3881,8 +3931,9 @@
     }
     alvo.innerHTML=itens.map(function(x){
       var sub=[x.descricao||'', x.arquivoNome||'', x.tamanho?tam(x.tamanho):'', x.data||''].filter(function(t){ return t; }).join(' · ');
-      var bt=x.arquivoUrl
-        ? '<a class="ped-dl" href="'+esc(x.arquivoUrl)+'" target="_blank" rel="noopener" download>⬇️ Baixar</a>'
+      var end=x.arquivoUrl||x.arquivoData||'';
+      var bt=end
+        ? '<a class="ped-dl" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(x.arquivoNome||x.titulo||'documento')+'">⬇️ Baixar</a>'
         : '';
       return '<div class="ped-cli">'
         +'<div class="ic">'+icone(x.arquivoNome)+'</div>'
