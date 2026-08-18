@@ -4043,6 +4043,25 @@
       +'#pp-extratos .ex-det .ln span{color:var(--cinza)}'
       +'#pp-extratos .ex-bt{font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block;margin:6px 6px 0 0}'
       +'#pp-extratos .ex-bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#ap-ext-modal{position:fixed;inset:0;background:rgba(6,12,26,.66);display:flex;align-items:center;justify-content:center;z-index:99999;padding:14px}'
+      +'#ap-ext-modal .cx{position:relative;background:var(--card);border:1px solid var(--border);border-radius:18px;max-width:540px;width:100%;max-height:88vh;overflow:auto;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
+      +'#ap-ext-modal .x{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--cinza);font-size:14px;cursor:pointer;line-height:1}'
+      +'#ap-ext-modal h3{margin:0 6px 10px 0;font-size:16px;padding-right:34px}'
+      +'#ap-ext-modal .ln{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dotted var(--border);font-size:13px}'
+      +'#ap-ext-modal .ln:last-of-type{border-bottom:0}'
+      +'#ap-ext-modal .ln span{color:var(--cinza)}'
+      +'#ap-ext-modal .bts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}'
+      +'#ap-ext-modal .bt{font-size:12.5px;font-weight:700;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block}'
+      +'#ap-ext-modal .bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#ap-ext-modal .bt.vm{border-color:rgba(217,45,32,.55);color:#d92d20}'
+      +'#ap-ext-modal .cx input[type=file]{width:100%;margin-top:8px;font-size:12px}'
+      +'#ap-ext-modal .cx label{font-size:11px;color:var(--cinza)}'
+      +'#sec-extratos .ex-hist{display:flex;align-items:center;gap:9px;border-top:1px dotted var(--border);padding:9px 0}'
+      +'#sec-extratos .ex-hist .in{flex:1;min-width:0}'
+      +'#sec-extratos .ex-hist .in b{display:block;font-size:13px}'
+      +'#sec-extratos .ex-hist .in span{display:block;font-size:11px;color:var(--cinza);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      +'#sec-extratos .ex-vb{font-size:12px;font-weight:700;padding:7px 11px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);text-decoration:none;white-space:nowrap}'
+      +'#sec-extratos .ex-vb.az{background:var(--azul);border-color:var(--azul);color:#fff}'
       +'#sec-extratos .ex-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:10px}'
       +'#sec-extratos .ex-card h4{margin:0 0 3px;font-size:15px}'
       +'#sec-extratos .ex-card p{margin:0;font-size:12px;color:var(--cinza);line-height:1.5}'
@@ -4141,7 +4160,7 @@
         +'<span><b style="color:var(--cinza)">–</b> Não se aplica</span>'
         +'<span style="margin-left:auto">Prazo: dia '+DIA_PRAZO+' do mês seguinte</span>'
       +'</div>'
-      +'<div class="ex-det" id="ex-det"><b style="font-size:13px">Clique em um quadradinho da grade para ver o extrato do cliente.</b></div>';
+      +'<div class="ex-det" id="ex-det"><b style="font-size:13px">\u{1F446} Clique em qualquer quadradinho da grade</b><div style="font-size:12px;color:var(--cinza);margin-top:5px">A ficha do cliente abre em uma janela no meio da tela, com os botões de visualizar, baixar, trocar o arquivo, excluir e cobrar.</div></div>';
     base.parentNode.insertBefore(p, base.nextSibling);
     el('ex-ano').onchange=function(){ anoSel=Number(this.value)||anoSel; grade(); };
     el('ex-recarrega').onclick=async function(){ await carregarNomes(); await carregar(true); grade(); };
@@ -4196,36 +4215,100 @@
     var d=el('dot-ext'); if(d) d.style.display=c.at>0?'inline-block':'none';
   }
 
+  function fecharModal(){ var m=el('ap-ext-modal'); if(m) m.remove(); }
+  function modal(html){
+    fecharModal();
+    var m=document.createElement('div'); m.id='ap-ext-modal';
+    m.innerHTML='<div class="cx"><button class="x" id="ex-mx">✖</button>'+html+'</div>';
+    m.onclick=function(ev){ if(ev.target===m) fecharModal(); };
+    document.body.appendChild(m);
+    var x=el('ex-mx'); if(x) x.onclick=fecharModal;
+    return m;
+  }
+
   function detalhe(cli,mi){
-    var box=el('ex-det'); if(!box) return;
     var cp=comp(anoSel,mi), s=situacao(cli,anoSel,mi), reg=acha(cli,cp);
-    var nome={ok:'Entregue',sm:'Sem movimento',pd:'Pendente no prazo',at:'Atrasado',na:'Não se aplica'}[s];
-    var h='<b style="font-size:13.5px">'+esc(cli)+' — '+MESES[mi]+'/'+anoSel+'</b>'
-      +'<div class="ln"><span>Situação</span><b>'+nome+'</b></div>'
+    var nome={ok:'✓ Entregue',sm:'∅ Sem movimento',pd:'• Pendente no prazo',at:'! Atrasado',na:'– Fora do controle'}[s];
+    var cor={ok:'#0e9f6e',sm:'#0e9f6e',pd:'#b45309',at:'#d92d20',na:'var(--cinza)'}[s];
+    var h='<h3>\u{1F3E6} '+esc(cli)+'</h3>'
+      +'<div class="ln"><span>Competência</span><b>'+MESES[mi]+'/'+anoSel+'</b></div>'
+      +'<div class="ln"><span>Situação</span><b style="color:'+cor+'">'+nome+'</b></div>'
       +'<div class="ln"><span>Prazo de entrega</span><b>'+prazoTxt(anoSel,mi)+'</b></div>';
+    var bts='';
     if(reg){
       if(reg.semMovimento){
-        h+='<div class="ln"><span>Declaração do cliente</span><b>Não houve movimentação</b></div>';
+        h+='<div class="ln"><span>Declaração</span><b>Não houve movimentação</b></div>';
       }else{
-        h+='<div class="ln"><span>Arquivo</span><b>'+esc(reg.arquivoNome||'(sem nome)')+(reg.tamanho?' · '+tam(reg.tamanho):'')+'</b></div>';
+        h+='<div class="ln"><span>Arquivo</span><b>'+esc(reg.arquivoNome||'(sem nome)')+'</b></div>';
+        if(reg.tamanho) h+='<div class="ln"><span>Tamanho</span><b>'+tam(reg.tamanho)+'</b></div>';
       }
       h+='<div class="ln"><span>Registrado em</span><b>'+esc(reg.enviadoEm||'-')+'</b></div>'
         +'<div class="ln"><span>Origem</span><b>'+(reg.origem==='escritorio'?'lançado pelo escritório':'enviado pelo cliente')+'</b></div>';
       var end=reg.arquivoUrl||reg.arquivoData||'';
-      if(end) h+='<a class="ex-bt az" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(reg.arquivoNome||'extrato')+'">⬇️ Baixar</a>';
-      h+='<button class="ex-bt" data-ex-limpa="1">\u{1F5D1}️ Apagar este registro</button>';
+      if(end){
+        bts+='<a class="bt az" href="'+esc(end)+'" target="_blank" rel="noopener">\u{1F441}️ Visualizar</a>'
+            +'<a class="bt" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(reg.arquivoNome||('extrato_'+cp))+'">⬇️ Baixar</a>';
+      }
+      bts+='<button class="bt" data-ex-troca="1">✏️ Trocar o arquivo</button>';
+      if(!reg.semMovimento) bts+='<button class="bt" data-ex-sm="1">∅ Marcar sem movimento</button>';
+      bts+='<button class="bt vm" data-ex-del="1">\u{1F5D1}️ Excluir</button>';
     }else{
       if(s==='at') h+='<div class="ln"><span>Atraso</span><b style="color:#d92d20">'+atrasoDias(anoSel,mi)+' dia(s)</b></div>';
-      h+='<button class="ex-bt az" data-ex-cobra1="1">\u{1F514} Cobrar este cliente</button>'
-        +'<button class="ex-bt" data-ex-sm="1">∅ Marcar sem movimento</button>';
+      if(s==='na') h+='<div class="ln"><span>Observação</span><b>Mês futuro ou anterior ao início do controle</b></div>';
+      bts+='<button class="bt az" data-ex-cob="1">\u{1F514} Cobrar este cliente</button>'
+          +'<button class="bt" data-ex-troca="1">\u{1F4CE} Anexar eu mesmo</button>'
+          +'<button class="bt" data-ex-sm="1">∅ Marcar sem movimento</button>';
     }
-    box.innerHTML=h;
-    var b1=box.querySelector('[data-ex-sm]');
-    if(b1) b1.onclick=function(){ marcarSemMov(cli,cp); };
-    var b2=box.querySelector('[data-ex-cobra1]');
-    if(b2) b2.onclick=function(){ cobrarUm(cli,anoSel,mi); };
-    var b3=box.querySelector('[data-ex-limpa]');
-    if(b3) b3.onclick=function(){ apagar(cli,cp); };
+    h+='<div class="bts">'+bts+'</div>'
+      +'<div id="ex-mup" style="display:none;margin-top:12px;border-top:1px dotted var(--border);padding-top:11px">'
+        +'<label>Arquivo do extrato (PDF ou OFX · máx. '+MAXMB+' MB)</label>'
+        +'<input id="ex-mfile" type="file" accept=".pdf,.ofx,.PDF,.OFX"/>'
+        +'<div id="ex-mprog" style="display:none;font-size:12px;color:var(--cinza);margin-top:6px">Enviando... <b id="ex-mprog-n">0%</b></div>'
+        +'<div class="bts"><button class="bt az" id="ex-msalva">\u{1F4BE} Salvar em '+MESES[mi]+'/'+anoSel+'</button></div>'
+      +'</div>';
+    var m=modal(h);
+    var bt;
+    bt=m.querySelector('[data-ex-sm]');    if(bt) bt.onclick=function(){ fecharModal(); marcarSemMov(cli,cp); };
+    bt=m.querySelector('[data-ex-del]');   if(bt) bt.onclick=function(){ fecharModal(); apagar(cli,cp); };
+    bt=m.querySelector('[data-ex-cob]');   if(bt) bt.onclick=function(){ fecharModal(); cobrarUm(cli,anoSel,mi); };
+    bt=m.querySelector('[data-ex-troca]'); if(bt) bt.onclick=function(){ var u=el('ex-mup'); if(u) u.style.display='block'; };
+    bt=m.querySelector('#ex-msalva');      if(bt) bt.onclick=function(){ anexarAdmin(cli,cp,mi); };
+  }
+
+  async function anexarAdmin(cli,cp,mi){
+    if(enviando) return;
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return; }
+    var fi=el('ex-mfile'), file=(fi && fi.files && fi.files[0]) ? fi.files[0] : null;
+    if(!file){ aviso('⚠ Escolha o arquivo do extrato','warn'); return; }
+    if(file.size > MAXMB*1024*1024){ aviso('⚠ Arquivo muito grande (máximo '+MAXMB+' MB)','warn'); return; }
+    enviando=true;
+    var bt=el('ex-msalva'); if(bt){ bt.disabled=true; bt.innerHTML='⏳ Enviando...'; }
+    try{
+      var antigo=(acha(cli,cp)||{}).arquivoPath||null;
+      var dados={ cliente:cli, competencia:cp, semMovimento:false, situacao:'ok',
+        arquivoNome:file.name, tamanho:file.size, origem:'escritorio',
+        enviadoEm:new Date().toLocaleString('pt-BR'), ts:Date.now(), prazo:prazoTxt(anoSel,mi),
+        arquivoUrl:'', arquivoData:'', arquivoPath:'' };
+      var s=st(), subiu=false;
+      if(s){
+        try{
+          var caminho=PASTA+limpo(cli)+'/'+cp+'/'+Date.now()+'_'+limpo(file.name);
+          dados.arquivoUrl=await subir(s.ref(caminho), file);
+          dados.arquivoPath=caminho; subiu=true;
+        }catch(e){ subiu=false; }
+      }
+      if(!subiu){
+        if(file.size>LIMBD) throw new Error('Não foi possível usar o armazenamento e o arquivo passa de 700 KB.');
+        dados.arquivoData=await base64(file);
+      }
+      await d.collection(COL).doc(idDoc(cli,cp)).set(dados,{merge:true});
+      if(antigo && antigo!==dados.arquivoPath){ try{ if(s) s.ref(antigo).delete().catch(function(){}); }catch(e){} }
+      aviso('\u{1F4BE} Extrato de '+cli+' salvo em '+MESES[mi]+'/'+anoSel+'.');
+      fecharModal();
+      await carregar(true); grade();
+    }catch(e){ aviso('Erro ao salvar: '+(e && e.message ? e.message : e),'warn'); }
+    if(bt){ bt.disabled=false; bt.innerHTML='\u{1F4BE} Salvar'; }
+    enviando=false;
   }
 
   function atrasoDias(ano,mi){
@@ -4337,10 +4420,32 @@
       fita+='<div class="'+sx+'">'+MABREV[dt.getMonth()]+'<br>'+ic+'</div>';
     }
 
+    /* lista dos extratos que o cliente ja mandou, com botao de ver e baixar */
+    var meus=cache.filter(function(x){ return x.cliente===CURRENT_CLIENTE; })
+                  .sort(function(a,b){ return String(b.competencia||'').localeCompare(String(a.competencia||'')); })
+                  .slice(0,12);
+    var lista='';
+    meus.forEach(function(x){
+      var p=String(x.competencia||'').split('-'), mn=Number(p[1])-1;
+      var titulo=(MESES[mn]?MESES[mn].charAt(0).toUpperCase()+MESES[mn].slice(1):x.competencia)+' / '+p[0];
+      var end=x.arquivoUrl||x.arquivoData||'';
+      var acao = x.semMovimento
+        ? '<span class="ex-vb" style="border-color:rgba(14,159,110,.4);color:#0e9f6e">∅ Sem movimento</span>'
+        : (end
+            ? '<a class="ex-vb az" href="'+esc(end)+'" target="_blank" rel="noopener">\u{1F441}️ Ver</a>'
+              +'<a class="ex-vb" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(x.arquivoNome||('extrato_'+x.competencia))+'">⬇️</a>'
+            : '<span class="ex-vb">arquivo indisponível</span>');
+      var sub=[x.arquivoNome||'', x.tamanho?tam(x.tamanho):'', x.enviadoEm||''].filter(function(t){ return t; }).join(' · ');
+      lista+='<div class="ex-hist"><div class="in"><b>'+esc(titulo)+'</b><span>'+esc(sub)+'</span></div>'+acao+'</div>';
+    });
+    if(!lista) lista='<div style="font-size:12px;color:var(--cinza);padding:8px 0">Você ainda não enviou nenhum extrato por aqui.</div>';
+
     alvo.innerHTML=alerta+envio
       +'<div class="ex-card"><h4>Meu histórico</h4><p>Últimos 12 meses de entrega</p>'
       +'<div class="ex-fita">'+fita+'</div>'
-      +'<p style="margin-top:9px">Prazo: todo dia '+DIA_PRAZO+' do mês seguinte.</p></div>';
+      +'<p style="margin-top:9px">Prazo: todo dia '+DIA_PRAZO+' do mês seguinte.</p></div>'
+      +'<div class="ex-card"><h4>\u{1F4C2} Extratos que enviei</h4><p>Toque em "Ver" para abrir o arquivo</p>'
+      +lista+'</div>';
 
     var be=el('ext-env'); if(be) be.onclick=enviarCliente;
     var bs=el('ext-sm'); if(bs) bs.onclick=semMovCliente;
@@ -4422,7 +4527,7 @@
 
   function subir(ref, file){
     return new Promise(function(ok,err){
-      var pg=el('ext-prog'), pn=el('ext-prog-n'), pronto=false;
+      var pg=el('ext-prog')||el('ex-mprog'), pn=el('ext-prog-n')||el('ex-mprog-n'), pronto=false;
       if(pg) pg.style.display='block';
       var relogio=setTimeout(function(){
         if(pronto) return; pronto=true;
