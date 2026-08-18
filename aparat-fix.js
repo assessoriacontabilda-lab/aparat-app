@@ -3970,6 +3970,9 @@
   var MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   var MABREV=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   var anoSel=new Date().getFullYear(), cache=[], nomes=[], carregando=false, enviando=false;
+  var INICIO_PADRAO='2026-07';
+  function inicio(){ try{ return localStorage.getItem('apExtratoInicio')||INICIO_PADRAO; }catch(e){ return INICIO_PADRAO; } }
+  function setInicio(v){ try{ localStorage.setItem('apExtratoInicio',v); }catch(e){} }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function el(id){ return document.getElementById(id); }
@@ -3999,8 +4002,10 @@
   }
   function situacao(cli,ano,mi){
     var h=new Date();
-    var reg=acha(cli, comp(ano,mi));
+    var cp=comp(ano,mi);
+    var reg=acha(cli, cp);
     if(reg) return reg.semMovimento ? 'sm' : 'ok';
+    if(cp < inicio()) return 'na';               /* antes do inicio do controle */
     var ini=new Date(ano, mi, 1);
     if(ini>h) return 'na';                       /* mes ainda nao aconteceu */
     if(new Date(ano, mi+1, 1) > h) return 'na';  /* mes corrente ainda nao fechou */
@@ -4122,6 +4127,10 @@
         +'<div class="fg" style="margin:0;min-width:120px"><select id="ex-ano">'+anos+'</select></div>'
         +'<button class="ex-bt" id="ex-recarrega">🔄 Atualizar</button>'
         +'<button class="ex-bt az" id="ex-cobrar">\u{1F514} Cobrar os atrasados</button>'
+        +'<div class="fg" style="margin:0;min-width:200px;display:flex;align-items:center;gap:6px">'
+          +'<label style="font-size:11px;color:var(--cinza);white-space:nowrap">Controle começa em</label>'
+          +'<select id="ex-inicio"></select>'
+        +'</div>'
       +'</div>'
       +'<div class="ex-rol"><table id="ex-tab"><thead></thead><tbody><tr><td style="padding:16px;color:var(--cinza)">Carregando...</td></tr></tbody></table></div>'
       +'<div class="ex-leg">'
@@ -4137,6 +4146,17 @@
     el('ex-ano').onchange=function(){ anoSel=Number(this.value)||anoSel; grade(); };
     el('ex-recarrega').onclick=async function(){ await carregarNomes(); await carregar(true); grade(); };
     el('ex-cobrar').onclick=cobrar;
+    var si=el('ex-inicio');
+    if(si){
+      var op='', hj=new Date();
+      for(var q=0;q<30;q++){
+        var dq=new Date(hj.getFullYear(), hj.getMonth()-q, 1);
+        var cq=comp(dq.getFullYear(), dq.getMonth());
+        op+='<option value="'+cq+'">'+MESES[dq.getMonth()]+'/'+dq.getFullYear()+'</option>';
+      }
+      si.innerHTML=op; si.value=inicio();
+      si.onchange=function(){ setInicio(this.value); grade(); };
+    }
     try{ if(window.ABA_NOMES) window.ABA_NOMES.extratos='Extratos Bancários'; }catch(e){}
   }
 
