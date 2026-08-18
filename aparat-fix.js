@@ -2724,7 +2724,7 @@
     {k:'dados',  ic:'\u{1F464}', lb:'Meus Dados',     alvos:['sec-dados','sec-docs','sec-doc'],col:'docs'},
     {k:'pedidos',ic:'\u{1F4E8}', lb:'Meus Pedidos',   alvos:['sec-pedidos'],                   col:'pedidos'},
     {k:'nota',   ic:'\u{1F9FE}', lb:'Enviar Nota',    alvos:['sec-notas'],                     col:null},
-    {k:'extrato',ic:'\u{1F4E4}', lb:'Enviar Extrato', alvos:['ap-blk-arq'],                    col:null},
+    {k:'extrato',ic:'\u{1F3E6}', lb:'Meus Extratos',  alvos:['sec-extratos','ap-blk-arq'],    col:null},
     {k:'falar',  ic:'\u{1F4AC}', lb:'Falar Conosco',  alvos:['ap-blk-falar'],                  col:null}
   ];
   var SETA='<svg viewBox="0 0 24 24" fill="none" style="width:26px;height:26px"><path d="M15.5 4 8 12l7.5 8" stroke="#9cc4ff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -3959,5 +3959,484 @@
     ocupado=false;
   }
   [1500,3500,7000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,6000);
+})();
+
+/* APARAT v52 - ABA "EXTRATOS BANCARIOS" (grade cliente x mes, prazo dia 10, cobranca) */
+;(function(){
+  if(window.__APARAT_EXTRATOS__) return; window.__APARAT_EXTRATOS__=1;
+  var COL='extratos', MAXMB=25, PASTA='extratos/', LIMBD=700*1024;
+  var DIA_PRAZO=10, DIA_LEMBRETE=8, DIA_COBRA=11;
+  var MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  var MABREV=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  var anoSel=new Date().getFullYear(), cache=[], nomes=[], carregando=false, enviando=false;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function el(id){ return document.getElementById(id); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function st(){ try{ if(window.firebase && firebase.apps && firebase.apps.length && firebase.storage) return firebase.storage(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function limpo(n){ return String(n||'x').replace(/[^\w.\-]+/g,'_').slice(0,80); }
+  function tam(b){ b=Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function comp(ano,mi){ return ano+'-'+pad(mi+1); }
+  function idDoc(cli,cp){ return limpo(cli)+'__'+cp; }
+  function ehAdmin(){
+    try{
+      var u=firebase.auth().currentUser; if(!u) return false;
+      if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL;
+      return true;
+    }catch(e){ return false; }
+  }
+  /* prazo = dia 10 do mes seguinte a competencia */
+  function prazoDe(ano,mi){ var d=new Date(ano, mi+1, DIA_PRAZO, 23, 59, 59); return d; }
+  function prazoTxt(ano,mi){ var d=prazoDe(ano,mi); return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear(); }
+  /* competencia que esta sendo cobrada agora (mes anterior ao atual) */
+  function compAtual(){
+    var h=new Date(), ano=h.getFullYear(), mi=h.getMonth()-1;
+    if(mi<0){ mi=11; ano--; }
+    return {ano:ano, mi:mi};
+  }
+  function situacao(cli,ano,mi){
+    var h=new Date();
+    var reg=acha(cli, comp(ano,mi));
+    if(reg) return reg.semMovimento ? 'sm' : 'ok';
+    var ini=new Date(ano, mi, 1);
+    if(ini>h) return 'na';                       /* mes ainda nao aconteceu */
+    if(new Date(ano, mi+1, 1) > h) return 'na';  /* mes corrente ainda nao fechou */
+    return (h > prazoDe(ano,mi)) ? 'at' : 'pd';
+  }
+  function acha(cli,cp){
+    for(var i=0;i<cache.length;i++){ if(cache[i].cliente===cli && cache[i].competencia===cp) return cache[i]; }
+    return null;
+  }
+
+  function css(){
+    if(el('ap-ext-css')) return;
+    var s=document.createElement('style'); s.id='ap-ext-css';
+    s.textContent=
+      '#pp-extratos .ex-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}'
+      +'#pp-extratos .ex-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px}'
+      +'#pp-extratos .ex-kpi b{display:block;font-size:22px;line-height:1.1}'
+      +'#pp-extratos .ex-kpi span{font-size:11px;color:var(--cinza)}'
+      +'#pp-extratos .ex-rol{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}'
+      +'#pp-extratos table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;font-size:12px}'
+      +'#pp-extratos th,#pp-extratos td{padding:8px 5px;text-align:center;border-bottom:1px solid var(--border)}'
+      +'#pp-extratos thead th{font-size:11px;color:var(--cinza);font-weight:700}'
+      +'#pp-extratos td.cli,#pp-extratos th.cli{text-align:left;padding-left:12px;min-width:170px;font-weight:700}'
+      +'#pp-extratos tbody tr:last-child td{border-bottom:0}'
+      +'#pp-extratos .fa{width:28px;height:28px;border-radius:8px;border:1px solid transparent;font-size:13px;cursor:pointer;line-height:1}'
+      +'#pp-extratos .fa.ok{background:rgba(14,159,110,.16);color:#0e9f6e;border-color:rgba(14,159,110,.3)}'
+      +'#pp-extratos .fa.sm{background:rgba(14,159,110,.09);color:#0e9f6e;border-color:rgba(14,159,110,.2)}'
+      +'#pp-extratos .fa.pd{background:rgba(180,83,9,.16);color:#b45309;border-color:rgba(180,83,9,.3)}'
+      +'#pp-extratos .fa.at{background:rgba(217,45,32,.16);color:#d92d20;border-color:rgba(217,45,32,.35)}'
+      +'#pp-extratos .fa.na{background:rgba(130,145,170,.13);color:var(--cinza)}'
+      +'#pp-extratos .ex-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--cinza);margin-top:10px;align-items:center}'
+      +'#pp-extratos .ex-det{margin-top:12px;border:1px dashed var(--border);border-radius:12px;padding:14px}'
+      +'#pp-extratos .ex-det .ln{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dotted var(--border);font-size:12.5px}'
+      +'#pp-extratos .ex-det .ln:last-of-type{border-bottom:0}'
+      +'#pp-extratos .ex-det .ln span{color:var(--cinza)}'
+      +'#pp-extratos .ex-bt{font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block;margin:6px 6px 0 0}'
+      +'#pp-extratos .ex-bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#sec-extratos .ex-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:10px}'
+      +'#sec-extratos .ex-card h4{margin:0 0 3px;font-size:15px}'
+      +'#sec-extratos .ex-card p{margin:0;font-size:12px;color:var(--cinza);line-height:1.5}'
+      +'#sec-extratos .ex-al{border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.55}'
+      +'#sec-extratos .ex-al.at{background:rgba(217,45,32,.13);border:1px solid rgba(217,45,32,.32)}'
+      +'#sec-extratos .ex-al.pd{background:rgba(180,83,9,.13);border:1px solid rgba(180,83,9,.32)}'
+      +'#sec-extratos .ex-al.ok{background:rgba(14,159,110,.13);border:1px solid rgba(14,159,110,.32)}'
+      +'#sec-extratos .ex-fita{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:9px}'
+      +'#sec-extratos .ex-fita div{border-radius:9px;padding:6px 2px;text-align:center;font-size:10px;font-weight:700;line-height:1.35}'
+      +'#sec-extratos .ex-fita .ok,#sec-extratos .ex-fita .sm{background:rgba(14,159,110,.16);color:#0e9f6e}'
+      +'#sec-extratos .ex-fita .at{background:rgba(217,45,32,.16);color:#d92d20}'
+      +'#sec-extratos .ex-fita .pd{background:rgba(180,83,9,.16);color:#b45309}'
+      +'#sec-extratos .ex-fita .na{background:rgba(130,145,170,.13);color:var(--cinza)}'
+      +'#sec-extratos .ex-mbt{display:block;width:100%;border:0;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-top:8px;background:var(--azul);color:#fff}'
+      +'#sec-extratos .ex-mbt.sec{background:transparent;border:1px solid var(--border);color:var(--cinza)}';
+    document.head.appendChild(s);
+  }
+
+  /* ---------- carrega a colecao ---------- */
+  async function carregar(force){
+    if(carregando) return;
+    var d=db(); if(!d) return;
+    carregando=true;
+    try{
+      var s=await d.collection(COL).get();
+      var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
+      cache=arr;
+    }catch(e){}
+    carregando=false;
+  }
+  async function carregarNomes(){
+    var d=db(); if(!d) return;
+    var set={};
+    var specs=[['clientes','nome'],['usuarios','clienteNome']];
+    for(var i=0;i<specs.length;i++){
+      try{
+        var s=await d.collection(specs[i][0]).get();
+        s.forEach(function(x){
+          var o=x.data()||{};
+          var n=String(o[specs[i][1]]||'').trim();
+          var ativo=!o.status || /ativ/i.test(String(o.status));
+          if(n && n!=='Todos os Clientes' && ativo) set[n]=1;
+        });
+      }catch(e){}
+    }
+    var l=Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
+    if(l.length) nomes=l;
+  }
+
+  /* ================= PAINEL DO ESCRITORIO ================= */
+  function menu(){
+    var nv=document.querySelector('#view-painel .sidebar .nav'); if(!nv || el('ap-nav-ext')) return;
+    var ref=null;
+    [].slice.call(nv.querySelectorAll('.nav-item')).forEach(function(it){
+      if(/Doc\. Solicitados/.test(it.textContent||'')) ref=it;
+      if(!ref && /Documentos/.test(it.textContent||'')) ref=it;
+    });
+    var it=document.createElement('div');
+    it.className='nav-item'; it.id='ap-nav-ext';
+    it.innerHTML='<span class="ni">\u{1F3E6}</span>Extratos<span class="nav-dot" id="dot-ext"></span>';
+    it.onclick=function(){ abrir(it); };
+    if(ref && ref.parentNode) ref.parentNode.insertBefore(it, ref.nextSibling); else nv.appendChild(it);
+  }
+
+  async function abrir(item){
+    try{ if(typeof pPage==='function'){ pPage('extratos', item); } }catch(e){}
+    var p=el('pp-extratos'); if(p) p.classList.add('active');
+    await carregarNomes(); await carregar(true); grade();
+  }
+
+  function pagina(){
+    if(el('pp-extratos')) return;
+    var base=el('pp-pedidos')||el('pp-docs'); if(!base || !base.parentNode) return;
+    var p=document.createElement('div'); p.className='ppage'; p.id='pp-extratos';
+    var anos='';
+    var hy=new Date().getFullYear();
+    for(var a=hy+1;a>=hy-3;a--) anos+='<option value="'+a+'"'+(a===anoSel?' selected':'')+'>'+a+'</option>';
+    p.innerHTML=
+      '<div class="sec">\u{1F3E6} Extratos bancários dos clientes</div>'
+      +'<div class="ex-kpis" id="ex-kpis"></div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">'
+        +'<div class="fg" style="margin:0;min-width:120px"><select id="ex-ano">'+anos+'</select></div>'
+        +'<button class="ex-bt" id="ex-recarrega">🔄 Atualizar</button>'
+        +'<button class="ex-bt az" id="ex-cobrar">\u{1F514} Cobrar os atrasados</button>'
+      +'</div>'
+      +'<div class="ex-rol"><table id="ex-tab"><thead></thead><tbody><tr><td style="padding:16px;color:var(--cinza)">Carregando...</td></tr></tbody></table></div>'
+      +'<div class="ex-leg">'
+        +'<span><b style="color:#0e9f6e">✓</b> Entregue</span>'
+        +'<span><b style="color:#0e9f6e">∅</b> Sem movimento</span>'
+        +'<span><b style="color:#b45309">•</b> Pendente no prazo</span>'
+        +'<span><b style="color:#d92d20">!</b> Atrasado</span>'
+        +'<span><b style="color:var(--cinza)">–</b> Não se aplica</span>'
+        +'<span style="margin-left:auto">Prazo: dia '+DIA_PRAZO+' do mês seguinte</span>'
+      +'</div>'
+      +'<div class="ex-det" id="ex-det"><b style="font-size:13px">Clique em um quadradinho da grade para ver o extrato do cliente.</b></div>';
+    base.parentNode.insertBefore(p, base.nextSibling);
+    el('ex-ano').onchange=function(){ anoSel=Number(this.value)||anoSel; grade(); };
+    el('ex-recarrega').onclick=async function(){ await carregarNomes(); await carregar(true); grade(); };
+    el('ex-cobrar').onclick=cobrar;
+    try{ if(window.ABA_NOMES) window.ABA_NOMES.extratos='Extratos Bancários'; }catch(e){}
+  }
+
+  function grade(){
+    var tab=el('ex-tab'); if(!tab) return;
+    var th='<tr><th class="cli">Cliente</th>';
+    var ca=compAtual();
+    for(var m=0;m<12;m++) th+='<th'+((anoSel===ca.ano&&m===ca.mi)?' style="color:var(--azul-light)"':'')+'>'+MABREV[m].charAt(0).toUpperCase()+MABREV[m].slice(1)+'</th>';
+    tab.tHead.innerHTML=th+'</tr>';
+    if(!nomes.length){ tab.tBodies[0].innerHTML='<tr><td class="cli" colspan="13" style="padding:16px;color:var(--cinza)">Nenhum cliente encontrado. Cadastre os clientes na aba Clientes.</td></tr>'; kpis(); return; }
+    var ico={ok:'✓',sm:'∅',pd:'•',at:'!',na:'–'};
+    var html='';
+    nomes.forEach(function(n){
+      html+='<tr><td class="cli">'+esc(n)+'</td>';
+      for(var m=0;m<12;m++){
+        var s=situacao(n,anoSel,m);
+        html+='<td><button class="fa '+s+'" data-ex-c="'+esc(n)+'" data-ex-m="'+m+'" title="'+esc(n)+' — '+MESES[m]+'/'+anoSel+'">'+ico[s]+'</button></td>';
+      }
+      html+='</tr>';
+    });
+    tab.tBodies[0].innerHTML=html;
+    [].slice.call(tab.querySelectorAll('[data-ex-c]')).forEach(function(b){
+      b.onclick=function(){ detalhe(b.getAttribute('data-ex-c'), Number(b.getAttribute('data-ex-m'))); };
+    });
+    kpis();
+  }
+
+  function kpis(){
+    var box=el('ex-kpis'); if(!box) return;
+    var ca=compAtual(), c={ok:0,sm:0,pd:0,at:0};
+    nomes.forEach(function(n){ var s=situacao(n,ca.ano,ca.mi); if(c[s]!=null) c[s]++; });
+    box.innerHTML=
+       '<div class="ex-kpi"><b style="color:#0e9f6e">'+c.ok+'</b><span>Entregues · '+MESES[ca.mi]+'/'+ca.ano+'</span></div>'
+      +'<div class="ex-kpi"><b style="color:#d92d20">'+c.at+'</b><span>Atrasados (venceu '+prazoTxt(ca.ano,ca.mi)+')</span></div>'
+      +'<div class="ex-kpi"><b style="color:#b45309">'+c.pd+'</b><span>Pendentes no prazo</span></div>'
+      +'<div class="ex-kpi"><b style="color:var(--azul-light)">'+c.sm+'</b><span>Sem movimento declarado</span></div>';
+    var d=el('dot-ext'); if(d) d.style.display=c.at>0?'inline-block':'none';
+  }
+
+  function detalhe(cli,mi){
+    var box=el('ex-det'); if(!box) return;
+    var cp=comp(anoSel,mi), s=situacao(cli,anoSel,mi), reg=acha(cli,cp);
+    var nome={ok:'Entregue',sm:'Sem movimento',pd:'Pendente no prazo',at:'Atrasado',na:'Não se aplica'}[s];
+    var h='<b style="font-size:13.5px">'+esc(cli)+' — '+MESES[mi]+'/'+anoSel+'</b>'
+      +'<div class="ln"><span>Situação</span><b>'+nome+'</b></div>'
+      +'<div class="ln"><span>Prazo de entrega</span><b>'+prazoTxt(anoSel,mi)+'</b></div>';
+    if(reg){
+      if(reg.semMovimento){
+        h+='<div class="ln"><span>Declaração do cliente</span><b>Não houve movimentação</b></div>';
+      }else{
+        h+='<div class="ln"><span>Arquivo</span><b>'+esc(reg.arquivoNome||'(sem nome)')+(reg.tamanho?' · '+tam(reg.tamanho):'')+'</b></div>';
+      }
+      h+='<div class="ln"><span>Registrado em</span><b>'+esc(reg.enviadoEm||'-')+'</b></div>'
+        +'<div class="ln"><span>Origem</span><b>'+(reg.origem==='escritorio'?'lançado pelo escritório':'enviado pelo cliente')+'</b></div>';
+      var end=reg.arquivoUrl||reg.arquivoData||'';
+      if(end) h+='<a class="ex-bt az" href="'+esc(end)+'" target="_blank" rel="noopener" download="'+esc(reg.arquivoNome||'extrato')+'">⬇️ Baixar</a>';
+      h+='<button class="ex-bt" data-ex-limpa="1">\u{1F5D1}️ Apagar este registro</button>';
+    }else{
+      if(s==='at') h+='<div class="ln"><span>Atraso</span><b style="color:#d92d20">'+atrasoDias(anoSel,mi)+' dia(s)</b></div>';
+      h+='<button class="ex-bt az" data-ex-cobra1="1">\u{1F514} Cobrar este cliente</button>'
+        +'<button class="ex-bt" data-ex-sm="1">∅ Marcar sem movimento</button>';
+    }
+    box.innerHTML=h;
+    var b1=box.querySelector('[data-ex-sm]');
+    if(b1) b1.onclick=function(){ marcarSemMov(cli,cp); };
+    var b2=box.querySelector('[data-ex-cobra1]');
+    if(b2) b2.onclick=function(){ cobrarUm(cli,anoSel,mi); };
+    var b3=box.querySelector('[data-ex-limpa]');
+    if(b3) b3.onclick=function(){ apagar(cli,cp); };
+  }
+
+  function atrasoDias(ano,mi){
+    var ms=new Date()-prazoDe(ano,mi);
+    return Math.max(0, Math.floor(ms/86400000));
+  }
+
+  async function marcarSemMov(cli,cp){
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return; }
+    try{
+      await d.collection(COL).doc(idDoc(cli,cp)).set({
+        cliente:cli, competencia:cp, semMovimento:true, situacao:'sm',
+        origem:'escritorio', enviadoEm:new Date().toLocaleString('pt-BR'), ts:Date.now()
+      },{merge:true});
+      aviso('∅ '+cli+': mês marcado como sem movimento.');
+      await carregar(true); grade();
+    }catch(e){ aviso('Erro ao salvar: '+(e && e.message ? e.message : e),'warn'); }
+  }
+
+  async function apagar(cli,cp){
+    if(!confirm('Apagar o registro de extrato de '+cli+' ('+cp+')?')) return;
+    var d=db(); if(!d) return;
+    try{
+      var reg=acha(cli,cp);
+      await d.collection(COL).doc(idDoc(cli,cp)).delete();
+      if(reg && reg.arquivoPath){ try{ var s=st(); if(s) s.ref(reg.arquivoPath).delete().catch(function(){}); }catch(e){} }
+      aviso('Registro apagado.','info');
+      await carregar(true); grade();
+    }catch(e){ aviso('Erro ao apagar: '+(e && e.message ? e.message : e),'warn'); }
+  }
+
+  async function cobrarUm(cli,ano,mi){
+    var d=db(); if(!d) return;
+    try{
+      await d.collection('urgencias').add({
+        titulo:'\u{1F3E6} Extrato de '+MESES[mi]+'/'+ano+' pendente',
+        msg:'Olá! Ainda não recebemos o seu extrato bancário de '+MESES[mi]+'/'+ano+'. O prazo era '+prazoTxt(ano,mi)+'. Envie pelo app em "\u{1F3E6} Meus Extratos" (PDF ou OFX). Se não houve movimento, toque em "Não tive movimento". APARAT Contabilidade.',
+        prio:'Alta', dest:cli, data:new Date().toLocaleDateString('pt-BR')
+      });
+      aviso('\u{1F514} Cobrança enviada para '+cli+'.');
+    }catch(e){ aviso('Erro ao cobrar: '+(e && e.message ? e.message : e),'warn'); }
+  }
+
+  async function cobrar(){
+    var ca=compAtual(), lista=[];
+    nomes.forEach(function(n){ if(situacao(n,ca.ano,ca.mi)==='at') lista.push(n); });
+    if(!lista.length){ aviso('Nenhum cliente atrasado em '+MESES[ca.mi]+'/'+ca.ano+'. Está tudo em dia!','info'); return; }
+    if(!confirm('Enviar cobrança do extrato de '+MESES[ca.mi]+'/'+ca.ano+' para '+lista.length+' cliente(s)?\n\n'+lista.join('\n'))) return;
+    for(var i=0;i<lista.length;i++){ await cobrarUm(lista[i], ca.ano, ca.mi); }
+    aviso('\u{1F514} Cobrança enviada para '+lista.length+' cliente(s).');
+    try{ if(typeof syncAnim==='function') syncAnim('Cobrança de extrato · '+lista.length+' cliente(s)'); }catch(e){}
+  }
+
+  /* ================= APP DO CLIENTE ================= */
+  function blocoCliente(){
+    var vc=el('view-cliente'); if(!vc) return null;
+    var left=vc.querySelector('.cli-left'); if(!left) return null;
+    var b=el('sec-extratos');
+    if(!b){
+      b=document.createElement('div'); b.className='cli-sec'; b.id='sec-extratos';
+      b.innerHTML='<div class="asec" style="margin-top:12px">\u{1F3E6} Meus Extratos</div><div id="cli-ext"><div style="font-size:13px;color:var(--cinza);padding:4px 0">Carregando...</div></div>';
+      var ref=el('sec-pedidos')||el('sec-doc');
+      if(ref && ref.parentNode===left) left.insertBefore(b, ref.nextSibling); else left.appendChild(b);
+    }
+    return b;
+  }
+
+  var ultimoCli='';
+  async function telaCliente(){
+    if(typeof CURRENT_CLIENTE==='undefined' || !CURRENT_CLIENTE) return;
+    if(!blocoCliente()) return;
+    var alvo=el('cli-ext'); if(!alvo) return;
+    var d=db(); if(!d) return;
+    try{
+      var s=await d.collection(COL).where('cliente','==',CURRENT_CLIENTE).get();
+      var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
+      cache=cache.filter(function(x){ return x.cliente!==CURRENT_CLIENTE; }).concat(arr);
+    }catch(e){}
+    ultimoCli=CURRENT_CLIENTE;
+
+    var ca=compAtual(), s0=situacao(CURRENT_CLIENTE,ca.ano,ca.mi);
+    var alerta='';
+    if(s0==='at'){
+      alerta='<div class="ex-al at"><b style="color:#d92d20">⚠️ Extrato de '+MESES[ca.mi]+'/'+ca.ano+' em atraso</b><br>O prazo era '+prazoTxt(ca.ano,ca.mi)+'. Envie hoje para a APARAT fechar a sua apuração.</div>';
+    }else if(s0==='pd'){
+      alerta='<div class="ex-al pd"><b style="color:#b45309">\u{1F4C5} Extrato de '+MESES[ca.mi]+'/'+ca.ano+'</b><br>Você tem até '+prazoTxt(ca.ano,ca.mi)+' para enviar.</div>';
+    }else{
+      alerta='<div class="ex-al ok"><b style="color:#0e9f6e">✔ '+MESES[ca.mi]+'/'+ca.ano+' entregue</b><br>Obrigado! Não há nada pendente no momento.</div>';
+    }
+
+    var envio='';
+    if(s0==='at'||s0==='pd'){
+      envio='<div class="ex-card">'
+        +'<h4>'+MESES[ca.mi].charAt(0).toUpperCase()+MESES[ca.mi].slice(1)+' / '+ca.ano+'</h4>'
+        +'<p>Extrato de todas as contas da empresa · PDF ou OFX (máx. '+MAXMB+' MB)</p>'
+        +'<div class="fg" style="margin-top:9px"><input id="ext-file" type="file" accept=".pdf,.ofx,.PDF,.OFX"/></div>'
+        +'<div id="ext-prog" style="display:none;font-size:12px;color:var(--cinza);margin-top:6px">Enviando... <b id="ext-prog-n">0%</b></div>'
+        +'<button class="ex-mbt" id="ext-env">\u{1F4E4} Enviar extrato de '+MESES[ca.mi]+'</button>'
+        +'<button class="ex-mbt sec" id="ext-sm">∅ Não tive movimento neste mês</button>'
+      +'</div>';
+    }
+
+    /* fita dos ultimos 12 meses */
+    var fita='', h=new Date();
+    for(var k=11;k>=0;k--){
+      var dt=new Date(ca.ano, ca.mi-k, 1);
+      var sx=situacao(CURRENT_CLIENTE, dt.getFullYear(), dt.getMonth());
+      var ic={ok:'✓',sm:'∅',pd:'•',at:'!',na:'–'}[sx];
+      fita+='<div class="'+sx+'">'+MABREV[dt.getMonth()]+'<br>'+ic+'</div>';
+    }
+
+    alvo.innerHTML=alerta+envio
+      +'<div class="ex-card"><h4>Meu histórico</h4><p>Últimos 12 meses de entrega</p>'
+      +'<div class="ex-fita">'+fita+'</div>'
+      +'<p style="margin-top:9px">Prazo: todo dia '+DIA_PRAZO+' do mês seguinte.</p></div>';
+
+    var be=el('ext-env'); if(be) be.onclick=enviarCliente;
+    var bs=el('ext-sm'); if(bs) bs.onclick=semMovCliente;
+  }
+
+  async function semMovCliente(){
+    if(!confirm('Confirmar que NÃO houve movimentação bancária neste mês?\n\nIsso fica registrado com data e hora.')) return;
+    var d=db(); if(!d){ aviso('Sem conexão.','warn'); return; }
+    var ca=compAtual(), cp=comp(ca.ano,ca.mi);
+    try{
+      await d.collection(COL).doc(idDoc(CURRENT_CLIENTE,cp)).set({
+        cliente:CURRENT_CLIENTE, competencia:cp, semMovimento:true, situacao:'sm',
+        origem:'cliente', enviadoEm:new Date().toLocaleString('pt-BR'), ts:Date.now(),
+        prazo:prazoTxt(ca.ano,ca.mi)
+      },{merge:true});
+      aviso('∅ Registrado: mês sem movimento.');
+      await telaCliente();
+    }catch(e){ aviso('Erro ao registrar: '+(e && e.message ? e.message : e),'warn'); }
+  }
+
+  async function enviarCliente(){
+    if(enviando) return;
+    var d=db(); if(!d){ aviso('Sem conexão.','warn'); return; }
+    var fi=el('ext-file'), file=(fi && fi.files && fi.files[0]) ? fi.files[0] : null;
+    if(!file){ aviso('⚠ Escolha o arquivo do extrato (PDF ou OFX)','warn'); return; }
+    if(file.size > MAXMB*1024*1024){ aviso('⚠ Arquivo muito grande (máximo '+MAXMB+' MB)','warn'); return; }
+    var ca=compAtual(), cp=comp(ca.ano,ca.mi);
+    enviando=true;
+    var bt=el('ext-env'); if(bt){ bt.disabled=true; bt.innerHTML='⏳ Enviando...'; }
+    try{
+      var dados={
+        cliente:CURRENT_CLIENTE, competencia:cp, semMovimento:false, situacao:'ok',
+        arquivoNome:file.name, tamanho:file.size, origem:'cliente',
+        enviadoEm:new Date().toLocaleString('pt-BR'), ts:Date.now(), prazo:prazoTxt(ca.ano,ca.mi),
+        arquivoUrl:'', arquivoData:'', arquivoPath:''
+      };
+      var s=st(); var subiu=false;
+      if(s){
+        try{
+          var caminho=PASTA+limpo(CURRENT_CLIENTE)+'/'+cp+'/'+Date.now()+'_'+limpo(file.name);
+          dados.arquivoUrl=await subir(s.ref(caminho), file);
+          dados.arquivoPath=caminho; subiu=true;
+        }catch(e){ subiu=false; }
+      }
+      if(!subiu){
+        if(file.size>LIMBD) throw new Error('Não foi possível enviar pelo armazenamento e o arquivo passa de 700 KB. Fale com o escritório.');
+        dados.arquivoData=await base64(file);
+      }
+      await d.collection(COL).doc(idDoc(CURRENT_CLIENTE,cp)).set(dados,{merge:true});
+      /* mantem a aba "Recebidos" do escritorio funcionando como sempre */
+      try{
+        if(typeof dbAdd==='function'){
+          await dbAdd('enviosCliente',{cliente:CURRENT_CLIENTE, nome:file.name,
+            tipo:(String(file.name).split('.').pop()||'').toUpperCase(),
+            arquivoData:dados.arquivoData||'', arquivoUrl:dados.arquivoUrl||'',
+            data:new Date().toLocaleString('pt-BR'), origem:'extrato '+cp});
+        }
+      }catch(e){}
+      if(fi) fi.value='';
+      aviso('\u{1F4E4} Extrato de '+MESES[ca.mi]+' enviado para a APARAT!');
+      await telaCliente();
+    }catch(e){
+      aviso('Erro ao enviar: '+(e && e.message ? e.message : e),'warn');
+    }
+    var pg=el('ext-prog'); if(pg) pg.style.display='none';
+    if(bt){ bt.disabled=false; bt.innerHTML='\u{1F4E4} Enviar extrato'; }
+    enviando=false;
+  }
+
+  function base64(file){
+    if(typeof lerArquivoBase64==='function') return lerArquivoBase64(file);
+    return new Promise(function(ok,err){
+      var fr=new FileReader();
+      fr.onload=function(){ ok(fr.result); };
+      fr.onerror=function(){ err(new Error('Não foi possível ler o arquivo')); };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function subir(ref, file){
+    return new Promise(function(ok,err){
+      var pg=el('ext-prog'), pn=el('ext-prog-n'), pronto=false;
+      if(pg) pg.style.display='block';
+      var relogio=setTimeout(function(){
+        if(pronto) return; pronto=true;
+        err(new Error('O envio não respondeu.'));
+      },60000);
+      var task=ref.put(file,{contentType:file.type||'application/octet-stream'});
+      task.on('state_changed', function(sn){
+        if(pn && sn.totalBytes) pn.textContent=Math.round((sn.bytesTransferred/sn.totalBytes)*100)+'%';
+      }, function(e){ if(pronto) return; pronto=true; clearTimeout(relogio); err(e); },
+      function(){
+        ref.getDownloadURL().then(function(u){ if(pronto) return; pronto=true; clearTimeout(relogio); ok(u); })
+                            .catch(function(e){ if(pronto) return; pronto=true; clearTimeout(relogio); err(e); });
+      });
+    });
+  }
+
+  /* ================= RELOGIO ================= */
+  var ocupado=false, voltas=0;
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      css();
+      var painel=el('view-painel');
+      if(painel && painel.classList.contains('active') && ehAdmin()){
+        menu(); pagina();
+        if(voltas===1 || voltas%10===0){ await carregarNomes(); await carregar(); if(el('ex-tab')) grade(); }
+      }
+      var vc=el('view-cliente');
+      if(vc && vc.querySelector('.cli-grid') && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE){
+        if(!el('cli-ext') || CURRENT_CLIENTE!==ultimoCli || voltas%5===0) await telaCliente();
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1800,4000,8000].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,6000);
 })();
