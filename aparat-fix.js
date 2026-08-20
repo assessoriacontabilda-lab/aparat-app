@@ -7352,3 +7352,454 @@
 
   window.__TRAVA_CLI__={telaAjustes:telaAjustes};
 })();
+
+/* APARAT v61 - CLIENTE DECLARA O PAGAMENTO (guias e honorarios)
+   Duas etapas: o cliente declara com comprovante -> o escritorio confere e da baixa.
+   NADA do que o cliente faz altera o documento da guia/honorario: a declaracao vive
+   na colecao nova "pagamentos". Quem muda o status e o Daniel, ao confirmar.
+   Assim a guia continua contando como pendente enquanto nao for conferida. */
+;(function(){
+  if(window.__APARAT_PAGOU__) return; window.__APARAT_PAGOU__=1;
+
+  var COL='pagamentos', LIMBD=700*1024, MAXFOTO=1400;
+  var cache=[], carregando=false, ultimoCli='';
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function el(id){ return document.getElementById(id); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function st(){ try{ if(window.firebase && firebase.apps && firebase.apps.length && firebase.storage) return firebase.storage(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function p2(n){ return ('0'+n).slice(-2); }
+  function hojeISO(){ var d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+  function dataBR(v){ var m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1]:String(v||''); }
+  function agoraBR(){ var d=new Date(); return p2(d.getDate())+'/'+p2(d.getMonth()+1)+' às '+p2(d.getHours())+'h'+p2(d.getMinutes()); }
+  function num(v){ v=(''+(v==null?'':v)).replace(/[^0-9,.-]/g,''); if(v.indexOf(',')>-1) v=v.replace(/\./g,'').replace(',','.'); return parseFloat(v)||0; }
+  function money(n){ return 'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
+  function limpo(n){ return String(n||'x').replace(/[^\w.\-]+/g,'_').slice(0,80); }
+  function pago(s){ return /pago|conclu|entreg|recebid|quitad|baixad/i.test(String(s||'')); }
+  function ehAdmin(){
+    try{
+      var u=firebase.auth().currentUser; if(!u) return false;
+      if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL;
+      return false;
+    }catch(e){ return false; }
+  }
+  function cliente(){ try{ return (typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE) ? String(CURRENT_CLIENTE) : ''; }catch(e){ return ''; } }
+
+  /* ---------------- carga ---------------- */
+  async function carregar(){
+    if(carregando) return; var d=db(); if(!d) return;
+    carregando=true;
+    try{
+      var s=await d.collection(COL).get();
+      var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
+      cache=arr;
+    }catch(e){}
+    carregando=false;
+  }
+  function declaracaoDe(colecao, refId){
+    for(var i=0;i<cache.length;i++){
+      if(cache[i].refColecao===colecao && String(cache[i].refId)===String(refId) && cache[i].status==='aguardando') return cache[i];
+    }
+    return null;
+  }
+  function pendentes(){
+    return cache.filter(function(p){ return p.status==='aguardando'; })
+                .sort(function(a,b){ return String(b.declaradoEm||'').localeCompare(String(a.declaradoEm||'')); });
+  }
+
+  /* ---------------- comprovante ---------------- */
+  function lerBase64(file){
+    return new Promise(function(ok,err){
+      var fr=new FileReader();
+      fr.onload=function(){ ok(fr.result); };
+      fr.onerror=function(){ err(new Error('Não consegui ler o arquivo')); };
+      fr.readAsDataURL(file);
+    });
+  }
+  /* foto de celular vira JPEG menor, para caber sem depender do Storage */
+  function encolherImagem(file){
+    return new Promise(function(ok){
+      if(!/^image\//.test(file.type||'')) return ok(null);
+      var fr=new FileReader();
+      fr.onload=function(){
+        var im=new Image();
+        im.onload=function(){
+          try{
+            var e=Math.min(1, MAXFOTO/Math.max(im.width,im.height));
+            var c=document.createElement('canvas');
+            c.width=Math.round(im.width*e); c.height=Math.round(im.height*e);
+            c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+            var q=0.82, dataUrl=c.toDataURL('image/jpeg',q);
+            while(dataUrl.length>LIMBD && q>0.4){ q-=0.12; dataUrl=c.toDataURL('image/jpeg',q); }
+            ok(dataUrl.length<=LIMBD*1.35 ? dataUrl : null);
+          }catch(e){ ok(null); }
+        };
+        im.onerror=function(){ ok(null); };
+        im.src=fr.result;
+      };
+      fr.onerror=function(){ ok(null); };
+      fr.readAsDataURL(file);
+    });
+  }
+  async function guardarComprovante(file, cli){
+    /* 1) tenta o Storage (funciona depois que a regra de pagamentos/ for publicada) */
+    var s=st();
+    if(s && file.size>LIMBD){
+      try{
+        var ref=s.ref().child('pagamentos/'+limpo(cli)+'/'+Date.now()+'_'+limpo(file.name));
+        var task=await ref.put(file,{contentType:file.type||'application/octet-stream'});
+        var url=await ref.getDownloadURL();
+        return {comprovanteUrl:url, comprovanteNome:file.name, comprovanteTamanho:file.size};
+      }catch(e){}
+    }
+    /* 2) foto grande: encolhe */
+    var menor=await encolherImagem(file);
+    if(menor) return {comprovanteData:menor, comprovanteNome:(file.name||'comprovante')+' (reduzido)', comprovanteTamanho:menor.length};
+    /* 3) arquivo pequeno: base64 direto */
+    if(file.size<=LIMBD){
+      var d64=await lerBase64(file);
+      return {comprovanteData:d64, comprovanteNome:file.name, comprovanteTamanho:file.size};
+    }
+    /* 4) tenta o Storage mesmo para arquivo pequeno que falhou acima */
+    if(s){
+      try{
+        var ref2=s.ref().child('pagamentos/'+limpo(cli)+'/'+Date.now()+'_'+limpo(file.name));
+        await ref2.put(file,{contentType:file.type||'application/octet-stream'});
+        var url2=await ref2.getDownloadURL();
+        return {comprovanteUrl:url2, comprovanteNome:file.name, comprovanteTamanho:file.size};
+      }catch(e){}
+    }
+    throw new Error('O arquivo é grande demais. Mande um print da tela ou um PDF menor.');
+  }
+  function abrirComprovante(p){
+    var url=p.comprovanteUrl||'';
+    if(!url && p.comprovanteData){
+      try{
+        var partes=String(p.comprovanteData).split(','), meta=partes[0]||'', bin=atob(partes[1]||'');
+        var tipo=(meta.match(/data:([^;]+)/)||[])[1]||'application/octet-stream';
+        var a=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
+        url=URL.createObjectURL(new Blob([a],{type:tipo}));
+      }catch(e){}
+    }
+    if(url) window.open(url,'_blank'); else aviso('Comprovante não encontrado.','erro');
+  }
+
+  /* ---------------- estilo ---------------- */
+  function css(){
+    if(el('ap-pg-css')) return;
+    var s=document.createElement('style'); s.id='ap-pg-css';
+    s.textContent=
+       '.ap-pgbox{background:rgba(51,85,255,.07);border:1.5px solid rgba(51,85,255,.28);border-radius:15px;padding:13px;margin:10px 0}'
+      +'.ap-pgbox h5{margin:0 0 3px;font-size:14px;font-weight:800}'
+      +'.ap-pgbox .s{font-size:11.5px;color:var(--cinza);margin-bottom:10px}'
+      +'.ap-pgit{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;margin-bottom:9px}'
+      +'.ap-pgit:last-child{margin-bottom:0}'
+      +'.ap-pgit .lin{display:flex;align-items:flex-start;gap:9px}'
+      +'.ap-pgit .ic{font-size:20px;flex:none}'
+      +'.ap-pgit b{font-size:13.5px;display:block}'
+      +'.ap-pgit .inf{font-size:11.5px;color:var(--cinza);margin-top:2px}'
+      +'.ap-pgit .val{margin-left:auto;font-size:14.5px;font-weight:800;white-space:nowrap}'
+      +'.ap-pgtag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:10.5px;font-weight:800;margin-top:7px}'
+      +'.ap-pgtag.at{background:rgba(217,45,32,.16);color:#ff6b60}'
+      +'.ap-pgtag.pd{background:rgba(180,83,9,.16);color:#e2a03f}'
+      +'.ap-pgtag.ag{background:rgba(51,85,255,.16);color:var(--azul-light)}'
+      +'body.ap-tema-claro .ap-pgtag.at{color:#d92d20}body.ap-tema-claro .ap-pgtag.pd{color:#b45309}'
+      +'.ap-pgbt{width:100%;border:0;border-radius:11px;padding:11px;font:inherit;font-size:13.5px;font-weight:800;'
+      +'background:var(--azul);color:#fff;cursor:pointer;margin-top:9px}'
+      +'.ap-pgbt.sec{background:transparent;border:1.5px solid var(--border);color:var(--cinza)}'
+      +'.ap-pgbt:disabled{opacity:.55;cursor:default}'
+      +'.ap-pgdrop{border:2px dashed var(--border);border-radius:12px;padding:16px 10px;text-align:center;font-size:12.5px;'
+      +'color:var(--cinza);margin-top:9px;cursor:pointer}'
+      +'.ap-pgdrop:hover{border-color:var(--azul);color:inherit}'
+      +'.ap-pgdrop input{display:none}'
+      /* painel do escritorio */
+      +'.ap-pgadm{background:var(--card);border:1.5px solid rgba(51,85,255,.3);border-radius:14px;padding:15px 17px;margin:0 0 14px}'
+      +'.ap-pgadm h4{margin:0 0 3px;font-size:15px}'
+      +'.ap-pgadm .s{font-size:11.5px;color:var(--cinza);margin-bottom:11px}'
+      +'.ap-pgadm .dec{display:flex;align-items:center;gap:11px;padding:12px 0;border-bottom:1px dotted var(--border);flex-wrap:wrap}'
+      +'.ap-pgadm .dec:last-child{border-bottom:0}'
+      +'.ap-pgadm .dec .ic{font-size:20px;width:26px;text-align:center;flex:none}'
+      +'.ap-pgadm .dec b{display:block;font-size:13.5px}'
+      +'.ap-pgadm .dec span{display:block;font-size:11.5px;color:var(--cinza);margin-top:1px}'
+      +'.ap-pgadm .acoes{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}'
+      +'.ap-pgadm .ab{border:0;border-radius:10px;padding:8px 12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer}'
+      +'.ap-pgadm .ab.ok{background:#0e9f6e;color:#fff}'
+      +'.ap-pgadm .ab.nao{background:transparent;border:1.5px solid rgba(217,45,32,.5);color:#d92d20}'
+      +'.ap-pgadm .ab.ver{background:transparent;border:1.5px solid var(--border);color:var(--cinza)}'
+      +'.ap-pgadm .ab:disabled{opacity:.6;cursor:default}';
+    document.head.appendChild(s);
+  }
+
+  /* ================= LADO DO CLIENTE ================= */
+  async function meus(colecao, nome){
+    var d=db(); if(!d) return [];
+    try{
+      var s=await d.collection(colecao).where('cliente','==',nome).get();
+      var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
+      return arr;
+    }catch(e){ return []; }
+  }
+
+  function descreve(o, tipo){
+    if(tipo==='honorario') return 'Honorário '+(o.referencia||'');
+    return o.tipo||o.titulo||'Guia';
+  }
+
+  async function blocoCliente(tipo){
+    var nome=cliente(); if(!nome) return;
+    var colecao = tipo==='honorario' ? 'honorarios' : 'obrigacoes';
+    var alvoId  = tipo==='honorario' ? 'cli-hon-lista' : 'cli-obr';
+    var caixaId = tipo==='honorario' ? 'ap-pg-hon' : 'ap-pg-obr';
+    var lista=el(alvoId); if(!lista || !lista.parentNode) return;
+
+    var itens=(await meus(colecao,nome)).filter(function(o){ return !pago(o.status) && o.vencimento; });
+    itens.sort(function(a,b){ return String(a.vencimento).localeCompare(String(b.vencimento)); });
+
+    var cx=el(caixaId);
+    if(!itens.length){ if(cx) cx.remove(); return; }
+    if(!cx){
+      cx=document.createElement('div'); cx.id=caixaId; cx.className='ap-pgbox';
+      lista.parentNode.insertBefore(cx, lista);
+    }
+    var hoje=hojeISO();
+    var h='<h5>\u{2705} Pagou? Avise a APARAT</h5>'
+         +'<div class="s">Toque em "Já paguei" e anexe o comprovante. A APARAT confere e dá baixa.</div>';
+    itens.forEach(function(o){
+      var dec=declaracaoDe(colecao,o.id);
+      var atras=String(o.vencimento).slice(0,10)<hoje;
+      h+='<div class="ap-pgit" data-pgit="'+esc(o.id)+'">'
+        +'<div class="lin"><span class="ic">'+(tipo==='honorario'?'\u{1F4B3}':'\u{1F3DB}\u{FE0F}')+'</span>'
+        +'<div style="flex:1"><b>'+esc(descreve(o,tipo))+'</b>'
+        +'<div class="inf">'+(o.competencia?('competência '+esc(o.competencia)+' · '):'')+'vence '+dataBR(o.vencimento)+'</div></div>'
+        +'<span class="val">'+money(num(o.valor))+'</span></div>';
+      if(dec){
+        h+='<span class="ap-pgtag ag">Aguardando conferência</span>'
+          +'<div class="inf" style="margin-top:6px">\u{1F4CE} comprovante enviado em '+esc(dec.declaradoEmBR||'')+' · a APARAT vai conferir</div>';
+      } else {
+        h+='<span class="ap-pgtag '+(atras?'at':'pd')+'">'+(atras?'Vencida':'A vencer')+'</span>'
+          +'<button class="ap-pgbt" data-pgdec="'+esc(o.id)+'" data-pgtipo="'+tipo+'">\u{2705} Já paguei</button>';
+      }
+      h+='</div>';
+    });
+    cx.innerHTML=h;
+
+    [].slice.call(cx.querySelectorAll('[data-pgdec]')).forEach(function(b){
+      b.onclick=function(){
+        var id=b.getAttribute('data-pgdec');
+        var o=null; for(var i=0;i<itens.length;i++){ if(String(itens[i].id)===String(id)) o=itens[i]; }
+        if(o) pedirComprovante(b, o, tipo, colecao);
+      };
+    });
+  }
+
+  function pedirComprovante(botao, o, tipo, colecao){
+    var pai=botao.parentNode;
+    botao.style.display='none';
+    var cx=document.createElement('div');
+    cx.innerHTML='<label class="ap-pgdrop">\u{1F4CE} Toque para anexar o comprovante'
+      +'<div style="font-size:11px;margin-top:3px">PDF ou print do banco · foto é reduzida sozinha</div>'
+      +'<input type="file" accept="image/*,application/pdf"></label>'
+      +'<button class="ap-pgbt sec">Cancelar</button>';
+    pai.appendChild(cx);
+    var inp=cx.querySelector('input');
+    cx.querySelector('button').onclick=function(){ cx.remove(); botao.style.display=''; };
+    inp.onchange=async function(){
+      var f=inp.files && inp.files[0]; if(!f) return;
+      var drop=cx.querySelector('.ap-pgdrop');
+      drop.innerHTML='\u{23F3} Enviando '+esc(f.name)+'...';
+      try{
+        var comp=await guardarComprovante(f, cliente());
+        await declarar(o, tipo, colecao, comp);
+        cx.remove();
+        aviso('Pronto! A APARAT foi avisada e vai conferir o seu pagamento.','ok');
+        await carregar(); await blocoCliente(tipo);
+      }catch(e){
+        drop.innerHTML='\u{26A0}\u{FE0F} '+esc(e.message||'Não consegui enviar')+'<br><span style="font-size:11px">Toque para tentar outro arquivo</span>'
+          +'<input type="file" accept="image/*,application/pdf">';
+        var novo=cx.querySelector('input'); if(novo) novo.onchange=inp.onchange;
+      }
+    };
+  }
+
+  async function declarar(o, tipo, colecao, comp){
+    var d=db(); if(!d) throw new Error('Sem conexão com o banco');
+    var dados={
+      cliente: cliente(),
+      tipo: tipo,                         /* 'guia' | 'honorario' */
+      refColecao: colecao,
+      refId: String(o.id),
+      descricao: descreve(o,tipo),
+      valor: num(o.valor),
+      vencimento: String(o.vencimento||''),
+      competencia: String(o.competencia||o.referencia||''),
+      status: 'aguardando',
+      declaradoEm: new Date().toISOString(),
+      declaradoEmBR: agoraBR(),
+      origem: 'cliente'
+    };
+    Object.keys(comp||{}).forEach(function(k){ dados[k]=comp[k]; });
+    try{
+      dados.criadoEm = (firebase.firestore.FieldValue && firebase.firestore.FieldValue.serverTimestamp)
+                       ? firebase.firestore.FieldValue.serverTimestamp() : new Date();
+    }catch(e){}
+    await d.collection(COL).add(dados);
+  }
+
+  /* ================= LADO DO ESCRITORIO ================= */
+  function caixaAdmin(pagina, tipo){
+    var pg=el(pagina); if(!pg) return null;
+    var id='ap-pgadm-'+tipo;
+    var cx=el(id);
+    if(!cx){
+      cx=document.createElement('div'); cx.id=id; cx.className='ap-pgadm';
+      pg.insertBefore(cx, pg.firstChild);
+    }
+    return cx;
+  }
+
+  function pintarAdmin(){
+    if(!ehAdmin()) return;
+    [['pp-obrig','guia','Guias'],['pp-honorarios','honorario','Honorários']].forEach(function(par){
+      var cx=caixaAdmin(par[0], par[1]); if(!cx) return;
+      var lista=pendentes().filter(function(p){ return p.tipo===par[1]; });
+      if(!lista.length){
+        cx.style.display='none';
+        return;
+      }
+      cx.style.display='';
+      var h='<h4>\u{1F64B} Pagamentos declarados pelos clientes ('+lista.length+')</h4>'
+           +'<div class="s">O cliente avisou que pagou e mandou o comprovante. Confira e resolva — até você confirmar, '
+           +(par[1]==='guia'?'a guia':'o honorário')+' continua contando como em aberto.</div>';
+      lista.forEach(function(p){
+        h+='<div class="dec"><span class="ic">\u{1F64B}</span>'
+          +'<div style="min-width:180px"><b>'+esc(p.cliente||'—')+' · '+esc(p.descricao||'')+'</b>'
+          +'<span>'+money(p.valor)+(p.competencia?(' · '+esc(p.competencia)):'')
+          +' · vencia '+dataBR(p.vencimento)+' · declarado '+esc(p.declaradoEmBR||dataBR(String(p.declaradoEm||'').slice(0,10)))+'</span></div>'
+          +'<div class="acoes">'
+            +((p.comprovanteUrl||p.comprovanteData)?'<button class="ab ver" data-pgver="'+esc(p.id)+'">\u{1F4CE} Comprovante</button>':'<span class="s" style="margin:0">sem comprovante</span>')
+            +'<button class="ab ok" data-pgok="'+esc(p.id)+'">\u{2713} Confirmar</button>'
+            +'<button class="ab nao" data-pgnao="'+esc(p.id)+'">Não identifiquei</button>'
+          +'</div></div>';
+      });
+      cx.innerHTML=h;
+      [].slice.call(cx.querySelectorAll('[data-pgver]')).forEach(function(b){
+        b.onclick=function(){ var p=acha(b.getAttribute('data-pgver')); if(p) abrirComprovante(p); };
+      });
+      [].slice.call(cx.querySelectorAll('[data-pgok]')).forEach(function(b){
+        b.onclick=function(){ resolver(b, b.getAttribute('data-pgok'), true); };
+      });
+      [].slice.call(cx.querySelectorAll('[data-pgnao]')).forEach(function(b){
+        b.onclick=function(){ resolver(b, b.getAttribute('data-pgnao'), false); };
+      });
+    });
+    pontinhos();
+  }
+  function acha(id){ for(var i=0;i<cache.length;i++){ if(String(cache[i].id)===String(id)) return cache[i]; } return null; }
+
+  async function resolver(botao, id, confirmar){
+    var p=acha(id); if(!p) return;
+    var d=db(); if(!d){ aviso('Sem conexão com o banco.','erro'); return; }
+    var obs='';
+    if(!confirmar){
+      obs=prompt('O que devo avisar ao cliente? (aparece para ele)','Não identifiquei esse pagamento na conta. Confira o comprovante e fale com a gente.');
+      if(obs===null) return;
+    }
+    botao.disabled=true; botao.textContent='...';
+    try{
+      if(confirmar){
+        await d.collection(p.refColecao).doc(String(p.refId)).set({
+          status:'Pago',
+          pagoEm: hojeISO(),
+          confirmadoPor:'Daniel',
+          comprovanteDoCliente: p.comprovanteUrl||'',
+          declaracaoId: p.id
+        },{merge:true});
+      }
+      await d.collection(COL).doc(String(p.id)).set({
+        status: confirmar?'confirmado':'recusado',
+        resolvidoEm: new Date().toISOString(),
+        obsAdmin: obs
+      },{merge:true});
+      /* avisa o cliente pelo caminho que ja existe */
+      try{
+        await d.collection('urgencias').add({
+          cliente:p.cliente, dest:p.cliente,
+          titulo: confirmar ? 'Pagamento confirmado' : 'Pagamento não identificado',
+          msg: confirmar
+            ? ('Recebemos e conferimos o pagamento de '+p.descricao+' ('+money(p.valor)+'). Está tudo certo, obrigado!')
+            : (obs||'Não identificamos esse pagamento. Confira o comprovante e fale com a gente.'),
+          data:new Date().toLocaleDateString('pt-BR'), ts:Date.now(),
+          criadoEm: (firebase.firestore.FieldValue && firebase.firestore.FieldValue.serverTimestamp)
+                    ? firebase.firestore.FieldValue.serverTimestamp() : new Date(),
+          origem:'pagamentos'
+        });
+      }catch(e){}
+      await carregar(); pintarAdmin();
+      aviso(confirmar ? 'Pagamento confirmado e cliente avisado.' : 'Devolvido para pendente e cliente avisado.','ok');
+      try{ if(typeof carregarObrigacoes==='function') carregarObrigacoes(); }catch(e){}
+      try{ if(typeof carregarHonorarios==='function') carregarHonorarios(); }catch(e){}
+      try{ if(typeof atualizarDashboard==='function') atualizarDashboard(); }catch(e){}
+    }catch(e){
+      botao.disabled=false; botao.textContent = confirmar ? '\u{2713} Confirmar' : 'Não identifiquei';
+      aviso('Não consegui salvar: '+(e.message||e),'erro');
+    }
+  }
+
+  /* bolinha vermelha nos itens de menu de Guias e Honorarios */
+  function pontinhos(){
+    var g=pendentes().filter(function(p){ return p.tipo==='guia'; }).length;
+    var h=pendentes().filter(function(p){ return p.tipo==='honorario'; }).length;
+    marcar('obrig', g); marcar('honorarios', h);
+  }
+  function marcar(chave, n){
+    var nv=document.querySelector('#view-painel .sidebar .nav'); if(!nv) return;
+    var alvo=null;
+    [].slice.call(nv.querySelectorAll('.nav-item')).forEach(function(it){
+      var oc=it.getAttribute('onclick')||'';
+      if(oc.indexOf("navAba('"+chave+"'")>=0) alvo=it;
+    });
+    if(!alvo) return;
+    var d=alvo.querySelector('.ap-pgdot');
+    if(!n){ if(d) d.remove(); return; }
+    if(!d){
+      d=document.createElement('span'); d.className='nav-dot ap-pgdot';
+      d.style.cssText='display:inline-block;min-width:16px;height:16px;padding:0 4px;background:#ff2d40;color:#fff;'
+        +'font-size:10px;font-weight:800;border-radius:9px;margin-left:6px;text-align:center;line-height:16px';
+      alvo.appendChild(d);
+    }
+    d.textContent=String(n);
+  }
+
+  /* ================= relogio ================= */
+  var ocupado=false, voltas=0;
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      css();
+      var d=db(); if(!d){ ocupado=false; return; }
+      var u=null; try{ u=firebase.auth().currentUser; }catch(e){}
+      if(!u){ ocupado=false; return; }
+
+      if(voltas===1 || voltas%6===0) await carregar();
+
+      var vp=el('view-painel');
+      if(vp && vp.classList.contains('active') && ehAdmin()) pintarAdmin();
+
+      var vc=el('view-cliente');
+      if(vc && vc.classList.contains('active') && cliente()){
+        if(cliente()!==ultimoCli || voltas===2 || voltas%6===0){
+          ultimoCli=cliente();
+          await blocoCliente('honorario');
+          await blocoCliente('guia');
+        }
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [2000,4500,8000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,6000);
+
+  window.__PAGOU__={carregar:carregar, pintarAdmin:pintarAdmin, blocoCliente:blocoCliente,
+                    pendentes:pendentes, cache:function(){ return cache; }};
+})();
