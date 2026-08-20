@@ -7146,11 +7146,13 @@
   }
 
   /* ---------------- relogio e gatilhos ---------------- */
+  /* CUIDADO: a area do cliente e mostrada com style.display, NUNCA ganha a classe
+     .active. Testar por classe faz a trava nunca aparecer para o cliente. */
+  function aparece(e){ return !!e && e.style.display!=='none' && e.offsetParent!==null; }
   function logado(){
     var u=user(); if(!u) return false;
     var vc=el('view-cliente'), vp=el('view-painel');
-    var visivel=(vc && vc.classList.contains('active')) || (vp && vp.classList.contains('active'));
-    return !!visivel;
+    return aparece(vc) || (!!vp && vp.classList.contains('active') && aparece(vp));
   }
   function marcarToque(){ ultimoToque=Date.now(); }
   ['click','keydown','touchstart','mousemove','scroll'].forEach(function(ev){
@@ -7342,7 +7344,7 @@
     try{
       if(!T()){ ocupado=false; return; }
       var vc=el('view-cliente');
-      if(vc && vc.classList.contains('active')) itemGaveta();
+      if(vc && vc.style.display!=='none' && vc.offsetParent!==null) itemGaveta();
       botaoPainel();
     }catch(e){}
     ocupado=false;
@@ -7787,7 +7789,7 @@
       if(vp && vp.classList.contains('active') && ehAdmin()) pintarAdmin();
 
       var vc=el('view-cliente');
-      if(vc && vc.classList.contains('active') && cliente()){
+      if(vc && vc.style.display!=='none' && vc.offsetParent!==null && cliente()){
         if(cliente()!==ultimoCli || voltas===2 || voltas%6===0){
           ultimoCli=cliente();
           await blocoCliente('honorario');
