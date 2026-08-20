@@ -485,7 +485,7 @@ body.foco .cli-top{display:none}
       <div class="nav-item" onclick="navAba('clientes',this)"><span class="ni">👥</span>Clientes</div>
       <div class="nav-item" onclick="navAba('dados',this)"><span class="ni">📑</span>Dados Cadastrais</div>
       <div class="nav-item" onclick="navAba('faturamento',this)"><span class="ni">📈</span>Faturamento</div>
-      <div class="nav-item" onclick="navAba('obrig',this)"><span class="ni">📋</span>Obrigações</div>
+      <div class="nav-item" onclick="navAba('obrig',this)"><span class="ni">📋</span>Guias</div>
       <div class="nav-item" onclick="navAba('honorarios',this)"><span class="ni">💳</span>Honorários</div>
       <div class="nav-item" onclick="navAba('notas',this)"><span class="ni">🧾</span>Notas Fiscais<span class="nav-dot" id="dot-notas"></span></div>
       <div class="nav-sec">Comunicação</div>
@@ -1986,7 +1986,7 @@ function pPage(id,el){
   if(id==='seguranca'){ var _ac=document.getElementById('autoclean-st'); if(_ac)_ac.textContent=(localStorage.getItem('autoclean')==='1')?'Ativado':'Desativado'; }
 }
 /* ---- abrir cada função em nova aba focada (item 3) ---- */
-var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',faturamento:'Faturamento',obrig:'Obrigações',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
+var ABA_NOMES={dash:'Dashboard',clientes:'Clientes',dados:'Dados Cadastrais',faturamento:'Faturamento',obrig:'Guias',honorarios:'Honorários',notas:'Notas Fiscais',agenda:'Agendamentos',urgencias:'Urgências',informativos:'Informativos',solicitacoes:'Solicitações',recebidos:'Recebidos',financeiro:'Financeiro',docs:'Documentos',escritorio:'Meu Escritório',seguranca:'Segurança'};
 function navAba(id,el){ pPage(id,el); }
 function _focoBar(nome){
   var bar=document.createElement('div'); bar.className='foco-bar';
@@ -3169,7 +3169,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
     <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
   </div>
 </div>
-<script defer src="aparat-fix.js?v=56"></script>
+<script defer src="aparat-fix.js?v=57"></script>
 <script defer src="nav-snippet.js?v=6"></script>
 <script defer src="client-pages.js?v=4"></script>
 <script>/*__APARAT_NAV_INLINE__*/
