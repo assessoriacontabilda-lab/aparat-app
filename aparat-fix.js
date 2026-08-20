@@ -4565,3 +4565,680 @@
   [1800,4000,8000].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,6000);
 })();
+
+/* APARAT v55 - PEDIDO DE NOTA FISCAL
+   Fase 1: descricao do cliente visivel na tabela do painel + bolinha certa
+   Fase 2: cliente PEDE a emissao (formulario completo) e o escritorio emite com 1 clique (interligado)
+   Fase 3: repetir ultimo pedido, tomadores frequentes e relatorio pedidas x emitidas */
+;(function(){
+  if(window.__APARAT_NF2__) return; window.__APARAT_NF2__=1;
+  var COL='notas';
+  var ST_NOVO='Pedido recebido', ST_EMIS='Em emissão', ST_RESP='Aguardando o cliente', ST_OK='Emitida';
+  var PASSOS=[ST_NOVO, ST_EMIS, ST_OK];
+
+  /* ---------------- utilitarios ---------------- */
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function el(id){ return document.getElementById(id); }
+  function v(id){ var e=el(id); return e?String(e.value||'').trim():''; }
+  function setV(id,x){ var e=el(id); if(e) e.value=(x==null?'':x); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t||'success'); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function hoje(){ return new Date().toLocaleDateString('pt-BR'); }
+  function agora(){ return new Date().toLocaleString('pt-BR'); }
+  function ehAdmin(){
+    try{
+      var u=firebase.auth().currentUser; if(!u) return false;
+      if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL;
+      return true;
+    }catch(e){ return false; }
+  }
+  function ms(ts){ try{ if(!ts) return 0; if(typeof ts.toMillis==='function') return ts.toMillis(); if(ts.seconds) return ts.seconds*1000; return Date.parse(ts)||0; }catch(e){ return 0; } }
+  function num(x){ x=String(x==null?'':x).replace(/[^0-9,.-]/g,''); if(x.indexOf(',')>-1) x=x.replace(/\./g,'').replace(',','.'); return parseFloat(x)||0; }
+  function moeda(n){ return 'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function dataBr(s){
+    s=String(s||''); if(!s) return '';
+    var m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m) return m[3]+'/'+m[2]+'/'+m[1];
+    return s;
+  }
+  function soNum(s){ return String(s==null?'':s).replace(/\D/g,''); }
+  function validaCPF(c){
+    c=soNum(c); if(c.length!==11 || /^(\d)\1{10}$/.test(c)) return false;
+    var s=0,i,d1,d2;
+    for(i=0;i<9;i++) s+=parseInt(c.charAt(i),10)*(10-i);
+    d1=(s*10)%11; if(d1===10) d1=0; if(d1!==parseInt(c.charAt(9),10)) return false;
+    s=0; for(i=0;i<10;i++) s+=parseInt(c.charAt(i),10)*(11-i);
+    d2=(s*10)%11; if(d2===10) d2=0; return d2===parseInt(c.charAt(10),10);
+  }
+  function validaCNPJ(c){
+    c=soNum(c); if(c.length!==14 || /^(\d)\1{13}$/.test(c)) return false;
+    var t=[5,4,3,2,9,8,7,6,5,4,3,2], s=0, i, r, d1, d2;
+    for(i=0;i<12;i++) s+=parseInt(c.charAt(i),10)*t[i];
+    r=s%11; d1=(r<2)?0:(11-r); if(d1!==parseInt(c.charAt(12),10)) return false;
+    t=[6,5,4,3,2,9,8,7,6,5,4,3,2]; s=0;
+    for(i=0;i<13;i++) s+=parseInt(c.charAt(i),10)*t[i];
+    r=s%11; d2=(r<2)?0:(11-r); return d2===parseInt(c.charAt(13),10);
+  }
+  function validaDoc(c){ var n=soNum(c); if(n.length===11) return validaCPF(n); if(n.length===14) return validaCNPJ(n); return false; }
+  function fmtDoc(c){
+    var n=soNum(c);
+    if(n.length===11) return n.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
+    if(n.length===14) return n.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+    return String(c||'');
+  }
+  function validaEmail(e){ return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(e||'').trim()); }
+  function ehPedido(x){ return String(x && x.tipo || '')==='Pedido'; }
+  function copiar(txt){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt); return true; }
+    }catch(e){}
+    try{
+      var t=document.createElement('textarea'); t.value=txt;
+      t.style.cssText='position:fixed;left:-9999px'; document.body.appendChild(t);
+      t.select(); document.execCommand('copy'); document.body.removeChild(t); return true;
+    }catch(e){ return false; }
+  }
+
+  /* ---------------- estilo ---------------- */
+  function css(){
+    if(el('ap-nf2-css')) return;
+    var s=document.createElement('style'); s.id='ap-nf2-css';
+    s.textContent=
+      /* painel do escritorio */
+      '#nf2-box .nf2-card{background:var(--card);border:1.5px solid rgba(180,83,9,.45);border-radius:14px;padding:14px;margin-bottom:10px}'
+      +'#nf2-box .nf2-card.ok{border-color:rgba(14,159,110,.45)}'
+      +'#nf2-box .nf2-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}'
+      +'#nf2-box .nf2-nome{font-size:16px;font-weight:800}'
+      +'#nf2-box .nf2-dados{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;font-size:13px}'
+      +'#nf2-box .nf2-dados span{display:block;font-size:10px;color:var(--cinza)}'
+      +'#nf2-box .nf2-dados b{font-size:13px;word-break:break-word}'
+      +'#nf2-box .nf2-desc{margin-top:10px;background:rgba(51,85,255,.07);border:1px solid var(--border);border-radius:10px;padding:10px 12px}'
+      +'#nf2-box .nf2-desc span{display:block;font-size:10px;color:var(--cinza)}'
+      +'#nf2-box .nf2-desc b{font-size:14px}'
+      +'#nf2-box .nf2-resp{margin-top:8px;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.35);border-radius:10px;padding:9px 12px;font-size:12px}'
+      +'#nf2-box .nf2-bts{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}'
+      +'#nf2-box .nf2-bt{font-size:13px;font-weight:700;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block}'
+      +'#nf2-box .nf2-bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#nf2-box .nf2-bt.vd{background:#0E9F6E;border-color:#0E9F6E;color:#fff}'
+      +'#nf2-box .nf2-bt.vm{border-color:rgba(217,45,32,.55);color:#d92d20}'
+      +'#nf2-box .nf2-tag{font-size:11px;font-weight:700;border-radius:9px;padding:4px 10px;display:inline-block}'
+      +'#nf2-box .nf2-vazio{font-size:13px;color:var(--cinza);padding:8px 0}'
+      +'#nf2-rel{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}'
+      +'#nf2-rel .nf2-kpi{flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}'
+      +'#nf2-rel .nf2-kpi b{display:block;font-size:22px;font-weight:800;line-height:1.2}'
+      +'#nf2-rel .nf2-kpi span{display:block;font-size:11px;color:var(--cinza)}'
+      /* app do cliente */
+      +'#nf2-cli .nf2-esc{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}'
+      +'#nf2-cli .nf2-esc button{flex:1;min-width:150px;font-size:15px;font-weight:800;padding:14px 12px;border-radius:13px;border:1.5px solid var(--azul);background:transparent;color:var(--azul);cursor:pointer}'
+      +'#nf2-cli .nf2-esc button.on{background:var(--azul);color:#fff}'
+      +'#nf2-cli .nf2-form{background:rgba(51,85,255,.05);border:1px dashed var(--azul);border-radius:14px;padding:14px;margin-bottom:14px}'
+      +'#nf2-cli .nf2-form label{display:block;font-size:12px;font-weight:700;color:var(--cinza);margin:0 0 4px}'
+      +'#nf2-cli .nf2-form .fg{margin-bottom:10px}'
+      +'#nf2-cli .nf2-form input,#nf2-cli .nf2-form textarea{width:100%;font-size:15px !important;padding:12px !important;border-radius:10px;border:1px solid var(--border);background:var(--escuro,#0d0d20);color:inherit;font-family:inherit}'
+      +'#nf2-cli .nf2-form .nf2-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}'
+      +'#nf2-cli .nf2-erro{font-size:12px;color:#d92d20;font-weight:700;margin-top:-6px;margin-bottom:8px;display:none}'
+      +'#nf2-cli .nf2-ped{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:10px}'
+      +'#nf2-cli .nf2-ped .lin{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:10px}'
+      +'#nf2-cli .nf2-et{font-size:11px;font-weight:700;border-radius:20px;padding:5px 10px;background:rgba(102,116,140,.18);color:var(--cinza)}'
+      +'#nf2-cli .nf2-et.on{background:var(--azul);color:#fff}'
+      +'#nf2-cli .nf2-et.done{background:rgba(14,159,110,.18);color:#0E9F6E}'
+      +'#nf2-cli .nf2-sep{color:var(--cinza);font-size:12px}'
+      +'@media(max-width:520px){#nf2-box .nf2-dados,#nf2-cli .nf2-form .nf2-2{grid-template-columns:1fr}}';
+    document.head.appendChild(s);
+  }
+
+  /* ================================================================
+     PAINEL DO ESCRITORIO
+     ================================================================ */
+  function caixaAdmin(){
+    var pg=el('pp-notas'); if(!pg) return null;
+    var b=el('nf2-box');
+    if(!b){
+      b=document.createElement('div'); b.id='nf2-box';
+      b.innerHTML='<div class="sec">\u{1F4E5} Pedidos de nota fiscal</div>'
+        +'<div id="nf2-rel"></div>'
+        +'<div id="nf2-lista"><div class="nf2-vazio">Carregando...</div></div>';
+      pg.insertBefore(b, pg.firstChild);
+    }
+    return b;
+  }
+
+  function cabecalho(){
+    var pg=el('pp-notas'); if(!pg) return;
+    var thead=pg.querySelector('table thead tr'); if(!thead || el('nf2-th')) return;
+    var th=document.createElement('th'); th.id='nf2-th'; th.textContent='Descrição / pedido';
+    var ths=thead.querySelectorAll('th');
+    thead.insertBefore(th, ths.length>2 ? ths[2] : null);
+  }
+
+  var cacheAdmin=[];
+
+  /* uma leitura so: alimenta os cartoes de pedido, os numeros do mes e a tabela */
+  async function atualizarPainel(){
+    var itens=[];
+    try{ itens=await dbGetAll(COL); }
+    catch(e){
+      var t=el('nf-tbody');
+      if(t) t.innerHTML='<tr><td colspan="9" style="color:var(--laranja)">⚠ Publique a regra de segurança de "notas" no Firebase para ativar esta aba.</td></tr>';
+      var a=el('nf2-lista'); if(a) a.innerHTML='<div class="nf2-vazio">Não foi possível carregar os pedidos.</div>';
+      return;
+    }
+    cacheAdmin=itens;
+    cabecalho(); caixaAdmin();
+    relatorio(itens);
+    listarAdmin(itens);
+    desenhaTabela(itens);
+  }
+
+  function listarAdmin(itens){
+    var box=caixaAdmin(); if(!box) return;
+    var alvo=el('nf2-lista'); if(!alvo) return;
+    itens=itens||cacheAdmin||[];
+
+    var peds=itens.filter(ehPedido).sort(function(a,b){ return ms(b.criadoEm)-ms(a.criadoEm); });
+    var abertos=peds.filter(function(x){ return String(x.status||'')!==ST_OK; });
+    var feitos=peds.filter(function(x){ return String(x.status||'')===ST_OK; }).slice(0,5);
+
+    if(!peds.length){
+      alvo.innerHTML='<div class="nf2-vazio">\u{1F4ED} Nenhum pedido de emissão no momento. '
+        +'Quando um cliente pedir uma nota pelo app, ela aparece aqui com todos os dados do tomador.</div>';
+      return;
+    }
+    var h='';
+    h+= abertos.length
+      ? '<div style="font-size:13px;font-weight:800;color:#b45309;margin:2px 0 8px">\u{23F3} Aguardando emissão ('+abertos.length+')</div>'
+      : '<div class="nf2-vazio">✔ Nenhum pedido aguardando emissão.</div>';
+    h+= abertos.map(cartao).join('');
+    if(feitos.length){
+      h+='<div style="font-size:13px;font-weight:800;color:#0E9F6E;margin:14px 0 8px">✔ Últimos pedidos emitidos</div>'
+        +feitos.map(cartao).join('');
+    }
+    alvo.innerHTML=h;
+    ligarBotoes(alvo);
+  }
+
+  function tagStatus(st){
+    st=String(st||ST_NOVO);
+    if(st===ST_OK) return '<span class="nf2-tag" style="background:rgba(14,159,110,.16);color:#0E9F6E">✔ Emitida</span>';
+    if(st===ST_EMIS) return '<span class="nf2-tag" style="background:rgba(51,85,255,.16);color:#3355FF">\u{1F58A}️ Em emissão</span>';
+    if(st===ST_RESP) return '<span class="nf2-tag" style="background:rgba(180,83,9,.16);color:#b45309">\u{1F4AC} Aguardando o cliente</span>';
+    return '<span class="nf2-tag" style="background:rgba(180,83,9,.16);color:#b45309">⏳ Aguardando emissão</span>';
+  }
+
+  function cartao(x){
+    var feito=String(x.status||'')===ST_OK;
+    var linha=function(rot,txt){ return '<div><span>'+esc(rot)+'</span><b>'+(txt?esc(txt):'—')+'</b></div>'; };
+    var anexo=x.arquivoData
+      ? '<button class="nf2-bt" data-nf2-anexo="'+esc(x.id)+'">\u{1F4CE} Ver anexo</button>' : '';
+    return '<div class="nf2-card'+(feito?' ok':'')+'">'
+      +'<div class="nf2-top">'
+        +'<div class="nf2-nome">\u{1F9FE} '+esc(x.cliente||'(sem cliente)')+'</div>'
+        +'<div>'+tagStatus(x.status)+' <span style="font-size:11px;color:var(--cinza)">'+esc(x.data||'')+'</span></div>'
+      +'</div>'
+      +'<div class="nf2-dados">'
+        +linha('Tomador', x.tomador)
+        +linha('CPF / CNPJ', x.docTomador?fmtDoc(x.docTomador):'')
+        +linha('Valor', x.valor?moeda(num(x.valor)):'')
+        +linha('Data desejada', dataBr(x.dataDesejada))
+        +linha('E-mail para envio', x.emailTomador)
+        +linha('Endereço', x.enderecoTomador)
+      +'</div>'
+      +'<div class="nf2-desc"><span>Descrição do serviço ou produto</span><b>'+esc(x.descricao||'—')+'</b>'
+        +(x.obs?'<div style="font-size:12px;color:var(--cinza);margin-top:5px">Observação: '+esc(x.obs)+'</div>':'')
+      +'</div>'
+      +(x.resposta?'<div class="nf2-resp"><b>Sua resposta ao cliente:</b> '+esc(x.resposta)+' <span style="color:var(--cinza)">('+esc(x.respostaEm||'')+')</span></div>':'')
+      +'<div class="nf2-bts">'
+        +(feito?'':'<button class="nf2-bt az" data-nf2-emitir="'+esc(x.id)+'">✅ Emitir agora</button>')
+        +'<button class="nf2-bt" data-nf2-copiar="'+esc(x.id)+'">\u{1F4CB} Copiar dados do tomador</button>'
+        +(feito?'':'<button class="nf2-bt" data-nf2-resp="'+esc(x.id)+'">\u{1F4AC} Responder ao cliente</button>')
+        +'<button class="nf2-bt" data-nf2-zap="'+esc(x.id)+'">\u{1F4F2} WhatsApp</button>'
+        +anexo
+        +(feito?'<button class="nf2-bt" data-nf2-reabrir="'+esc(x.id)+'">\u{1F513} Reabrir</button>'
+               :'<button class="nf2-bt vd" data-nf2-ok="'+esc(x.id)+'">✔ Marcar como emitida</button>')
+        +'<button class="nf2-bt vm" data-nf2-del="'+esc(x.id)+'">\u{1F5D1}️ Excluir</button>'
+      +'</div>'
+    +'</div>';
+  }
+
+  function acha(id){ return cacheAdmin.filter(function(i){ return String(i.id)===String(id); })[0]; }
+
+  function ligarBotoes(box){
+    function on(attr,fn){
+      [].slice.call(box.querySelectorAll('['+attr+']')).forEach(function(b){
+        b.onclick=function(){ var x=acha(b.getAttribute(attr)); if(x) fn(x); };
+      });
+    }
+    on('data-nf2-emitir', emitirAgora);
+    on('data-nf2-copiar', copiarTomador);
+    on('data-nf2-resp', responderCliente);
+    on('data-nf2-zap', mandarZap);
+    on('data-nf2-anexo', verAnexo);
+    on('data-nf2-ok', function(x){ mudarStatus(x, ST_OK); });
+    on('data-nf2-reabrir', function(x){ mudarStatus(x, ST_NOVO); });
+    on('data-nf2-del', excluirPedido);
+  }
+
+  function textoTomador(x){
+    return 'PEDIDO DE NOTA FISCAL — '+(x.cliente||'')+'\n'
+      +'Tomador: '+(x.tomador||'')+'\n'
+      +'CPF/CNPJ: '+(x.docTomador?fmtDoc(x.docTomador):'')+'\n'
+      +'Endereço: '+(x.enderecoTomador||'')+'\n'
+      +'E-mail: '+(x.emailTomador||'')+'\n'
+      +'Valor: '+(x.valor?moeda(num(x.valor)):'')+'\n'
+      +'Data desejada: '+dataBr(x.dataDesejada)+'\n'
+      +'Descrição: '+(x.descricao||'')
+      +(x.obs?('\nObservação: '+x.obs):'');
+  }
+
+  function copiarTomador(x){
+    var ok=copiar(textoTomador(x));
+    aviso(ok?'\u{1F4CB} Dados copiados. É só colar no emissor.':'Não consegui copiar. Abra o pedido e copie na mão.', ok?'success':'warn');
+  }
+
+  function mandarZap(x){
+    var t='Olá! Sobre o seu pedido de nota fiscal:\n\n'+textoTomador(x);
+    try{ window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank','noopener'); }catch(e){}
+  }
+
+  function verAnexo(x){
+    try{ window.open((typeof blobUrl==='function')?blobUrl(x.arquivoData):x.arquivoData,'_blank'); }
+    catch(e){ aviso('Não foi possível abrir o anexo.','warn'); }
+  }
+
+  async function mudarStatus(x, st, calado){
+    var d=db(); if(!d) return;
+    try{
+      await d.collection(COL).doc(String(x.id)).update({status:st, atualizadoEm:agora()});
+      if(!calado) aviso(st===ST_OK?'✔ Pedido marcado como emitido.':'Pedido reaberto.','info');
+      await atualizarPainel();
+    }catch(e){ aviso('Erro ao atualizar: '+(e.message||e),'warn'); }
+  }
+
+  async function excluirPedido(x){
+    if(!confirm('Excluir o pedido de nota de '+(x.cliente||'')+'?\n\nO cliente deixa de ver este pedido no app.')) return;
+    var d=db(); if(!d) return;
+    try{ await d.collection(COL).doc(String(x.id)).delete(); aviso('\u{1F5D1}️ Pedido excluído.','info'); await atualizarPainel(); }
+    catch(e){ aviso('Erro ao excluir: '+(e.message||e),'warn'); }
+  }
+
+  async function responderCliente(x){
+    var t=prompt('O que você quer responder para '+(x.cliente||'o cliente')+'?\n\nExemplo: "Falta o endereço completo do tomador para eu emitir."', x.resposta||'');
+    if(t===null) return;
+    t=String(t||'').trim(); if(!t) return;
+    var d=db(); if(!d) return;
+    try{
+      await d.collection(COL).doc(String(x.id)).update({resposta:t, respostaEm:agora(), status:ST_RESP});
+      aviso('\u{1F4AC} Resposta enviada. O cliente vê no app dele.','info');
+      await atualizarPainel();
+    }catch(e){ aviso('Erro ao responder: '+(e.message||e),'warn'); }
+  }
+
+  function emitirAgora(x){
+    var sel=el('nf-cli');
+    if(sel && x.cliente){
+      var tem=false;
+      [].forEach.call(sel.options,function(o){ if(o.value===x.cliente) tem=true; });
+      if(!tem){ var o=document.createElement('option'); o.value=x.cliente; o.textContent=x.cliente; sel.appendChild(o); }
+      sel.value=x.cliente;
+    }
+    setV('nf-tipo','Envio');
+    setV('nf-val', x.valor?String(num(x.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})):'');
+    setV('nf-desc', x.descricao||'');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(x.dataDesejada||''))) setV('nf-data', x.dataDesejada);
+    window.__apNF2Pedido={id:x.id, cliente:x.cliente||''};
+    var t=el('pp-notas') && el('pp-notas').querySelector('.ftitle');
+    if(t){ t.setAttribute('data-nf2-orig', t.getAttribute('data-nf2-orig')||t.innerHTML); t.innerHTML='\u{1F9FE} Emitindo a nota pedida por '+esc(x.cliente||'cliente'); }
+    var b=el('nf-btn'); if(b){ b.setAttribute('data-nf2-orig', b.getAttribute('data-nf2-orig')||b.textContent); b.textContent='✅ Registrar e concluir o pedido'; }
+    mudarStatus(x, ST_EMIS, true);
+    try{ el('nf-num').focus(); }catch(e){}
+    try{ el('pp-notas').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
+    aviso('Dados do pedido carregados. Informe o número da nota e anexe o PDF/XML.','info');
+  }
+
+  function restaurarForm(){
+    var t=el('pp-notas') && el('pp-notas').querySelector('.ftitle');
+    if(t && t.getAttribute('data-nf2-orig')) t.innerHTML=t.getAttribute('data-nf2-orig');
+    var b=el('nf-btn'); if(b && b.getAttribute('data-nf2-orig')) b.textContent=b.getAttribute('data-nf2-orig');
+  }
+
+  /* liga a nota emitida ao pedido que a originou */
+  function hookEnviar(){
+    if(typeof window.enviarNota!=='function' || window.enviarNota.__nf2) return;
+    var orig=window.enviarNota;
+    var w=async function(){
+      var ped=window.__apNF2Pedido;
+      var r=await orig.apply(this, arguments);
+      if(ped && ped.id){
+        var d=db();
+        try{
+          var s=await d.collection(COL).where('cliente','==',ped.cliente).get();
+          var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
+          arr=arr.filter(function(o){ return !ehPedido(o); });
+          arr.sort(function(a,b){ return ms(b.criadoEm)-ms(a.criadoEm); });
+          var nova=arr[0];
+          if(nova) await d.collection(COL).doc(String(nova.id)).update({pedidoId:String(ped.id)});
+          await d.collection(COL).doc(String(ped.id)).update({status:ST_OK, notaId:nova?String(nova.id):'', emitidaEm:agora()});
+          aviso('✔ Nota registrada e pedido de '+ped.cliente+' concluído!','success');
+        }catch(e){}
+        window.__apNF2Pedido=null;
+        restaurarForm();
+        try{ await atualizarPainel(); }catch(e){}
+      }
+      return r;
+    };
+    w.__nf2=1; window.enviarNota=w;
+  }
+
+  /* ---------------- relatorio pedidas x emitidas (mes corrente) ---------------- */
+  function relatorio(itens){
+    var box=el('nf2-rel'); if(!box) return;
+    var h=new Date(), ini=new Date(h.getFullYear(), h.getMonth(), 1).getTime();
+    var peds=itens.filter(ehPedido);
+    var noMes=peds.filter(function(x){ return ms(x.criadoEm)>=ini; });
+    var emitidas=noMes.filter(function(x){ return String(x.status||'')===ST_OK; }).length;
+    var abertos=peds.filter(function(x){ return String(x.status||'')!==ST_OK; }).length;
+    var notasMes=itens.filter(function(x){ return !ehPedido(x) && ms(x.criadoEm)>=ini; }).length;
+    var valor=noMes.reduce(function(a,x){ return a+num(x.valor); },0);
+    var mes=h.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    box.innerHTML=
+       '<div class="nf2-kpi"><b>'+noMes.length+'</b><span>pedidos em '+esc(mes)+'</span></div>'
+      +'<div class="nf2-kpi"><b style="color:#0E9F6E">'+emitidas+'</b><span>já emitidas no mês</span></div>'
+      +'<div class="nf2-kpi"><b style="color:#b45309">'+abertos+'</b><span>aguardando emissão</span></div>'
+      +'<div class="nf2-kpi"><b>'+notasMes+'</b><span>notas registradas no mês</span></div>'
+      +'<div class="nf2-kpi"><b style="font-size:17px">'+esc(moeda(valor))+'</b><span>valor pedido no mês</span></div>';
+  }
+
+  /* ---------------- tabela do painel COM a coluna Descricao ---------------- */
+  function desenhaTabela(ns){
+    var tb=el('nf-tbody'); if(!tb) return;
+    ns=ns||[];
+    try{ _seedVistos('notas', ns); }catch(e){}
+    var doCliente=ns.filter(function(n){ return String(n.origem||'')==='cliente'; });
+    var pg=el('pp-notas'), aberta=pg && pg.classList.contains('active');
+    try{
+      if(aberta){ localStorage.setItem('seen_notas_cli', String(doCliente.length)); }
+      setDot('dot-notas', doCliente.length, 'seen_notas_cli');
+    }catch(e){}
+
+    if(!ns.length){ tb.innerHTML='<tr><td colspan="9" style="color:var(--cinza)">Nenhuma nota fiscal registrada.</td></tr>'; return; }
+    tb.innerHTML='';
+    ns.slice().reverse().forEach(function(n){
+      var pedido=ehPedido(n);
+      var st=String(n.status||'');
+      var fechada=/fechad/i.test(st) || st===ST_OK;
+      var stag = pedido ? tagStatus(st)
+        : (fechada?'<span class="tag tp">✔ Fechada</span>':'<span class="tag tn">\u{1F4C2} Aberta</span>');
+      var ttag = pedido ? '\u{1F9FE} Pedido' : (n.tipo==='Recebimento'?'\u{1F4E5} Receb.':'\u{1F4E4} Envio');
+      var arq = n.arquivoData
+        ? '<span style="font-size:10px;color:var(--azul-light);cursor:pointer" onclick="abrirNotaArquivo(\''+n.id+'\')">\u{1F4C4} Ver</span>'
+        : '<span style="font-size:10px;color:var(--cinza)">—</span>';
+      var sub = pedido && n.tomador ? '<br><span style="font-size:10px;color:var(--cinza)">Tomador: '+esc(n.tomador)+'</span>' : '';
+      var desc = n.descricao
+        ? '<b style="font-size:11px">'+esc(String(n.descricao).slice(0,90))+(String(n.descricao).length>90?'…':'')+'</b>'+sub
+        : '<span style="font-size:10px;color:var(--cinza)">—</span>';
+      var novoN=(String(n.origem||'')==='cliente') && _ehNovo('notas', n.id);
+      var tr=document.createElement('tr');
+      if(novoN){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'notas',n.id); }; }
+      if(pedido) tr.style.background='rgba(180,83,9,.07)';
+      tr.innerHTML='<td>'+esc(n.cliente||'')+(novoN?'<span class="tag-novo">NOVO</span>':'')+'</td>'
+        +'<td>'+ttag+'</td>'
+        +'<td style="max-width:230px">'+desc+'</td>'
+        +'<td>'+esc(n.numero||'—')+'</td>'
+        +'<td>'+(n.valor?esc(moeda(num(n.valor))):'—')+'</td>'
+        +'<td>'+esc(dataBr(n.dataDesejada||n.data)||'—')+'</td>'
+        +'<td>'+arq+'</td>'
+        +'<td>'+stag+'</td>'
+        +'<td style="white-space:nowrap"><span style="cursor:pointer;margin-right:7px" title="Editar" onclick="editarNota(\''+n.id+'\')">✏️</span>'
+        +'<span style="cursor:pointer;margin-right:7px" title="'+(fechada?'Reabrir':'Fechar')+'" onclick="fecharNota(\''+n.id+'\')">'+(fechada?'\u{1F513}':'✅')+'</span>'
+        +'<span style="cursor:pointer" title="Excluir" onclick="excluirNota(\''+n.id+'\')">\u{1F5D1}️</span></td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function hookTabela(){
+    if(typeof window.carregarNotas!=='function' || window.carregarNotas.__nf2) return;
+    var w=async function(){ await atualizarPainel(); };
+    w.__nf2=1; window.carregarNotas=w;
+  }
+
+  /* ================================================================
+     APP DO CLIENTE
+     ================================================================ */
+  function nomeCli(){ try{ return (typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE)?CURRENT_CLIENTE:''; }catch(e){ return ''; } }
+
+  function blocoCliente(){
+    var sec=el('sec-notas'); if(!sec) return null;
+    if(el('nf2-cli')) return el('nf2-cli');
+    var b=document.createElement('div'); b.id='nf2-cli';
+    b.innerHTML=
+      '<div class="nf2-esc">'
+        +'<button id="nf2-bt-pedir" class="on">\u{1F9FE} Pedir emissão de nota</button>'
+        +'<button id="nf2-bt-enviar">\u{1F4E4} Enviar nota que já tenho</button>'
+      +'</div>'
+      +'<div class="nf2-form" id="nf2-form">'
+        +'<div style="font-size:16px;font-weight:800;margin-bottom:12px">\u{1F9FE} Pedido de emissão de nota fiscal</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+          +'<button type="button" id="nf2-repetir" style="font-size:13px;font-weight:700;padding:9px 13px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;display:none">\u{1F501} Repetir meu último pedido</button>'
+        +'</div>'
+        +'<div class="fg"><label>Tomador — nome ou razão social *</label>'
+          +'<input id="nf2-tomador" type="text" list="nf2-tomadores" placeholder="Para quem é a nota"/>'
+          +'<datalist id="nf2-tomadores"></datalist></div>'
+        +'<div class="nf2-2">'
+          +'<div class="fg"><label>CPF ou CNPJ do tomador *</label><input id="nf2-doc" type="text" inputmode="numeric" placeholder="00.000.000/0000-00"/></div>'
+          +'<div class="fg"><label>Valor da nota *</label><input id="nf2-valor" type="text" inputmode="decimal" placeholder="2.500,00"/></div>'
+        +'</div>'
+        +'<div class="nf2-2">'
+          +'<div class="fg"><label>E-mail para enviar a nota *</label><input id="nf2-email" type="email" placeholder="financeiro@empresa.com.br"/></div>'
+          +'<div class="fg"><label>Data desejada *</label><input id="nf2-dtdes" type="date"/></div>'
+        +'</div>'
+        +'<div class="fg"><label>Endereço do tomador *</label><input id="nf2-end" type="text" placeholder="Rua, número, bairro, cidade/UF"/></div>'
+        +'<div class="fg"><label>Descrição do serviço ou produto *</label><textarea id="nf2-desc" rows="3" placeholder="Ex.: Consultoria administrativa — competência agosto/2026"></textarea></div>'
+        +'<div class="fg"><label>Observação (opcional)</label><input id="nf2-obs" type="text" placeholder="Ex.: reter ISS na fonte"/></div>'
+        +'<div class="fg"><label>Anexo — pedido de compra, contrato (opcional, até 700 KB)</label><input id="nf2-file" type="file" accept=".pdf,.xml,.png,.jpg,.jpeg,.webp"/></div>'
+        +'<div class="nf2-erro" id="nf2-erro"></div>'
+        +'<button class="btn btn-az" id="nf2-enviar" style="width:100%">\u{1F9FE} Enviar pedido para a Aparat</button>'
+        +'<div style="font-size:12px;color:var(--cinza);margin-top:8px">Os campos com * são obrigatórios. Com eles preenchidos a Aparat emite sem precisar te ligar.</div>'
+      +'</div>'
+      +'<div id="nf2-meus"></div>';
+    var head=sec.querySelector('.asec');
+    if(head && head.nextSibling) sec.insertBefore(b, head.nextSibling); else sec.insertBefore(b, sec.firstChild);
+    el('nf2-bt-pedir').onclick=function(){ trocarAba(true); };
+    el('nf2-bt-enviar').onclick=function(){ trocarAba(false); };
+    el('nf2-enviar').onclick=enviarPedido;
+    el('nf2-repetir').onclick=repetir;
+    var dc=el('nf2-doc');
+    if(dc) dc.onblur=function(){ if(dc.value) dc.value=fmtDoc(dc.value); };
+    trocarAba(true);
+    return b;
+  }
+
+  function formAntigo(){
+    var sec=el('sec-notas'); if(!sec) return null;
+    return sec.querySelector('.fbox-light');
+  }
+  function trocarAba(pedir){
+    var f=el('nf2-form'), a=formAntigo();
+    if(f) f.style.display=pedir?'block':'none';
+    if(a) a.style.display=pedir?'none':'block';
+    var b1=el('nf2-bt-pedir'), b2=el('nf2-bt-enviar');
+    if(b1) b1.className=pedir?'on':'';
+    if(b2) b2.className=pedir?'':'on';
+  }
+
+  function erro(msg, foco){
+    var e=el('nf2-erro');
+    if(e){ e.textContent='⚠ '+msg; e.style.display='block'; }
+    aviso('⚠ '+msg,'warn');
+    try{ if(foco) el(foco).focus(); }catch(x){}
+    return false;
+  }
+  function limpaErro(){ var e=el('nf2-erro'); if(e){ e.textContent=''; e.style.display='none'; } }
+
+  var enviandoPed=false;
+  async function enviarPedido(){
+    if(enviandoPed) return;
+    limpaErro();
+    var cli=nomeCli();
+    if(!cli) return erro('Cadastro não identificado. Avise o escritório.');
+    var tomador=v('nf2-tomador'), doc=v('nf2-doc'), valor=v('nf2-valor'), email=v('nf2-email');
+    var dt=v('nf2-dtdes'), end=v('nf2-end'), desc=v('nf2-desc'), obs=v('nf2-obs');
+
+    if(tomador.length<3) return erro('Escreva o nome ou a razão social do tomador.','nf2-tomador');
+    if(!validaDoc(doc)) return erro('CPF ou CNPJ inválido. Confira os números.','nf2-doc');
+    if(num(valor)<=0) return erro('Informe o valor da nota (exemplo: 2.500,00).','nf2-valor');
+    if(!validaEmail(email)) return erro('Informe um e-mail válido para o envio da nota.','nf2-email');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return erro('Escolha a data desejada para a emissão.','nf2-dtdes');
+    if(end.length<8) return erro('Informe o endereço do tomador.','nf2-end');
+    if(desc.length<5) return erro('Descreva o serviço ou o produto da nota.','nf2-desc');
+
+    var fi=el('nf2-file'), arquivo='', arquivoData='';
+    if(fi && fi.files && fi.files[0]){
+      arquivo=fi.files[0].name;
+      try{ arquivoData=await lerArquivoBase64(fi.files[0]); }
+      catch(e){ return erro(e.message||'Não consegui ler o anexo.'); }
+    }
+    enviandoPed=true;
+    var bt=el('nf2-enviar'); if(bt){ bt.disabled=true; bt.textContent='⏳ Enviando...'; }
+    try{
+      await dbAdd(COL,{
+        cliente:cli, tipo:'Pedido', origem:'cliente', status:ST_NOVO,
+        tomador:tomador, docTomador:soNum(doc), emailTomador:email, enderecoTomador:end,
+        valor:num(valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
+        dataDesejada:dt, descricao:desc, obs:obs,
+        numero:'', data:hoje(), arquivo:arquivo, arquivoData:arquivoData,
+        resposta:'', pedidoId:'', notaId:''
+      });
+      ['nf2-tomador','nf2-doc','nf2-valor','nf2-email','nf2-dtdes','nf2-end','nf2-desc','nf2-obs'].forEach(function(i){ setV(i,''); });
+      if(fi) fi.value='';
+      aviso('\u{1F9FE} Pedido enviado! A Aparat já foi avisada e você acompanha o andamento aqui.');
+      await listarCliente();
+    }catch(e){
+      if((e.code||'').indexOf('permission')>-1 || /insufficient|permission/i.test(e.message||''))
+        erro('O escritório precisa liberar a regra de "notas" no Firebase.');
+      else erro('Erro ao enviar: '+(e.code||e.message||''));
+    }
+    enviandoPed=false;
+    if(bt){ bt.disabled=false; bt.innerHTML='\u{1F9FE} Enviar pedido para a Aparat'; }
+  }
+
+  var meusPedidos=[];
+  function repetir(){
+    var x=meusPedidos.filter(ehPedido)[0]; if(!x) return;
+    trocarAba(true);
+    setV('nf2-tomador', x.tomador||''); setV('nf2-doc', x.docTomador?fmtDoc(x.docTomador):'');
+    setV('nf2-valor', x.valor||''); setV('nf2-email', x.emailTomador||'');
+    setV('nf2-end', x.enderecoTomador||''); setV('nf2-desc', x.descricao||'');
+    setV('nf2-obs', x.obs||'');
+    var h=new Date(); h.setDate(h.getDate()+2);
+    setV('nf2-dtdes', h.toISOString().slice(0,10));
+    aviso('\u{1F501} Dados do último pedido carregados. Confira o valor e a descrição antes de enviar.','info');
+    try{ el('nf2-valor').focus(); }catch(e){}
+  }
+
+  function linhaTempo(st){
+    st=String(st||ST_NOVO);
+    var atual = (st===ST_OK) ? 2 : (st===ST_EMIS ? 1 : 0);
+    var h='<div class="lin">';
+    h+='<span class="nf2-et done">✔ Pedido enviado</span>';
+    PASSOS.forEach(function(p,i){
+      var cls = (i<atual) ? 'done' : (i===atual ? 'on' : '');
+      var txt = (i===0?'Aparat recebeu':(i===1?'Em emissão':'Emitida ✔'));
+      h+='<span class="nf2-sep">›</span><span class="nf2-et '+cls+'">'+txt+'</span>';
+    });
+    h+='</div>';
+    if(st===ST_RESP) h+='<div class="lin"><span class="nf2-et on">\u{1F4AC} A Aparat respondeu — veja abaixo</span></div>';
+    return h;
+  }
+
+  var ultimoCli='';
+  async function listarCliente(){
+    var cli=nomeCli(); if(!cli) return;
+    if(!blocoCliente()) return;
+    var alvo=el('nf2-meus'); if(!alvo) return;
+    var d=db(); if(!d) return;
+    var itens=[];
+    try{
+      var s=await d.collection(COL).where('cliente','==',cli).get();
+      s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; itens.push(o); });
+    }catch(e){ return; }
+    itens.sort(function(a,b){ return ms(b.criadoEm)-ms(a.criadoEm); });
+    meusPedidos=itens;
+    ultimoCli=cli;
+
+    /* tomadores frequentes */
+    var dl=el('nf2-tomadores');
+    if(dl){
+      var nomes=[];
+      itens.filter(ehPedido).forEach(function(x){ if(x.tomador && nomes.indexOf(x.tomador)<0) nomes.push(x.tomador); });
+      dl.innerHTML=nomes.slice(0,12).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('');
+    }
+    var bt=el('nf2-repetir'); if(bt) bt.style.display=itens.filter(ehPedido).length?'inline-block':'none';
+
+    var peds=itens.filter(ehPedido);
+    if(!peds.length){
+      alvo.innerHTML='<div style="font-size:13px;color:var(--cinza);padding:6px 0">'
+        +'\u{1F4ED} Você ainda não pediu nenhuma nota por aqui. Preencha o formulário acima e a Aparat recebe na hora.</div>';
+      badgeTile(itens);
+      return;
+    }
+    alvo.innerHTML='<div style="font-size:15px;font-weight:800;margin:14px 0 8px">\u{1F4CB} Meus pedidos de nota</div>'
+      +peds.map(function(x){
+        var st=String(x.status||ST_NOVO);
+        return '<div class="nf2-ped">'
+          +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">'
+            +'<b style="font-size:15px">'+esc(x.tomador||'Tomador')+'</b>'
+            +'<span style="font-size:15px;font-weight:800">'+esc(moeda(num(x.valor)))+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;color:var(--cinza);margin-top:3px">'+esc(x.descricao||'')+'</div>'
+          +'<div style="font-size:12px;color:var(--cinza);margin-top:3px">Pedido em '+esc(x.data||'')
+            +(x.dataDesejada?(' · para '+esc(dataBr(x.dataDesejada))):'')+'</div>'
+          +linhaTempo(st)
+          +(x.resposta?('<div style="margin-top:9px;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.35);border-radius:10px;padding:9px 11px;font-size:13px">'
+              +'<b>\u{1F4AC} Aparat respondeu:</b> '+esc(x.resposta)+'</div>'):'')
+        +'</div>';
+      }).join('');
+    badgeTile(itens);
+  }
+
+  /* bolinha vermelha do quadradinho "Enviar Nota" no app do cliente */
+  function badgeTile(itens){
+    try{
+      var cli=nomeCli(); if(!cli) return;
+      var n=itens.filter(function(x){ return String(x.origem||'')!=='cliente'; }).length
+          + itens.filter(function(x){ return ehPedido(x) && x.resposta; }).length
+          + itens.filter(function(x){ return ehPedido(x) && String(x.status||'')===ST_OK; }).length;
+      var chave='apSeen2_'+cli+'_tile_nota';
+      var sec=el('sec-notas');
+      var aberta=sec && sec.classList.contains('ap-alvo');
+      if(aberta) localStorage.setItem(chave, String(n));
+      var visto=parseInt(localStorage.getItem(chave)||'0',10)||0;
+      var d=document.querySelector('.ap-tile[data-k="nota"] .dt');
+      if(d) d.style.display=(n>visto)?'block':'none';
+      var t=document.querySelector('.ap-tile[data-k="nota"] .lb');
+      if(t && t.textContent!=='Nota Fiscal') t.textContent='Nota Fiscal';
+    }catch(e){}
+  }
+
+  /* ================================================================
+     RELOGIO
+     ================================================================ */
+  var ocupado=false, voltas=0;
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      css();
+      var painel=el('view-painel');
+      if(painel && painel.classList.contains('active') && ehAdmin()){
+        hookEnviar(); hookTabela();
+        var pg=el('pp-notas');
+        if(pg && pg.classList.contains('active')) await atualizarPainel();
+      }
+      var vc=el('view-cliente');
+      if(vc && vc.querySelector('.cli-grid') && nomeCli()){
+        if(!el('nf2-cli') || nomeCli()!==ultimoCli || voltas%4===0) await listarCliente();
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1500,3500,7000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,6000);
+})();
