@@ -15,7 +15,7 @@ const ICON = APP_URL + "icon-192.png";
 // Mensagens que o CLIENTE envia -> avisar o ESCRITORIO (role admin)
 const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos", "enviosCliente", "notas"];
 // Avisos que o ESCRITORIO envia -> avisar o CLIENTE (role cliente)
-const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais", "honorarios", "docs", "agenda", "pedidos"];
+const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais", "honorarios", "docs", "agenda", "pedidos", "notas"];
 
 // Palavras que indicam "para todos os clientes"
 function ehTodos(dest) {
@@ -68,7 +68,17 @@ async function avisarEmail(titulo, corpo) {
 function tituloDe(coll, d) {
   if (coll === "solicitacoes") return { t: "Nova solicitacao de cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.mensagem || "Voce recebeu uma nova mensagem.") };
   if (coll === "enviosCliente") return { t: "Novo arquivo do cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.tipo ? d.tipo + " - " : "") + (d.nome || "arquivo enviado") };
-  if (coll === "notas") return { t: "Nota fiscal enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.numero ? "NF " + d.numero : (d.descricao || "nova nota")) };
+  if (coll === "notas" && String(d.tipo || "") === "Pedido") {
+    return {
+      t: "Pedido de nota fiscal",
+      b: (d.cliente ? d.cliente + " pediu uma nota" : "Novo pedido de nota")
+        + (d.tomador ? " para " + d.tomador : "")
+        + (d.valor ? " no valor de R$ " + d.valor : "")
+        + (d.descricao ? ". " + d.descricao : "")
+    };
+  }
+  if (coll === "notas" && String(d.origem || "") === "cliente") return { t: "Nota fiscal enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.numero ? "NF " + d.numero : (d.descricao || "nova nota")) };
+  if (coll === "notas") return { t: "Sua nota fiscal esta no app", b: (d.numero ? "NF " + d.numero : "Nota fiscal") + (d.valor ? " - R$ " + d.valor : "") + (d.descricao ? " - " + d.descricao : "") + ". Abra o app em Nota Fiscal para ver." };
   if (coll === "recebidos") return { t: "Novo arquivo/mensagem recebido", b: (d.cliente ? d.cliente + ": " : "") + (d.msg || d.mensagem || d.arquivoNome || "Voce recebeu algo novo.") };
   if (coll === "urgencias") return { t: d.titulo || "Novo aviso da Aparat", b: d.msg || d.mensagem || "Toque para ver." };
   if (coll === "informativos") return { t: d.titulo || "Novo informativo da Aparat", b: d.msg || d.texto || "Toque para ver." };
@@ -153,7 +163,12 @@ async function main() {
     console.log("Colecao", coll, "->", snap.size, "nova(s).");
     for (const doc of snap.docs) {
       const d = doc.data();
-      if (coll === "notas" && String(d.origem || "") !== "cliente") { continue; }
+      // notas: as que o cliente manda avisam o escritorio; as que o escritorio lanca avisam o cliente
+      if (coll === "notas") {
+        const doCliente = String(d.origem || "") === "cliente";
+        if (alvo === "admin" && !doCliente) { continue; }
+        if (alvo === "cliente" && doCliente) { continue; }
+      }
       const info = tituloDe(coll, d);
       if (alvo === "admin") {
         await enviar(tokensAdmin, info.t, info.b, db);
