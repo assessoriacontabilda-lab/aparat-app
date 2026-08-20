@@ -13,7 +13,9 @@ const APP_URL = "https://assessoriacontabilda-lab.github.io/aparat-app/";
 const ICON = APP_URL + "icon-192.png";
 
 // Mensagens que o CLIENTE envia -> avisar o ESCRITORIO (role admin)
-const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos", "enviosCliente", "notas"];
+const CLIENTE_PARA_ESCRITORIO = ["solicitacoes", "recebidos", "enviosCliente", "notas", "pagamentos"];
+// Colecoes que avisam o admin SO por push (sem WhatsApp e sem e-mail) - escolha do Daniel em 20/08/2026
+const SO_PUSH_ADMIN = ["pagamentos"];
 // Avisos que o ESCRITORIO envia -> avisar o CLIENTE (role cliente)
 const ESCRITORIO_PARA_CLIENTE = ["urgencias", "informativos", "obrigacoes", "obrigacoesAnuais", "honorarios", "docs", "agenda", "pedidos", "notas"];
 
@@ -66,6 +68,12 @@ async function avisarEmail(titulo, corpo) {
 }
 
 function tituloDe(coll, d) {
+  if (coll === "pagamentos") return {
+    t: "Cliente avisou que pagou",
+    b: (d.cliente ? d.cliente + ": " : "") + (d.descricao || "pagamento")
+      + (d.valor ? " - R$ " + Number(d.valor).toFixed(2).replace(".", ",") : "")
+      + ". Confira o comprovante no painel e confirme."
+  };
   if (coll === "solicitacoes") return { t: "Nova solicitacao de cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.mensagem || "Voce recebeu uma nova mensagem.") };
   if (coll === "enviosCliente") return { t: "Novo arquivo do cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.tipo ? d.tipo + " - " : "") + (d.nome || "arquivo enviado") };
   if (coll === "notas" && String(d.tipo || "") === "Pedido") {
@@ -172,8 +180,10 @@ async function main() {
       const info = tituloDe(coll, d);
       if (alvo === "admin") {
         await enviar(tokensAdmin, info.t, info.b, db);
-        await avisarWhatsApp(info.t, info.b);
-        await avisarEmail(info.t, info.b);
+        if (SO_PUSH_ADMIN.indexOf(coll) === -1) {
+          await avisarWhatsApp(info.t, info.b);
+          await avisarEmail(info.t, info.b);
+        }
       } else {
         // para cliente: se for para todos, manda pra todos os clientes;
         // senao, so para o cliente destino (por nome)

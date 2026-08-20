@@ -53,8 +53,20 @@ async function main() {
   const db = admin.firestore();
   const hoje = hojeISO();
 
+  // Declaracoes de pagamento ainda nao conferidas (v61): NAO somem do alerta,
+  // vao para uma segunda lista, para o Daniel saber o que depende so dele.
+  const declarados = {};
+  try {
+    const dec = await db.collection("pagamentos").where("status", "==", "aguardando").get();
+    dec.forEach(function (d) {
+      const p = d.data();
+      if (String(p.refColecao || "") !== "honorarios") return;
+      declarados[String(p.refId)] = p;
+    });
+  } catch (e) { console.log("pagamentos indisponivel:", (e.message || e).slice(0, 40)); }
+
   const snap = await db.collection("honorarios").get();
-  const porCli = {};
+  const porCli = {}, porCliDec = {};
   snap.forEach(function (d) {
     const h = d.data();
     const pago = /pago/i.test(String(h.status || ""));
@@ -62,20 +74,35 @@ async function main() {
     if (pago || !v || v >= hoje) return;
     const n = String(h.cliente || "?").trim();
     if (/^teste/i.test(n)) return;
-    if (!porCli[n]) porCli[n] = { total: 0, desde: "9999-99-99" };
-    porCli[n].total += num(h.valor);
-    if (v < porCli[n].desde) porCli[n].desde = v;
+    const alvo = declarados[d.id] ? porCliDec : porCli;
+    if (!alvo[n]) alvo[n] = { total: 0, desde: "9999-99-99" };
+    alvo[n].total += num(h.valor);
+    if (v < alvo[n].desde) alvo[n].desde = v;
   });
-  const nomes = Object.keys(porCli).sort(function (a, b) { return porCli[a].desde.localeCompare(porCli[b].desde); });
-  if (!nomes.length) { console.log("Nenhum cliente em atraso hoje (" + hoje + "). Nada a avisar."); return; }
+  function ordenar(o) { return Object.keys(o).sort(function (a, b) { return o[a].desde.localeCompare(o[b].desde); }); }
+  function somar(o) { let t = 0; Object.keys(o).forEach(function (n) { t += o[n].total; }); return t; }
+  function listar(o, nomes) {
+    return nomes.slice(0, 10).map(function (n) {
+      const m = o[n].desde.match(/(\d{4})-(\d{2})-(\d{2})/);
+      return "- " + n + ": " + money(o[n].total) + " (desde " + m[3] + "/" + m[2] + ")";
+    }).join("\n") + (nomes.length > 10 ? "\n...e mais " + (nomes.length - 10) : "");
+  }
 
-  let total = 0; nomes.forEach(function (n) { total += porCli[n].total; });
-  const titulo = "Inadimplencia: " + nomes.length + " cliente(s) em atraso - " + money(total);
-  const linhas = nomes.slice(0, 10).map(function (n) {
-    const m = porCli[n].desde.match(/(\d{4})-(\d{2})-(\d{2})/);
-    return "- " + n + ": " + money(porCli[n].total) + " (desde " + m[3] + "/" + m[2] + ")";
-  });
-  const corpo = linhas.join("\n") + (nomes.length > 10 ? "\n...e mais " + (nomes.length - 10) : "");
+  const nomes = ordenar(porCli);
+  const nomesDec = ordenar(porCliDec);
+  if (!nomes.length && !nomesDec.length) { console.log("Nenhum cliente em atraso hoje (" + hoje + "). Nada a avisar."); return; }
+
+  const total = somar(porCli), totalDec = somar(porCliDec);
+  const titulo = nomes.length
+    ? ("Inadimplencia: " + nomes.length + " cliente(s) em atraso - " + money(total)
+       + (nomesDec.length ? " (+" + nomesDec.length + " aguardando sua conferencia)" : ""))
+    : (nomesDec.length + " pagamento(s) aguardando sua conferencia - " + money(totalDec));
+  let corpo = "";
+  if (nomes.length) corpo += "EM ATRASO (" + money(total) + ")\n" + listar(porCli, nomes);
+  if (nomesDec.length) {
+    if (corpo) corpo += "\n\n";
+    corpo += "DECLARARAM PAGAMENTO, FALTA CONFERIR (" + money(totalDec) + ")\n" + listar(porCliDec, nomesDec);
+  }
   console.log((SIMULACAO ? "[SIMULACAO] " : "") + titulo);
   console.log(corpo);
   if (SIMULACAO) { console.log("[SIMULACAO] Nada foi enviado."); return; }
