@@ -5242,3 +5242,925 @@
   [1500,3500,7000].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,6000);
 })();
+
+/* APARAT v56 - CONTROLE DE OBRIGACOES DO CNPJ
+   Fase 1: trilha de abertura (13 itens) + perfil fiscal do cliente
+   Fase 2: grade mensal cliente x obrigacao com farois e cobranca
+   Fase 3: fechamento da folha em 8 etapas
+   Fase 4: obrigacoes anuais + validade de certificado e alvara
+   Colecoes NOVAS: aberturas, perfilFiscal, obrigCnpj, folhaMes
+   (a colecao antiga "obrigacoes" NAO e tocada - continua sendo a das guias) */
+;(function(){
+  if(window.__APARAT_OBRIG_CNPJ__) return; window.__APARAT_OBRIG_CNPJ__=1;
+
+  var C_AB='aberturas', C_PF='perfilFiscal', C_OB='obrigCnpj', C_FO='folhaMes';
+  var MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  var MABREV=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var INICIO_PADRAO='2026-07';
+
+  /* ---------------- trilha de abertura ---------------- */
+  var TRILHA=[
+    {id:'contrato', t:'Contrato Social / CCMEI',              d:'Documento de constituição arquivado na Junta Comercial, ou o Certificado da Condição de MEI'},
+    {id:'cnpj',     t:'CNPJ deferido + Cartão CNPJ',           d:'Comprovante de inscrição e de situação cadastral salvo em PDF'},
+    {id:'regime',   t:'Enquadramento tributário',              d:'Opção pelo Simples Nacional, definição do Anexo e do Fator R. Janela curta: contada da inscrição municipal/estadual e limitada a 180 dias da abertura do CNPJ', dias:30, critico:1},
+    {id:'ie',       t:'Inscrição Estadual (SEFAZ-SP)',         d:'Só para quem tem ICMS: comércio, indústria e transporte intermunicipal', se:'temIE'},
+    {id:'im',       t:'Inscrição Municipal — CCM de Franca',   d:'Obrigatória para prestador de serviço e para quem tem estabelecimento na cidade', se:'temIM'},
+    {id:'alvara',   t:'Alvará de funcionamento e licenças',    d:'Prefeitura, Vigilância Sanitária e Corpo de Bombeiros conforme o CNAE'},
+    {id:'cert',     t:'Certificado digital e-CNPJ (A1)',       d:'Cadastrar a validade no perfil fiscal para o painel avisar a renovação'},
+    {id:'ecac',     t:'Acesso ao e-CAC + procuração eletrônica', d:'Procuração eletrônica para a APARAT acessar o e-CAC do cliente'},
+    {id:'dte',      t:'DTE-SP — domicílio eletrônico',         d:'Credenciamento no Domicílio Eletrônico do Contribuinte de São Paulo', se:'temIE'},
+    {id:'nota',     t:'Habilitação para emitir nota',          d:'NFS-e pelo Emissor Nacional ou pela Prefeitura de Franca, e NF-e quando houver Inscrição Estadual'},
+    {id:'banco',    t:'Conta bancária PJ e chave Pix',         d:'Necessária para o controle da aba Extratos Bancários'},
+    {id:'esocial',  t:'Cadastro no eSocial e FGTS Digital',    d:'Só se a empresa vai ter empregado ou pró-labore', se:'temEmpregado'},
+    {id:'aparat',   t:'Contrato APARAT + acesso ao app',       d:'Honorários acertados, contrato assinado e login do cliente criado'}
+  ];
+
+  /* ---------------- obrigacoes mensais ----------------
+     dia    = dia base do vencimento no mes seguinte a competencia
+     antec  = 1 quando o vencimento ANTECIPA para o dia util anterior (caso do FGTS Digital);
+              sem antec, prorroga para o dia util seguinte                                     */
+  var OBRS=[
+    {s:'DAS',   n:'DAS Simples',    dia:20, se:function(p){ return p.regime==='Simples'; }, ajuda:'PGDAS-D apurado e guia paga até o dia 20 do mês seguinte'},
+    {s:'SIMEI', n:'DAS-SIMEI',      dia:20, se:function(p){ return p.regime==='MEI'; },     ajuda:'Guia mensal do MEI, dia 20 do mês seguinte'},
+    {s:'ESOC',  n:'eSocial folha',  dia:15, se:function(p){ return !!p.temEmpregado; },     ajuda:'Eventos S-1200/S-1210 até o dia 15 do mês seguinte'},
+    {s:'DCTF',  n:'DCTFWeb',        dia:15, se:function(p){ return !!p.temEmpregado; },     ajuda:'Transmissão até o dia 15 do mês seguinte'},
+    {s:'FGTS',  n:'FGTS Digital',   dia:20, antec:1, se:function(p){ return !!p.temEmpregado; }, ajuda:'Guia do FGTS até o dia 20; em dia não útil o vencimento ANTECIPA (Lei 8.036/1990, art. 17)'},
+    {s:'REINF', n:'EFD-Reinf',      dia:15, se:function(p){ return !!p.temReinf; },         ajuda:'Só para quem retém ou é retido na fonte'},
+    {s:'DEST',  n:'DeSTDA',         dia:28, se:function(p){ return !!p.temIE && !!p.temST && p.regime!=='MEI'; }, ajuda:'ME/EPP com IE que teve ICMS-ST, DIFAL ou antecipação. O MEI é dispensado (Ajuste SINIEF 12/2015)'},
+    {s:'ISS',   n:'ISS / NFS-e',    dia:10, se:function(p){ return !!p.temIM; },            ajuda:'Conforme o calendário da Prefeitura de Franca — confira o dia no perfil fiscal'},
+    {s:'EXT',   n:'Extrato',        dia:10, leitura:'extratos', se:function(p){ return true; }, ajuda:'Espelho da aba Extratos Bancários (somente leitura)'}
+  ];
+
+  /* ---------------- etapas da folha ---------------- */
+  var ETAPAS=[
+    {t:'Variáveis',    d:'Faltas, horas extras, adiantamento e atestados recebidos do cliente'},
+    {t:'Cálculo',      d:'Folha lançada no Domínio'},
+    {t:'Conferência',  d:'Comparação com o mês anterior — variação acima de 15% pede justificativa'},
+    {t:'Holerite',     d:'Recibo gerado e enviado ao cliente'},
+    {t:'eSocial',      d:'S-1200/S-1210 transmitidos até o dia 15'},
+    {t:'DCTFWeb',      d:'Declaração transmitida até o dia 15'},
+    {t:'Guias',        d:'FGTS Digital e DARF gerados e enviados até o dia 20'},
+    {t:'Arquivo',      d:'Recibos assinados guardados na pasta do cliente'}
+  ];
+
+  /* ---------------- obrigacoes anuais ---------------- */
+  var ANUAIS=[
+    {s:'DEFIS',  n:'DEFIS',        mes:3,  dia:31, se:function(p){ return p.regime==='Simples'; }, ajuda:'Declaração de Informações Socioeconômicas e Fiscais, até 31 de março'},
+    {s:'DASN',   n:'DASN-SIMEI',   mes:5,  dia:31, se:function(p){ return p.regime==='MEI'; },    ajuda:'Declaração anual do MEI, até 31 de maio'},
+    {s:'ECD',    n:'ECD',          mes:5,  dia:31, ult:1, se:function(p){ return !!p.temECD; },  ajuda:'Escrituração Contábil Digital, último dia útil de maio'},
+    {s:'ECF',    n:'ECF',          mes:7,  dia:31, ult:1, se:function(p){ return !!p.temECF; },  ajuda:'Escrituração Contábil Fiscal, último dia útil de julho'},
+    {s:'INFO',   n:'Informe de rendimentos', mes:2, dia:28, ult:1, se:function(p){ return !!p.temEmpregado; }, ajuda:'Comprovante de rendimentos entregue ao empregado até o último dia útil de fevereiro'}
+  ];
+
+  var cAb={}, cPf={}, cOb={}, cFo={}, cExt={}, nomes=[], carregando=false;
+  var subAba='ab', anoSel=new Date().getFullYear(), compSel=null, folhaComp=null;
+
+  /* ================= utilitarios ================= */
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function el(id){ return document.getElementById(id); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function limpo(n){ return String(n||'x').replace(/[^\w.\-]+/g,'_').slice(0,80); }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function comp(ano,mi){ return ano+'-'+pad(mi+1); }
+  function hojeISO(){ var h=new Date(); return h.getFullYear()+'-'+pad(h.getMonth()+1)+'-'+pad(h.getDate()); }
+  function dataBR(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : String(d); }
+  function moeda(v){ v=Number(v)||0; return 'R$ '+v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+  function ehAdmin(){
+    try{
+      var u=firebase.auth().currentUser; if(!u) return false;
+      if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /* ---- feriados nacionais + dia util ---- */
+  function pascoa(a){
+    var A=a%19, B=Math.floor(a/100), C=a%100, D=Math.floor(B/4), E=B%4;
+    var F=Math.floor((B+8)/25), G=Math.floor((B-F+1)/3), H=(19*A+B-D-G+15)%30;
+    var I=Math.floor(C/4), K=C%4, L=(32+2*E+2*I-H-K)%7, M=Math.floor((A+11*H+22*L)/451);
+    var mes=Math.floor((H+L-7*M+114)/31), dia=((H+L-7*M+114)%31)+1;
+    return new Date(a, mes-1, dia);
+  }
+  var _fer={};
+  function feriados(a){
+    if(_fer[a]) return _fer[a];
+    var set={};
+    ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'].forEach(function(d){ set[a+'-'+d]=1; });
+    var p=pascoa(a);
+    [-48,-47,-2,60].forEach(function(off){   /* carnaval (seg e ter), sexta santa, corpus christi */
+      var d=new Date(p.getFullYear(), p.getMonth(), p.getDate()+off);
+      set[d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())]=1;
+    });
+    _fer[a]=set; return set;
+  }
+  function ehUtil(d){
+    var w=d.getDay(); if(w===0||w===6) return false;
+    var k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    return !feriados(d.getFullYear())[k];
+  }
+  function ajusta(d, antecipa){
+    var g=0;
+    while(!ehUtil(d) && g<20){ d=new Date(d.getFullYear(), d.getMonth(), d.getDate()+(antecipa?-1:1)); g++; }
+    return d;
+  }
+  function fimDoDia(d){ d.setHours(23,59,59,999); return d; }
+  /* vencimento de uma obrigacao mensal para a competencia ano/mi */
+  function vencMes(o, ano, mi){
+    var d=new Date(ano, mi+1, o.dia);
+    if(d.getMonth()!==((mi+1)%12)) d=new Date(ano, mi+2, 0);   /* dia 31 em mes de 30 */
+    return fimDoDia(ajusta(d, !!o.antec));
+  }
+  /* ult:1 = ultimo dia UTIL do mes, entao o ajuste anda para tras */
+  function vencAno(o, ano){
+    var d = o.ult ? new Date(ano, o.mes, 0) : new Date(ano, o.mes-1, o.dia);
+    return fimDoDia(ajusta(d, !!o.ult));
+  }
+  function txtData(d){ return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear(); }
+
+  /* ---- perfil fiscal com valor padrao ---- */
+  function perfil(cli){
+    var p=cPf[limpo(cli)];
+    if(p) return p;
+    var reg='Simples';
+    try{
+      if(window.__AP_CLI_REGIME__ && window.__AP_CLI_REGIME__[cli]) reg=window.__AP_CLI_REGIME__[cli];
+    }catch(e){}
+    return {cliente:cli, regime:reg, anexo:'', temIE:false, temIM:true, temEmpregado:false,
+            temST:false, temReinf:false, temECD:false, temECF:false, nEmp:0,
+            inicio:INICIO_PADRAO, certValidade:'', alvaraValidade:'', obs:'', _novo:1};
+  }
+  function cabe(o, p){ try{ return !!o.se(p); }catch(e){ return false; } }
+
+  /* ---- situacao de uma celula da grade mensal ---- */
+  function sitMes(cli, o, ano, mi){
+    var p=perfil(cli);
+    var cp=comp(ano,mi);
+    if(!cabe(o,p)) return 'na';
+    if(cp < (p.inicio||INICIO_PADRAO)) return 'na';
+    if(o.leitura==='extratos'){
+      var e=cExt[limpo(cli)+'__'+cp];
+      if(e) return e.semMovimento ? 'ok' : 'ok';
+    }else{
+      var r=cOb[limpo(cli)+'__'+cp+'__'+o.s];
+      if(r && r.status) return r.status;
+    }
+    var h=new Date();
+    if(new Date(ano, mi+1, 1) > h) return 'na';       /* competencia ainda nao fechou */
+    return (h > vencMes(o,ano,mi)) ? 'at' : 'pd';
+  }
+  function sitAno(cli, o, ano){
+    var p=perfil(cli);
+    if(!cabe(o,p)) return 'na';
+    var r=cOb[limpo(cli)+'__'+ano+'__'+o.s];
+    if(r && r.status) return r.status;
+    var h=new Date();
+    if(new Date(ano,0,1) > h) return 'na';
+    return (h > vencAno(o,ano)) ? 'at' : 'pd';
+  }
+
+  /* ================= estilo ================= */
+  function css(){
+    if(el('ap-obc-css')) return;
+    var s=document.createElement('style'); s.id='ap-obc-css';
+    s.textContent=
+       '#pp-obcnpj .ob-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}'
+      +'#pp-obcnpj .ob-tab{font-size:13px;font-weight:700;padding:9px 15px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer}'
+      +'#pp-obcnpj .ob-tab.on{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#pp-obcnpj .ob-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}'
+      +'#pp-obcnpj .ob-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px}'
+      +'#pp-obcnpj .ob-kpi b{display:block;font-size:22px;line-height:1.1}'
+      +'#pp-obcnpj .ob-kpi span{font-size:11px;color:var(--cinza)}'
+      +'#pp-obcnpj .ob-rol{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}'
+      +'#pp-obcnpj table{border-collapse:separate;border-spacing:0;width:100%;min-width:820px;font-size:12px}'
+      +'#pp-obcnpj th,#pp-obcnpj td{padding:8px 5px;text-align:center;border-bottom:1px solid var(--border)}'
+      +'#pp-obcnpj thead th{font-size:11px;color:var(--cinza);font-weight:700;line-height:1.35}'
+      +'#pp-obcnpj thead th small{display:block;font-weight:400;font-size:10px;opacity:.85}'
+      +'#pp-obcnpj td.cli,#pp-obcnpj th.cli{text-align:left;padding-left:12px;min-width:180px;font-weight:700}'
+      +'#pp-obcnpj tbody tr:last-child td{border-bottom:0}'
+      +'#pp-obcnpj .fa{width:28px;height:28px;border-radius:8px;border:1px solid transparent;font-size:13px;cursor:pointer;line-height:1}'
+      +'#pp-obcnpj .fa.ok{background:rgba(14,159,110,.16);color:#0e9f6e;border-color:rgba(14,159,110,.3)}'
+      +'#pp-obcnpj .fa.an{background:rgba(51,85,255,.16);color:var(--azul-light);border-color:rgba(51,85,255,.3)}'
+      +'#pp-obcnpj .fa.pd{background:rgba(180,83,9,.16);color:#b45309;border-color:rgba(180,83,9,.3)}'
+      +'#pp-obcnpj .fa.at{background:rgba(217,45,32,.16);color:#d92d20;border-color:rgba(217,45,32,.35)}'
+      +'#pp-obcnpj .fa.na{background:rgba(130,145,170,.13);color:var(--cinza)}'
+      +'#pp-obcnpj .ob-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--cinza);margin-top:10px;align-items:center}'
+      +'#pp-obcnpj .ob-bt{font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block;margin:0 6px 6px 0}'
+      +'#pp-obcnpj .ob-bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#pp-obcnpj .ob-emp{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer}'
+      +'#pp-obcnpj .ob-emp:hover{border-color:var(--azul)}'
+      +'#pp-obcnpj .ob-emp b{font-size:14px}'
+      +'#pp-obcnpj .ob-emp .sub{font-size:11.5px;color:var(--cinza);margin-top:2px}'
+      +'#pp-obcnpj .ob-bar{height:9px;border-radius:999px;background:rgba(130,145,170,.2);overflow:hidden;margin-top:10px}'
+      +'#pp-obcnpj .ob-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(92deg,#0B2A8A,#3355FF,#2E9BF6)}'
+      +'#pp-obcnpj .ob-pct{font-size:11px;color:var(--cinza);margin-top:5px}'
+      +'#pp-obcnpj .ob-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:700;margin-left:7px;vertical-align:middle}'
+      +'#pp-obcnpj .ob-chip.ok{background:rgba(14,159,110,.16);color:#0e9f6e}'
+      +'#pp-obcnpj .ob-chip.an{background:rgba(51,85,255,.16);color:var(--azul-light)}'
+      +'#pp-obcnpj .ob-chip.pd{background:rgba(180,83,9,.16);color:#b45309}'
+      +'#pp-obcnpj .ob-chip.at{background:rgba(217,45,32,.16);color:#d92d20}'
+      +'#pp-obcnpj .ob-nota{background:rgba(51,85,255,.1);border:1px solid rgba(51,85,255,.28);border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.55;margin-top:11px}'
+      +'#ap-obc-modal{position:fixed;inset:0;background:rgba(6,12,26,.66);display:flex;align-items:center;justify-content:center;z-index:99999;padding:14px}'
+      +'#ap-obc-modal .cx{position:relative;background:var(--card);border:1px solid var(--border);border-radius:18px;max-width:600px;width:100%;max-height:88vh;overflow:auto;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
+      +'#ap-obc-modal .x{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--cinza);font-size:14px;cursor:pointer;line-height:1}'
+      +'#ap-obc-modal h3{margin:0 6px 4px 0;font-size:16px;padding-right:34px}'
+      +'#ap-obc-modal .h4{font-size:11.5px;color:var(--cinza);margin-bottom:11px}'
+      +'#ap-obc-modal .ln{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dotted var(--border);font-size:13px}'
+      +'#ap-obc-modal .ln:last-of-type{border-bottom:0}'
+      +'#ap-obc-modal .ln span{color:var(--cinza)}'
+      +'#ap-obc-modal .bts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}'
+      +'#ap-obc-modal .bt{font-size:12.5px;font-weight:700;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;text-decoration:none;display:inline-block}'
+      +'#ap-obc-modal .bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'#ap-obc-modal .bt.vm{border-color:rgba(217,45,32,.55);color:#d92d20}'
+      +'#ap-obc-modal .it{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px dotted var(--border)}'
+      +'#ap-obc-modal .it:last-child{border-bottom:0}'
+      +'#ap-obc-modal .it input[type=checkbox]{margin-top:3px;width:18px;height:18px;flex:0 0 auto;cursor:pointer;accent-color:#3355FF}'
+      +'#ap-obc-modal .it .tt{font-size:13px;font-weight:700;display:block}'
+      +'#ap-obc-modal .it .ds{font-size:11px;color:var(--cinza);display:block;margin-top:2px;line-height:1.45}'
+      +'#ap-obc-modal .it.feito .tt{opacity:.6;text-decoration:line-through}'
+      +'#ap-obc-modal .cx input[type=text],#ap-obc-modal .cx input[type=date],#ap-obc-modal .cx input[type=number],#ap-obc-modal .cx select,#ap-obc-modal .cx textarea{width:100%;margin-top:4px;font-size:13px;padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:transparent;color:inherit}'
+      +'#ap-obc-modal .cx label{font-size:11px;color:var(--cinza);display:block;margin-top:9px}'
+      +'#ap-obc-modal .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}'
+      +'#ap-obc-modal .sw{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0}'
+      +'#ap-obc-modal .sw input{width:18px;height:18px;accent-color:#3355FF;cursor:pointer}'
+      +'@media(max-width:640px){#pp-obcnpj .ob-kpis{grid-template-columns:1fr 1fr}#ap-obc-modal .g2{grid-template-columns:1fr}}';
+    document.head.appendChild(s);
+  }
+
+  /* ================= carga ================= */
+  async function carregarNomes(){
+    var d=db(); if(!d) return;
+    var set={}, reg={};
+    try{
+      var s=await d.collection('clientes').get();
+      s.forEach(function(x){
+        var o=x.data()||{}, n=String(o.nome||'').trim();
+        var ativo=!o.status || !/inativ|desativ|encerr|baix|cancel|suspens/i.test(String(o.status));
+        if(n && n!=='Todos os Clientes' && ativo){ set[n]=1; if(o.regime) reg[n]=String(o.regime); }
+      });
+    }catch(e){}
+    try{
+      var u=await d.collection('usuarios').get();
+      u.forEach(function(x){ var o=x.data()||{}, n=String(o.clienteNome||'').trim(); if(n && n!=='Todos os Clientes') set[n]=1; });
+    }catch(e){}
+    var l=Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
+    if(l.length) nomes=l;
+    try{
+      window.__AP_CLI_REGIME__={};
+      Object.keys(reg).forEach(function(n){
+        var r=reg[n];
+        window.__AP_CLI_REGIME__[n] = /mei|simei/i.test(r) ? 'MEI'
+                                    : /presum/i.test(r) ? 'Presumido'
+                                    : /real/i.test(r) ? 'Real' : 'Simples';
+      });
+    }catch(e){}
+  }
+  async function carregar(){
+    if(carregando) return; var d=db(); if(!d) return;
+    carregando=true;
+    var alvos=[[C_AB,cAb],[C_PF,cPf],[C_OB,cOb],[C_FO,cFo],['extratos',cExt]];
+    for(var i=0;i<alvos.length;i++){
+      try{
+        var s=await d.collection(alvos[i][0]).get();
+        var novo={};
+        s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; novo[x.id]=o; });
+        var alvo=alvos[i][1];
+        Object.keys(alvo).forEach(function(k){ delete alvo[k]; });
+        Object.keys(novo).forEach(function(k){ alvo[k]=novo[k]; });
+      }catch(e){}
+    }
+    carregando=false;
+  }
+  async function salvar(col,id,dados){
+    var d=db(); if(!d) throw new Error('Sem conexão com o banco');
+    dados.atualizadoEm=new Date().toISOString();
+    await d.collection(col).doc(id).set(dados,{merge:true});
+    var alvo = col===C_AB?cAb : col===C_PF?cPf : col===C_OB?cOb : col===C_FO?cFo : null;
+    if(alvo){ var at=alvo[id]||{}; Object.keys(dados).forEach(function(k){ at[k]=dados[k]; }); at.id=id; alvo[id]=at; }
+  }
+  async function apagar(col,id){
+    var d=db(); if(!d) return;
+    await d.collection(col).doc(id).delete();
+    var alvo = col===C_AB?cAb : col===C_PF?cPf : col===C_OB?cOb : col===C_FO?cFo : null;
+    if(alvo) delete alvo[id];
+  }
+
+  /* ================= menu e pagina ================= */
+  function menu(){
+    var nv=document.querySelector('#view-painel .sidebar .nav'); if(!nv || el('ap-nav-obc')) return;
+    var ref=el('ap-nav-ext');
+    if(!ref){
+      [].slice.call(nv.querySelectorAll('.nav-item')).forEach(function(it){
+        if(/Doc\. Solicitados|Documentos/.test(it.textContent||'')) ref=ref||it;
+      });
+    }
+    var it=document.createElement('div');
+    it.className='nav-item'; it.id='ap-nav-obc';
+    it.innerHTML='<span class="ni">\u{1F5C2}\u{FE0F}</span>Obrigações CNPJ<span class="nav-dot" id="dot-obc"></span>';
+    it.onclick=function(){ abrir(it); };
+    if(ref && ref.parentNode) ref.parentNode.insertBefore(it, ref.nextSibling); else nv.appendChild(it);
+  }
+
+  async function abrir(item){
+    try{ if(typeof pPage==='function'){ pPage('obcnpj', item); } }catch(e){}
+    var p=el('pp-obcnpj'); if(p) p.classList.add('active');
+    await carregarNomes(); await carregar(); render();
+  }
+
+  function pagina(){
+    if(el('pp-obcnpj')) return;
+    var base=el('pp-extratos')||el('pp-pedidos')||el('pp-docs'); if(!base || !base.parentNode) return;
+    var p=document.createElement('div'); p.className='ppage'; p.id='pp-obcnpj';
+    p.innerHTML=
+       '<div class="sec">\u{1F5C2}\u{FE0F} Controle de obrigações do CNPJ</div>'
+      +'<div class="ob-tabs">'
+        +'<button class="ob-tab on" data-ob="ab">\u{1F680} Abertura</button>'
+        +'<button class="ob-tab" data-ob="me">\u{1F4C5} Mensais</button>'
+        +'<button class="ob-tab" data-ob="fo">\u{1F465} Folha</button>'
+        +'<button class="ob-tab" data-ob="an">\u{1F5D3}\u{FE0F} Anuais</button>'
+        +'<button class="ob-tab" data-ob="pf">\u{2699}\u{FE0F} Perfil fiscal</button>'
+      +'</div>'
+      +'<div id="ob-corpo"><div style="padding:16px;color:var(--cinza)">Carregando...</div></div>';
+    base.parentNode.insertBefore(p, base.nextSibling);
+    [].slice.call(p.querySelectorAll('.ob-tab')).forEach(function(b){
+      b.onclick=function(){
+        subAba=b.getAttribute('data-ob');
+        [].slice.call(p.querySelectorAll('.ob-tab')).forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        render();
+      };
+    });
+    try{ if(window.ABA_NOMES) window.ABA_NOMES.obcnpj='Obrigações do CNPJ'; }catch(e){}
+  }
+
+  function render(){
+    var c=el('ob-corpo'); if(!c) return;
+    if(!nomes.length){ c.innerHTML='<div style="padding:16px;color:var(--cinza)">Nenhum cliente ativo encontrado. Cadastre os clientes na aba Clientes.</div>'; return; }
+    if(subAba==='ab') telaAbertura(c);
+    else if(subAba==='me') telaMensais(c);
+    else if(subAba==='fo') telaFolha(c);
+    else if(subAba==='an') telaAnuais(c);
+    else telaPerfil(c);
+    pintarPonto();
+  }
+
+  function pintarPonto(){
+    var d=el('dot-obc'); if(!d) return;
+    var ca=compAtual(), n=0;
+    nomes.forEach(function(cli){
+      OBRS.forEach(function(o){ if(sitMes(cli,o,ca.ano,ca.mi)==='at') n++; });
+    });
+    d.style.display = n>0 ? 'inline-block' : 'none';
+  }
+  function compAtual(){
+    var h=new Date(), ano=h.getFullYear(), mi=h.getMonth()-1;
+    if(mi<0){ mi=11; ano--; }
+    return {ano:ano, mi:mi};
+  }
+
+  /* ================= janela ================= */
+  function fecharModal(){ var m=el('ap-obc-modal'); if(m) m.remove(); }
+  function modal(html){
+    fecharModal();
+    var m=document.createElement('div'); m.id='ap-obc-modal';
+    m.innerHTML='<div class="cx"><button class="x" id="obc-mx">✖</button>'+html+'</div>';
+    m.onclick=function(ev){ if(ev.target===m) fecharModal(); };
+    document.body.appendChild(m);
+    var x=el('obc-mx'); if(x) x.onclick=fecharModal;
+    return m;
+  }
+
+  /* ================= 1. TRILHA DE ABERTURA ================= */
+  function itensDe(cli){
+    var p=perfil(cli);
+    return TRILHA.filter(function(t){ return !t.se || !!p[t.se]; });
+  }
+  function progresso(cli){
+    var reg=cAb[limpo(cli)]||{}, it=reg.itens||{}, lista=itensDe(cli), f=0;
+    lista.forEach(function(t){ if(it[t.id] && it[t.id].ok) f++; });
+    return {feitos:f, total:lista.length, pct: lista.length? Math.round(f/lista.length*100) : 0};
+  }
+  function telaAbertura(c){
+    var emAndamento=[], concluidas=[];
+    nomes.forEach(function(cli){
+      var reg=cAb[limpo(cli)];
+      if(!reg) return;                       /* so aparece quem foi colocado na trilha */
+      var pr=progresso(cli);
+      (pr.pct===100 ? concluidas : emAndamento).push({cli:cli, pr:pr, reg:reg});
+    });
+    var pend=0; emAndamento.forEach(function(x){ pend+=(x.pr.total-x.pr.feitos); });
+    var criticos=0;
+    emAndamento.forEach(function(x){
+      var it=(x.reg.itens||{});
+      if(!(it.regime&&it.regime.ok) && x.reg.dataAbertura){
+        var lim=new Date(x.reg.dataAbertura); lim.setDate(lim.getDate()+180);
+        if(new Date()>lim) criticos++;
+      }
+    });
+    var h=
+       '<div class="ob-kpis">'
+        +'<div class="ob-kpi"><b style="color:var(--azul-light)">'+emAndamento.length+'</b><span>CNPJ em abertura</span></div>'
+        +'<div class="ob-kpi"><b style="color:#b45309">'+pend+'</b><span>Itens pendentes</span></div>'
+        +'<div class="ob-kpi"><b style="color:#d92d20">'+criticos+'</b><span>Prazo do Simples estourado</span></div>'
+        +'<div class="ob-kpi"><b style="color:#0e9f6e">'+concluidas.length+'</b><span>Trilhas concluídas</span></div>'
+      +'</div>'
+      +'<div style="margin-bottom:11px"><button class="ob-bt az" id="ob-nova">\u{2795} Colocar uma empresa na trilha</button>'
+      +'<button class="ob-bt" id="ob-rec">\u{1F504} Atualizar</button></div>';
+    if(!emAndamento.length && !concluidas.length){
+      h+='<div class="ob-nota">Nenhuma empresa na trilha ainda. Clique em <b>Colocar uma empresa na trilha</b> para acompanhar tudo o que precisa ser feito depois que o CNPJ é aberto: enquadramento, Inscrição Estadual, Inscrição Municipal, alvará, certificado digital e mais.</div>';
+    }
+    emAndamento.concat(concluidas).forEach(function(x){
+      var chip = x.pr.pct===100 ? '<span class="ob-chip ok">Concluída</span>'
+               : x.pr.pct>=60  ? '<span class="ob-chip an">Em andamento</span>'
+               : '<span class="ob-chip pd">Começando</span>';
+      h+='<div class="ob-emp" data-ob-ab="'+esc(x.cli)+'"><b>'+esc(x.cli)+'</b>'+chip
+        +'<div class="sub">'+esc(x.reg.cnpj||'CNPJ não informado')+' · aberta em '+dataBR(x.reg.dataAbertura)+'</div>'
+        +'<div class="ob-bar"><i style="width:'+x.pr.pct+'%"></i></div>'
+        +'<div class="ob-pct">'+x.pr.feitos+' de '+x.pr.total+' itens · '+x.pr.pct+'%</div></div>';
+    });
+    h+='<div class="ob-nota"><b>Prazo que evita multa:</b> a opção pelo Simples Nacional de empresa recém-aberta tem janela curta — contada a partir da inscrição municipal/estadual e limitada a 180 dias da abertura do CNPJ. O item <b>Enquadramento tributário</b> é o que o painel vigia.</div>';
+    c.innerHTML=h;
+    var bn=el('ob-nova'); if(bn) bn.onclick=novaTrilha;
+    var br=el('ob-rec'); if(br) br.onclick=async function(){ await carregarNomes(); await carregar(); render(); };
+    [].slice.call(c.querySelectorAll('[data-ob-ab]')).forEach(function(b){
+      b.onclick=function(){ fichaAbertura(b.getAttribute('data-ob-ab')); };
+    });
+  }
+
+  function novaTrilha(){
+    var op='<option value="">— escolha o cliente —</option>';
+    nomes.forEach(function(n){ if(!cAb[limpo(n)]) op+='<option value="'+esc(n)+'">'+esc(n)+'</option>'; });
+    modal('<h3>\u{1F680} Colocar empresa na trilha</h3><div class="h4">A trilha acompanha os 13 itens que vêm depois da abertura do CNPJ.</div>'
+      +'<label>Cliente</label><select id="obn-cli">'+op+'</select>'
+      +'<div class="g2"><div><label>CNPJ</label><input type="text" id="obn-cnpj" placeholder="00.000.000/0001-00"></div>'
+      +'<div><label>Data de abertura do CNPJ</label><input type="date" id="obn-data" value="'+hojeISO()+'"></div></div>'
+      +'<div class="bts"><button class="bt az" id="obn-ok">Criar trilha</button><button class="bt" id="obn-x">Cancelar</button></div>');
+    el('obn-x').onclick=fecharModal;
+    el('obn-ok').onclick=async function(){
+      var cli=el('obn-cli').value;
+      if(!cli){ aviso('Escolha o cliente.','erro'); return; }
+      this.disabled=true;
+      try{
+        await salvar(C_AB, limpo(cli), {cliente:cli, cnpj:el('obn-cnpj').value.trim(), dataAbertura:el('obn-data').value, itens:{}, criadoEm:new Date().toISOString()});
+        fecharModal(); render(); aviso('Trilha criada para '+cli+'.','ok');
+      }catch(e){ aviso('Não foi possível criar: '+(e.message||e),'erro'); this.disabled=false; }
+    };
+  }
+
+  function fichaAbertura(cli){
+    var reg=cAb[limpo(cli)]||{itens:{}}, it=reg.itens||{}, lista=itensDe(cli), pr=progresso(cli);
+    var h='<h3>'+esc(cli)+'</h3><div class="h4">'+esc(reg.cnpj||'CNPJ não informado')+' · aberta em '+dataBR(reg.dataAbertura)+' · '+pr.feitos+' de '+pr.total+' itens</div>';
+    lista.forEach(function(t,i){
+      var f=it[t.id]&&it[t.id].ok;
+      h+='<label class="it'+(f?' feito':'')+'"><input type="checkbox" data-ob-it="'+t.id+'"'+(f?' checked':'')+'>'
+        +'<span style="flex:1"><span class="tt">'+(i+1)+'. '+esc(t.t)+(t.critico?' <span class="ob-chip at">prazo curto</span>':'')+'</span>'
+        +'<span class="ds">'+esc(t.d)+(f&&it[t.id].data?' <b style="color:#0e9f6e">— feito em '+dataBR(it[t.id].data)+'</b>':'')+'</span></span></label>';
+    });
+    h+='<label>Observação da trilha</label><textarea id="obf-obs" rows="2">'+esc(reg.obs||'')+'</textarea>'
+      +'<div class="bts"><button class="bt az" id="obf-salvar">\u{1F4BE} Salvar observação</button>'
+      +'<button class="bt" id="obf-perfil">\u{2699}\u{FE0F} Perfil fiscal</button>'
+      +'<button class="bt" id="obf-cobrar">\u{1F514} Cobrar o cliente</button>'
+      +'<button class="bt vm" id="obf-excluir">\u{1F5D1}\u{FE0F} Tirar da trilha</button></div>';
+    modal(h);
+    [].slice.call(document.querySelectorAll('[data-ob-it]')).forEach(function(cb){
+      cb.onchange=async function(){
+        var id=cb.getAttribute('data-ob-it'), novo=JSON.parse(JSON.stringify(reg.itens||{}));
+        novo[id]={ok:cb.checked, data:cb.checked?hojeISO():''};
+        cb.disabled=true;
+        try{ await salvar(C_AB, limpo(cli), {cliente:cli, itens:novo}); reg.itens=novo; fichaAbertura(cli); render(); }
+        catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); cb.disabled=false; cb.checked=!cb.checked; }
+      };
+    });
+    el('obf-salvar').onclick=async function(){
+      this.disabled=true;
+      try{ await salvar(C_AB, limpo(cli), {cliente:cli, obs:el('obf-obs').value}); aviso('Observação salva.','ok'); fecharModal(); }
+      catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); this.disabled=false; }
+    };
+    el('obf-perfil').onclick=function(){ fichaPerfil(cli); };
+    el('obf-cobrar').onclick=function(){ cobrar(cli, 'Ainda faltam documentos para concluir a abertura da sua empresa. Vamos resolver?'); };
+    el('obf-excluir').onclick=async function(){
+      if(!confirm('Tirar '+cli+' da trilha de abertura? O histórico dos itens será apagado.')) return;
+      this.disabled=true;
+      try{ await apagar(C_AB, limpo(cli)); fecharModal(); render(); aviso('Empresa retirada da trilha.','ok'); }
+      catch(e){ aviso('Não foi possível excluir: '+(e.message||e),'erro'); this.disabled=false; }
+    };
+  }
+
+  /* ================= 2. GRADE MENSAL ================= */
+  function telaMensais(c){
+    var ca=compAtual();
+    if(!compSel) compSel=comp(ca.ano, ca.mi);
+    var pa=compSel.split('-'), ano=Number(pa[0]), mi=Number(pa[1])-1;
+    var cont={ok:0,an:0,pd:0,at:0};
+    nomes.forEach(function(cli){ OBRS.forEach(function(o){ var s=sitMes(cli,o,ano,mi); if(cont[s]!=null) cont[s]++; }); });
+    var opc='', hj=new Date();
+    for(var q=0;q<24;q++){
+      var dq=new Date(hj.getFullYear(), hj.getMonth()-q, 1);
+      var cq=comp(dq.getFullYear(), dq.getMonth());
+      opc+='<option value="'+cq+'"'+(cq===compSel?' selected':'')+'>'+MESES[dq.getMonth()]+'/'+dq.getFullYear()+'</option>';
+    }
+    var h=
+       '<div class="ob-kpis">'
+        +'<div class="ob-kpi"><b style="color:#0e9f6e">'+cont.ok+'</b><span>Entregues</span></div>'
+        +'<div class="ob-kpi"><b style="color:#d92d20">'+cont.at+'</b><span>Vencidas</span></div>'
+        +'<div class="ob-kpi"><b style="color:#b45309">'+cont.pd+'</b><span>Pendentes no prazo</span></div>'
+        +'<div class="ob-kpi"><b style="color:var(--azul-light)">'+cont.an+'</b><span>Em andamento</span></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">'
+        +'<div class="fg" style="margin:0;min-width:170px"><select id="ob-comp">'+opc+'</select></div>'
+        +'<button class="ob-bt" id="ob-rec2">\u{1F504} Atualizar</button>'
+        +'<button class="ob-bt az" id="ob-cob">\u{1F514} Cobrar os atrasados</button>'
+      +'</div>'
+      +'<div class="ob-rol"><table><thead><tr><th class="cli">Cliente</th>';
+    OBRS.forEach(function(o){ h+='<th>'+esc(o.n)+'<small>vence '+txtData(vencMes(o,ano,mi))+'</small></th>'; });
+    h+='</tr></thead><tbody>';
+    var ico={ok:'✓',an:'●',pd:'•',at:'!',na:'–'};
+    nomes.forEach(function(cli){
+      h+='<tr><td class="cli">'+esc(cli)+'</td>';
+      OBRS.forEach(function(o,oi){
+        var s=sitMes(cli,o,ano,mi);
+        h+='<td><button class="fa '+s+'" data-ob-c="'+esc(cli)+'" data-ob-o="'+oi+'" title="'+esc(cli+' — '+o.n)+'">'+ico[s]+'</button></td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>'
+      +'<div class="ob-leg"><span><b style="color:#0e9f6e">✓</b> Entregue</span><span><b style="color:var(--azul-light)">●</b> Em andamento</span>'
+      +'<span><b style="color:#b45309">•</b> Pendente no prazo</span><span><b style="color:#d92d20">!</b> Vencida</span>'
+      +'<span><b style="color:var(--cinza)">–</b> Não se aplica</span>'
+      +'<span style="margin-left:auto">Quem vê cada coluna é decidido no <b>Perfil fiscal</b></span></div>'
+      +'<div class="ob-nota">Vencimento em sábado, domingo ou feriado nacional já sai ajustado: o <b>FGTS Digital antecipa</b> para o dia útil anterior (Lei 8.036/1990, art. 17) e as demais <b>prorrogam</b> para o dia útil seguinte.</div>';
+    c.innerHTML=h;
+    el('ob-comp').onchange=function(){ compSel=this.value; render(); };
+    el('ob-rec2').onclick=async function(){ await carregarNomes(); await carregar(); render(); };
+    el('ob-cob').onclick=function(){ cobrarAtrasados(ano,mi); };
+    [].slice.call(c.querySelectorAll('[data-ob-c]')).forEach(function(b){
+      b.onclick=function(){ fichaMes(b.getAttribute('data-ob-c'), Number(b.getAttribute('data-ob-o')), ano, mi); };
+    });
+  }
+
+  var NOME_ST={ok:'Entregue', an:'Em andamento', pd:'Pendente — dentro do prazo', at:'VENCIDA', na:'Não se aplica'};
+  function fichaMes(cli, oi, ano, mi){
+    var o=OBRS[oi], cp=comp(ano,mi), id=limpo(cli)+'__'+cp+'__'+o.s;
+    var r=cOb[id]||{}, s=sitMes(cli,o,ano,mi);
+    if(o.leitura==='extratos'){
+      var e=cExt[limpo(cli)+'__'+cp];
+      modal('<h3>'+esc(o.n)+' — '+esc(cli)+'</h3><div class="h4">Competência '+MESES[mi]+'/'+ano+'</div>'
+        +'<div class="ln"><span>Situação</span><b>'+(e?(e.semMovimento?'Sem movimento declarado':'Extrato entregue'):'Não entregue')+'</b></div>'
+        +'<div class="ln"><span>Entregue em</span><b>'+(e&&e.data?esc(e.data):'—')+'</b></div>'
+        +'<div class="ob-nota">Esta coluna é um espelho da aba <b>🏦 Extratos</b>. Para anexar, trocar ou cobrar o extrato, use aquela aba — é lá que o arquivo fica guardado.</div>');
+      return;
+    }
+    var h='<h3>'+esc(o.n)+' — '+esc(cli)+'</h3><div class="h4">Competência '+MESES[mi]+'/'+ano+' · vence '+txtData(vencMes(o,ano,mi))+'</div>'
+      +'<div class="ln"><span>Situação</span><b class="ob-chip '+s+'">'+NOME_ST[s]+'</b></div>'
+      +'<div class="ln"><span>Entregue em</span><b>'+dataBR(r.entregaEm)+'</b></div>'
+      +'<div class="ln"><span>Responsável</span><b>'+esc(r.responsavel||'—')+'</b></div>'
+      +'<div class="g2"><div><label>Protocolo / recibo</label><input type="text" id="obm-prot" value="'+esc(r.protocolo||'')+'"></div>'
+      +'<div><label>Valor da guia (R$)</label><input type="number" step="0.01" id="obm-val" value="'+(r.valor!=null?esc(r.valor):'')+'"></div></div>'
+      +'<label>Onde foi feita</label><select id="obm-org">'
+      +['','Domínio Web','e-CAC','PGDAS-D','Prefeitura de Franca','SEFAZ-SP','FGTS Digital','Manual'].map(function(x){
+          return '<option value="'+esc(x)+'"'+((r.origem||'')===x?' selected':'')+'>'+(x||'— escolha —')+'</option>'; }).join('')
+      +'</select>'
+      +'<label>Observação</label><textarea id="obm-obs" rows="2">'+esc(r.obs||'')+'</textarea>'
+      +'<div class="bts"><button class="bt az" id="obm-ok">\u{2705} Marcar como entregue</button>'
+      +'<button class="bt" id="obm-an">\u{1F535} Em andamento</button>'
+      +'<button class="bt" id="obm-na">\u{26AA} Não se aplica</button>'
+      +'<button class="bt" id="obm-cob">\u{1F514} Cobrar</button>'
+      +(r.status?'<button class="bt vm" id="obm-lim">\u{21A9}\u{FE0F} Limpar</button>':'')+'</div>'
+      +'<div class="ob-nota">'+esc(o.ajuda)+'</div>';
+    modal(h);
+    function base(st){
+      return {cliente:cli, competencia:cp, sigla:o.s, status:st,
+              protocolo:el('obm-prot').value.trim(), valor:Number(el('obm-val').value)||0,
+              origem:el('obm-org').value, obs:el('obm-obs').value,
+              responsavel:'Daniel', entregaEm: st==='ok' ? (cOb[id]&&cOb[id].entregaEm ? cOb[id].entregaEm : hojeISO()) : ''};
+    }
+    async function grava(st){
+      try{ await salvar(C_OB, id, base(st)); fecharModal(); render(); aviso('Situação atualizada.','ok'); }
+      catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); }
+    }
+    el('obm-ok').onclick=function(){ this.disabled=true; grava('ok'); };
+    el('obm-an').onclick=function(){ this.disabled=true; grava('an'); };
+    el('obm-na').onclick=function(){ this.disabled=true; grava('na'); };
+    el('obm-cob').onclick=function(){ cobrar(cli, 'Precisamos de informação para fechar a obrigação '+o.n+' da competência '+MESES[mi]+'/'+ano+'.'); };
+    var bl=el('obm-lim');
+    if(bl) bl.onclick=async function(){
+      this.disabled=true;
+      try{ await apagar(C_OB, id); fecharModal(); render(); aviso('Situação limpa.','ok'); }
+      catch(e){ aviso('Não foi possível limpar: '+(e.message||e),'erro'); this.disabled=false; }
+    };
+  }
+
+  /* ================= 3. FOLHA DE PAGAMENTO ================= */
+  function comFolha(){ return nomes.filter(function(n){ return !!perfil(n).temEmpregado; }); }
+  function sitEtapa(cli, ei, ano, mi){
+    var r=cFo[limpo(cli)+'__'+comp(ano,mi)]||{}, et=r.etapas||{};
+    if(et[ei] && et[ei].ok) return 'ok';
+    var h=new Date();
+    if(new Date(ano, mi+1, 1) > h) return 'pd';
+    var lim;
+    if(ei<=3) lim=ajusta(new Date(ano, mi+1, 10), false);
+    else if(ei<=5) lim=ajusta(new Date(ano, mi+1, 15), false);
+    else if(ei===6) lim=ajusta(new Date(ano, mi+1, 20), true);
+    else lim=ajusta(new Date(ano, mi+1, 28), false);
+    lim.setHours(23,59,59,999);
+    return h>lim ? 'at' : 'pd';
+  }
+  function telaFolha(c){
+    var ca=compAtual();
+    if(!folhaComp) folhaComp=comp(ca.ano, ca.mi);
+    var pa=folhaComp.split('-'), ano=Number(pa[0]), mi=Number(pa[1])-1;
+    var lista=comFolha();
+    if(!lista.length){
+      c.innerHTML='<div class="ob-nota">Nenhum cliente marcado com <b>tem empregado</b> no Perfil fiscal. Abra a aba <b>⚙️ Perfil fiscal</b>, ligue a chave "Tem empregado" de quem tem folha e esta tela se monta sozinha.</div>';
+      return;
+    }
+    var aguard=0, fora=0, bruto=0, emp=0;
+    lista.forEach(function(cli){
+      var r=cFo[limpo(cli)+'__'+folhaComp]||{};
+      bruto+=Number(r.totalBruto)||0; emp+=Number(perfil(cli).nEmp)||0;
+      if(sitEtapa(cli,0,ano,mi)!=='ok') aguard++;
+      for(var i=0;i<8;i++){ if(sitEtapa(cli,i,ano,mi)==='at'){ fora++; break; } }
+    });
+    var opc='', hj=new Date();
+    for(var q=0;q<24;q++){
+      var dq=new Date(hj.getFullYear(), hj.getMonth()-q, 1);
+      var cq=comp(dq.getFullYear(), dq.getMonth());
+      opc+='<option value="'+cq+'"'+(cq===folhaComp?' selected':'')+'>'+MESES[dq.getMonth()]+'/'+dq.getFullYear()+'</option>';
+    }
+    var h=
+       '<div class="ob-kpis">'
+        +'<div class="ob-kpi"><b style="color:var(--azul-light)">'+lista.length+'</b><span>Empresas com folha</span></div>'
+        +'<div class="ob-kpi"><b style="color:#b45309">'+aguard+'</b><span>Aguardando variáveis</span></div>'
+        +'<div class="ob-kpi"><b style="color:#d92d20">'+fora+'</b><span>Fora do prazo</span></div>'
+        +'<div class="ob-kpi"><b style="color:#0e9f6e">'+moeda(bruto)+'</b><span>Folha do mês ('+emp+' empregados)</span></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">'
+        +'<div class="fg" style="margin:0;min-width:170px"><select id="ob-fcomp">'+opc+'</select></div>'
+        +'<button class="ob-bt" id="ob-frec">\u{1F504} Atualizar</button></div>'
+      +'<div class="ob-rol"><table><thead><tr><th class="cli">Cliente</th><th>Empregados</th>';
+    ETAPAS.forEach(function(e,i){ h+='<th>'+(i+1)+'. '+esc(e.t)+'</th>'; });
+    h+='</tr></thead><tbody>';
+    var ico={ok:'✓',an:'●',pd:'•',at:'!',na:'–'};
+    lista.forEach(function(cli){
+      h+='<tr><td class="cli">'+esc(cli)+'</td><td>'+(perfil(cli).nEmp||0)+'</td>';
+      for(var i=0;i<8;i++){
+        var s=sitEtapa(cli,i,ano,mi);
+        h+='<td><button class="fa '+s+'" data-ob-fc="'+esc(cli)+'" data-ob-fe="'+i+'" title="'+esc(cli+' — '+ETAPAS[i].t)+'">'+ico[s]+'</button></td>';
+      }
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>'
+      +'<div class="ob-leg"><span><b style="color:#0e9f6e">✓</b> Concluída</span><span><b style="color:#b45309">•</b> Aguardando</span>'
+      +'<span><b style="color:#d92d20">!</b> Fora do prazo</span></div>'
+      +alertasFolha();
+    c.innerHTML=h;
+    el('ob-fcomp').onchange=function(){ folhaComp=this.value; render(); };
+    el('ob-frec').onclick=async function(){ await carregar(); render(); };
+    [].slice.call(c.querySelectorAll('[data-ob-fc]')).forEach(function(b){
+      b.onclick=function(){ fichaFolha(b.getAttribute('data-ob-fc'), Number(b.getAttribute('data-ob-fe')), ano, mi); };
+    });
+  }
+
+  function alertasFolha(){
+    var h=new Date(), m=h.getMonth()+1, av=[];
+    if(m===11) av.push('<b>13º salário — 1ª parcela</b> até 30 de novembro.');
+    if(m===12) av.push('<b>13º salário — 2ª parcela</b> até 20 de dezembro.');
+    if(m===10) av.push('Comece a organizar o <b>13º salário</b>: a 1ª parcela vence em 30 de novembro.');
+    var ven=[];
+    nomes.forEach(function(cli){
+      var p=perfil(cli);
+      [['certValidade','Certificado digital'],['alvaraValidade','Alvará']].forEach(function(par){
+        var v=p[par[0]]; if(!v) return;
+        var d=new Date(v+'T12:00:00'); if(isNaN(d)) return;
+        var dias=Math.round((d-h)/86400000);
+        if(dias<=60) ven.push(esc(cli)+' — <b>'+par[1]+'</b> '+(dias<0?'venceu em ':'vence em ')+dataBR(v));
+      });
+    });
+    if(!av.length && !ven.length) return '';
+    return '<div class="ob-nota"><b>\u{1F514} Avisos</b><br>'+av.concat(ven).join('<br>')+'</div>';
+  }
+
+  function fichaFolha(cli, ei, ano, mi){
+    var cp=comp(ano,mi), id=limpo(cli)+'__'+cp, r=cFo[id]||{}, et=r.etapas||{};
+    var p=perfil(cli), s=sitEtapa(cli,ei,ano,mi);
+    var ant=cFo[limpo(cli)+'__'+comp(mi===0?ano-1:ano, mi===0?11:mi-1)]||{};
+    var vAnt=Number(ant.totalBruto)||0, vAtu=Number(r.totalBruto)||0;
+    var varia = vAnt>0 ? ((vAtu-vAnt)/vAnt*100) : 0;
+    var alerta = (ei===2 && vAnt>0 && Math.abs(varia)>15 && !r.justificativa);
+    var h='<h3>'+esc(cli)+'</h3><div class="h4">Folha de '+MESES[mi]+'/'+ano+' · etapa '+(ei+1)+' de 8 — '+esc(ETAPAS[ei].t)+'</div>'
+      +'<div class="ln"><span>Situação</span><b class="ob-chip '+s+'">'+(s==='ok'?'Concluída':s==='at'?'FORA DO PRAZO':'Aguardando')+'</b></div>'
+      +'<div class="ln"><span>O que é</span><b style="font-weight:400;text-align:right;max-width:62%">'+esc(ETAPAS[ei].d)+'</b></div>'
+      +'<div class="ln"><span>Empregados</span><b>'+(p.nEmp||0)+'</b></div>'
+      +'<div class="g2"><div><label>Total bruto da folha (R$)</label><input type="number" step="0.01" id="obf-bru" value="'+(r.totalBruto!=null?esc(r.totalBruto):'')+'"></div>'
+      +'<div><label>Mês anterior</label><input type="text" value="'+(vAnt?moeda(vAnt):'—')+'" disabled></div></div>'
+      +(vAnt>0 ? '<div class="ln"><span>Variação x mês anterior</span><b style="color:'+(Math.abs(varia)>15?'#d92d20':'#0e9f6e')+'">'+(varia>0?'+':'')+varia.toFixed(1).replace('.',',')+'%</b></div>' : '')
+      +(alerta ? '<label>Justificativa da variação (obrigatória acima de 15%)</label><textarea id="obf-just" rows="2">'+esc(r.justificativa||'')+'</textarea>' : '')
+      +'<label>Observação</label><textarea id="obf-fobs" rows="2">'+esc(r.obs||'')+'</textarea>'
+      +'<div class="bts"><button class="bt az" id="obf-ok">'+(et[ei]&&et[ei].ok?'\u{21A9}\u{FE0F} Reabrir etapa':'\u{2705} Concluir etapa')+'</button>'
+      +'<button class="bt" id="obf-sv">\u{1F4BE} Só salvar</button>'
+      +'<button class="bt" id="obf-var">\u{1F4AC} Pedir as variáveis</button>'
+      +'<button class="bt" id="obf-wa">\u{1F4F2} WhatsApp</button></div>'
+      +(alerta ? '<div class="ob-nota" style="background:rgba(217,45,32,.1);border-color:rgba(217,45,32,.3)"><b>Conferência travada:</b> a folha variou '+varia.toFixed(1).replace('.',',')+'% em relação ao mês anterior. Escreva a justificativa para concluir esta etapa.</div>' : '');
+    modal(h);
+    async function grava(concluir){
+      var novo=JSON.parse(JSON.stringify(et));
+      if(concluir) novo[ei]={ok: !(et[ei]&&et[ei].ok), data:hojeISO()};
+      var dados={cliente:cli, competencia:cp, etapas:novo, totalBruto:Number(el('obf-bru').value)||0, obs:el('obf-fobs').value};
+      var ju=el('obf-just'); if(ju) dados.justificativa=ju.value;
+      if(concluir && alerta && (!ju || !ju.value.trim())){ aviso('Escreva a justificativa da variação para concluir.','erro'); return false; }
+      try{ await salvar(C_FO, id, dados); fecharModal(); render(); aviso('Folha atualizada.','ok'); return true; }
+      catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); return false; }
+    }
+    el('obf-ok').onclick=async function(){ this.disabled=true; var r2=await grava(true); if(!r2) this.disabled=false; };
+    el('obf-sv').onclick=async function(){ this.disabled=true; var r2=await grava(false); if(!r2) this.disabled=false; };
+    el('obf-var').onclick=function(){ cobrar(cli, 'Precisamos das variáveis da folha de '+MESES[mi]+'/'+ano+': faltas, horas extras, adiantamentos e atestados.'); };
+    el('obf-wa').onclick=function(){
+      var t='Olá! Aqui é a APARAT Contabilidade. Precisamos das variáveis da folha de '+MESES[mi]+'/'+ano+' da '+cli+'.';
+      window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+    };
+  }
+
+  /* ================= 4. ANUAIS ================= */
+  function telaAnuais(c){
+    var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">'
+      +'<div class="fg" style="margin:0;min-width:120px"><select id="ob-ano">';
+    var hy=new Date().getFullYear();
+    for(var a=hy;a>=hy-4;a--) h+='<option value="'+a+'"'+(a===anoSel?' selected':'')+'>'+a+'</option>';
+    h+='</select></div><button class="ob-bt" id="ob-arec">\u{1F504} Atualizar</button></div>'
+      +'<div class="ob-rol"><table><thead><tr><th class="cli">Cliente</th>';
+    ANUAIS.forEach(function(o){ h+='<th>'+esc(o.n)+'<small>vence '+txtData(vencAno(o,anoSel))+'</small></th>'; });
+    h+='<th>Certificado</th><th>Alvará</th></tr></thead><tbody>';
+    var ico={ok:'✓',an:'●',pd:'•',at:'!',na:'–'};
+    nomes.forEach(function(cli){
+      var p=perfil(cli);
+      h+='<tr><td class="cli">'+esc(cli)+'</td>';
+      ANUAIS.forEach(function(o,oi){
+        var s=sitAno(cli,o,anoSel);
+        h+='<td><button class="fa '+s+'" data-ob-ac="'+esc(cli)+'" data-ob-ao="'+oi+'" title="'+esc(cli+' — '+o.n)+'">'+ico[s]+'</button></td>';
+      });
+      h+='<td>'+val(p.certValidade)+'</td><td>'+val(p.alvaraValidade)+'</td></tr>';
+    });
+    h+='</tbody></table></div>'
+      +'<div class="ob-nota">DEFIS até 31 de março · DASN-SIMEI até 31 de maio · ECD no último dia útil de maio · ECF no último dia útil de julho. A validade do certificado digital e do alvará vem do <b>Perfil fiscal</b> e vira aviso quando faltam 60 dias.</div>';
+    c.innerHTML=h;
+    el('ob-ano').onchange=function(){ anoSel=Number(this.value)||anoSel; render(); };
+    el('ob-arec').onclick=async function(){ await carregar(); render(); };
+    [].slice.call(c.querySelectorAll('[data-ob-ac]')).forEach(function(b){
+      b.onclick=function(){ fichaAno(b.getAttribute('data-ob-ac'), Number(b.getAttribute('data-ob-ao'))); };
+    });
+  }
+  function val(v){
+    if(!v) return '<span style="color:var(--cinza)">—</span>';
+    var d=new Date(v+'T12:00:00'); if(isNaN(d)) return esc(v);
+    var dias=Math.round((d-new Date())/86400000);
+    var cor = dias<0 ? '#d92d20' : dias<=60 ? '#b45309' : '#0e9f6e';
+    return '<b style="color:'+cor+'">'+dataBR(v)+'</b>';
+  }
+  function fichaAno(cli, oi){
+    var o=ANUAIS[oi], id=limpo(cli)+'__'+anoSel+'__'+o.s, r=cOb[id]||{}, s=sitAno(cli,o,anoSel);
+    modal('<h3>'+esc(o.n)+' — '+esc(cli)+'</h3><div class="h4">Ano '+anoSel+' · vence '+txtData(vencAno(o,anoSel))+'</div>'
+      +'<div class="ln"><span>Situação</span><b class="ob-chip '+s+'">'+NOME_ST[s]+'</b></div>'
+      +'<div class="ln"><span>Entregue em</span><b>'+dataBR(r.entregaEm)+'</b></div>'
+      +'<label>Protocolo / recibo</label><input type="text" id="oba-prot" value="'+esc(r.protocolo||'')+'">'
+      +'<label>Observação</label><textarea id="oba-obs" rows="2">'+esc(r.obs||'')+'</textarea>'
+      +'<div class="bts"><button class="bt az" id="oba-ok">\u{2705} Marcar como entregue</button>'
+      +'<button class="bt" id="oba-na">\u{26AA} Não se aplica</button>'
+      +(r.status?'<button class="bt vm" id="oba-lim">\u{21A9}\u{FE0F} Limpar</button>':'')+'</div>'
+      +'<div class="ob-nota">'+esc(o.ajuda)+'</div>');
+    async function grava(st){
+      try{
+        await salvar(C_OB, id, {cliente:cli, competencia:String(anoSel), sigla:o.s, status:st,
+          protocolo:el('oba-prot').value.trim(), obs:el('oba-obs').value, responsavel:'Daniel',
+          entregaEm: st==='ok' ? (r.entregaEm||hojeISO()) : ''});
+        fecharModal(); render(); aviso('Situação atualizada.','ok');
+      }catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); }
+    }
+    el('oba-ok').onclick=function(){ this.disabled=true; grava('ok'); };
+    el('oba-na').onclick=function(){ this.disabled=true; grava('na'); };
+    var bl=el('oba-lim');
+    if(bl) bl.onclick=async function(){
+      this.disabled=true;
+      try{ await apagar(C_OB, id); fecharModal(); render(); }catch(e){ aviso('Não foi possível limpar.','erro'); this.disabled=false; }
+    };
+  }
+
+  /* ================= 5. PERFIL FISCAL ================= */
+  function telaPerfil(c){
+    var h='<div class="ob-nota" style="margin-top:0">O perfil fiscal é o cérebro desta aba: é ele que decide <b>quais colunas acendem</b> para cada cliente. Quem não tem Inscrição Estadual nunca vê DeSTDA; quem não tem empregado não aparece na folha.</div>'
+      +'<div style="margin:11px 0"><button class="ob-bt" id="ob-prec">\u{1F504} Atualizar</button></div>'
+      +'<div class="ob-rol"><table><thead><tr><th class="cli">Cliente</th><th>Regime</th><th>Anexo</th><th>IE</th><th>IM</th>'
+      +'<th>Empregado</th><th>ICMS-ST</th><th>Reinf</th><th>Controle desde</th><th></th></tr></thead><tbody>';
+    nomes.forEach(function(cli){
+      var p=perfil(cli);
+      function sn(v){ return v ? '<b style="color:#0e9f6e">sim</b>' : '<span style="color:var(--cinza)">não</span>'; }
+      h+='<tr><td class="cli">'+esc(cli)+(p._novo?' <span class="ob-chip pd">padrão</span>':'')+'</td>'
+        +'<td>'+esc(p.regime)+'</td><td>'+esc(p.anexo||'—')+'</td>'
+        +'<td>'+sn(p.temIE)+'</td><td>'+sn(p.temIM)+'</td><td>'+sn(p.temEmpregado)+(p.temEmpregado?' ('+(p.nEmp||0)+')':'')+'</td>'
+        +'<td>'+sn(p.temST)+'</td><td>'+sn(p.temReinf)+'</td><td>'+esc(p.inicio||INICIO_PADRAO)+'</td>'
+        +'<td><button class="ob-bt" data-ob-pf="'+esc(cli)+'" style="margin:0">\u{270F}\u{FE0F} Editar</button></td></tr>';
+    });
+    h+='</tbody></table></div>';
+    c.innerHTML=h;
+    el('ob-prec').onclick=async function(){ await carregarNomes(); await carregar(); render(); };
+    [].slice.call(c.querySelectorAll('[data-ob-pf]')).forEach(function(b){
+      b.onclick=function(){ fichaPerfil(b.getAttribute('data-ob-pf')); };
+    });
+  }
+
+  function fichaPerfil(cli){
+    var p=perfil(cli);
+    function op(lista, atual){
+      return lista.map(function(x){ return '<option value="'+esc(x)+'"'+(String(atual||'')===x?' selected':'')+'>'+(x||'—')+'</option>'; }).join('');
+    }
+    var meses='';
+    var hj=new Date();
+    for(var q=0;q<36;q++){
+      var dq=new Date(hj.getFullYear(), hj.getMonth()-q, 1);
+      var cq=comp(dq.getFullYear(), dq.getMonth());
+      meses+='<option value="'+cq+'"'+(cq===(p.inicio||INICIO_PADRAO)?' selected':'')+'>'+MESES[dq.getMonth()]+'/'+dq.getFullYear()+'</option>';
+    }
+    modal('<h3>\u{2699}\u{FE0F} Perfil fiscal</h3><div class="h4">'+esc(cli)+'</div>'
+      +'<div class="g2"><div><label>Regime</label><select id="obp-reg">'+op(['MEI','Simples','Presumido','Real'], p.regime)+'</select></div>'
+      +'<div><label>Anexo do Simples</label><select id="obp-anx">'+op(['','I','II','III','IV','V'], p.anexo)+'</select></div></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-ie"'+(p.temIE?' checked':'')+'><label style="margin:0">Tem Inscrição Estadual (SEFAZ-SP)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-im"'+(p.temIM?' checked':'')+'><label style="margin:0">Tem Inscrição Municipal (CCM Franca)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-st"'+(p.temST?' checked':'')+'><label style="margin:0">Tem ICMS-ST, DIFAL ou antecipação (liga a DeSTDA)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-rf"'+(p.temReinf?' checked':'')+'><label style="margin:0">Retém ou é retido na fonte (liga a EFD-Reinf)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-em"'+(p.temEmpregado?' checked':'')+'><label style="margin:0">Tem empregado ou pró-labore (liga folha, eSocial, DCTFWeb e FGTS)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-ecd"'+(p.temECD?' checked':'')+'><label style="margin:0">Entrega ECD</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-ecf"'+(p.temECF?' checked':'')+'><label style="margin:0">Entrega ECF</label></div>'
+      +'<div class="g2"><div><label>Quantos empregados</label><input type="number" id="obp-nemp" min="0" value="'+(Number(p.nEmp)||0)+'"></div>'
+      +'<div><label>Controle começa em</label><select id="obp-ini">'+meses+'</select></div></div>'
+      +'<div class="g2"><div><label>Validade do certificado digital</label><input type="date" id="obp-cert" value="'+esc(p.certValidade||'')+'"></div>'
+      +'<div><label>Validade do alvará</label><input type="date" id="obp-alv" value="'+esc(p.alvaraValidade||'')+'"></div></div>'
+      +'<label>Observação</label><textarea id="obp-obs" rows="2">'+esc(p.obs||'')+'</textarea>'
+      +'<div class="bts"><button class="bt az" id="obp-ok">\u{1F4BE} Salvar perfil</button><button class="bt" id="obp-x">Cancelar</button></div>');
+    el('obp-x').onclick=fecharModal;
+    el('obp-ok').onclick=async function(){
+      this.disabled=true;
+      try{
+        await salvar(C_PF, limpo(cli), {
+          cliente:cli, regime:el('obp-reg').value, anexo:el('obp-anx').value,
+          temIE:el('obp-ie').checked, temIM:el('obp-im').checked, temST:el('obp-st').checked,
+          temReinf:el('obp-rf').checked, temEmpregado:el('obp-em').checked,
+          temECD:el('obp-ecd').checked, temECF:el('obp-ecf').checked,
+          nEmp:Number(el('obp-nemp').value)||0, inicio:el('obp-ini').value,
+          certValidade:el('obp-cert').value, alvaraValidade:el('obp-alv').value, obs:el('obp-obs').value
+        });
+        fecharModal(); render(); aviso('Perfil fiscal salvo.','ok');
+      }catch(e){ aviso('Não foi possível salvar: '+(e.message||e),'erro'); this.disabled=false; }
+    };
+  }
+
+  /* ================= cobranca ================= */
+  async function cobrar(cli, msg){
+    var d=db(); if(!d){ aviso('Sem conexão com o banco.','erro'); return; }
+    try{
+      await d.collection('urgencias').add({
+        cliente:cli, dest:cli, titulo:'Pendência da sua empresa', msg:msg,
+        data:new Date().toLocaleDateString('pt-BR'), ts:Date.now(),
+        criadoEm: (firebase.firestore.FieldValue && firebase.firestore.FieldValue.serverTimestamp) ? firebase.firestore.FieldValue.serverTimestamp() : new Date(),
+        origem:'obrigCnpj'
+      });
+      aviso('Aviso enviado para '+cli+'.','ok');
+    }catch(e){ aviso('Não foi possível enviar: '+(e.message||e),'erro'); }
+  }
+  async function cobrarAtrasados(ano,mi){
+    var lista=[];
+    nomes.forEach(function(cli){
+      var faltas=[];
+      OBRS.forEach(function(o){ if(!o.leitura && sitMes(cli,o,ano,mi)==='at') faltas.push(o.n); });
+      if(faltas.length) lista.push({cli:cli, faltas:faltas});
+    });
+    if(!lista.length){ aviso('Nenhuma obrigação vencida nesta competência. Tudo em dia!','ok'); return; }
+    if(!confirm('Enviar aviso para '+lista.length+' cliente(s) com obrigação vencida?')) return;
+    for(var i=0;i<lista.length;i++){
+      await cobrar(lista[i].cli, 'Está pendente na sua empresa: '+lista[i].faltas.join(', ')+' (competência '+MESES[mi]+'/'+ano+'). Fale com a APARAT para regularizar.');
+    }
+  }
+
+  /* ================= relogio ================= */
+  var ocupado=false, voltas=0;
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      css();
+      var painel=el('view-painel');
+      if(painel && painel.classList.contains('active') && ehAdmin()){
+        menu(); pagina();
+        if(voltas===1 || voltas%12===0){
+          await carregarNomes(); await carregar();
+          if(el('pp-obcnpj') && el('pp-obcnpj').classList.contains('active')) render(); else pintarPonto();
+        }
+      }
+    }catch(e){}
+    ocupado=false;
+  }
+  [2000,4500,9000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,7000);
+
+  /* exposto para teste */
+  window.__OBC__={vencMes:vencMes, vencAno:vencAno, ajusta:ajusta, ehUtil:ehUtil, feriados:feriados,
+                  pascoa:pascoa, sitMes:sitMes, perfil:perfil, OBRS:OBRS, TRILHA:TRILHA, ETAPAS:ETAPAS,
+                  render:render, comp:comp};
+})();
