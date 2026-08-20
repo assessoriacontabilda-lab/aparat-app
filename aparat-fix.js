@@ -5287,7 +5287,7 @@
     {s:'FGTS',  n:'FGTS Digital',   dia:20, antec:1, se:function(p){ return !!p.temEmpregado; }, ajuda:'Guia do FGTS até o dia 20; em dia não útil o vencimento ANTECIPA (Lei 8.036/1990, art. 17)'},
     {s:'REINF', n:'EFD-Reinf',      dia:15, se:function(p){ return !!p.temReinf; },         ajuda:'Só para quem retém ou é retido na fonte'},
     {s:'DEST',  n:'DeSTDA',         dia:28, se:function(p){ return !!p.temIE && !!p.temST && p.regime!=='MEI'; }, ajuda:'ME/EPP com IE que teve ICMS-ST, DIFAL ou antecipação. O MEI é dispensado (Ajuste SINIEF 12/2015)'},
-    {s:'ISS',   n:'ISS / NFS-e',    dia:10, se:function(p){ return !!p.temIM; },            ajuda:'Conforme o calendário da Prefeitura de Franca — confira o dia no perfil fiscal'},
+    {s:'ISSR',  n:'ISS retido (tomador)', dia:10, se:function(p){ return !!p.issTomador; }, ajuda:'Só para quem CONTRATA serviço e retém o ISS de terceiros — nesse caso há guia própria da Prefeitura. Para ME/EPP do Simples dentro do sublimite, o ISS dos serviços PRESTADOS já vem dentro do DAS, e o MEI recolhe o ISS fixo dentro do DAS-SIMEI. Confirme o dia do vencimento no calendário da Prefeitura de Franca.'},
     {s:'EXT',   n:'Extrato',        dia:10, leitura:'extratos', se:function(p){ return true; }, ajuda:'Espelho da aba Extratos Bancários (somente leitura)'}
   ];
 
@@ -5387,7 +5387,7 @@
       if(window.__AP_CLI_REGIME__ && window.__AP_CLI_REGIME__[cli]) reg=window.__AP_CLI_REGIME__[cli];
     }catch(e){}
     return {cliente:cli, regime:reg, anexo:'', temIE:false, temIM:true, temEmpregado:false,
-            temST:false, temReinf:false, temECD:false, temECF:false, nEmp:0,
+            temST:false, temReinf:false, temECD:false, temECF:false, issTomador:false, nEmp:0,
             inicio:INICIO_PADRAO, certValidade:'', alvaraValidade:'', obs:'', _novo:1};
   }
   function cabe(o, p){ try{ return !!o.se(p); }catch(e){ return false; } }
@@ -6086,6 +6086,7 @@
       +'<div class="sw"><input type="checkbox" id="obp-im"'+(p.temIM?' checked':'')+'><label style="margin:0">Tem Inscrição Municipal (CCM Franca)</label></div>'
       +'<div class="sw"><input type="checkbox" id="obp-st"'+(p.temST?' checked':'')+'><label style="margin:0">Tem ICMS-ST, DIFAL ou antecipação (liga a DeSTDA)</label></div>'
       +'<div class="sw"><input type="checkbox" id="obp-rf"'+(p.temReinf?' checked':'')+'><label style="margin:0">Retém ou é retido na fonte (liga a EFD-Reinf)</label></div>'
+      +'<div class="sw"><input type="checkbox" id="obp-iss"'+(p.issTomador?' checked':'')+'><label style="margin:0">Contrata serviço e retém ISS de terceiros (liga a guia de ISS retido)</label></div>'
       +'<div class="sw"><input type="checkbox" id="obp-em"'+(p.temEmpregado?' checked':'')+'><label style="margin:0">Tem empregado ou pró-labore (liga folha, eSocial, DCTFWeb e FGTS)</label></div>'
       +'<div class="sw"><input type="checkbox" id="obp-ecd"'+(p.temECD?' checked':'')+'><label style="margin:0">Entrega ECD</label></div>'
       +'<div class="sw"><input type="checkbox" id="obp-ecf"'+(p.temECF?' checked':'')+'><label style="margin:0">Entrega ECF</label></div>'
@@ -6103,6 +6104,7 @@
           cliente:cli, regime:el('obp-reg').value, anexo:el('obp-anx').value,
           temIE:el('obp-ie').checked, temIM:el('obp-im').checked, temST:el('obp-st').checked,
           temReinf:el('obp-rf').checked, temEmpregado:el('obp-em').checked,
+          issTomador:el('obp-iss').checked,
           temECD:el('obp-ecd').checked, temECF:el('obp-ecf').checked,
           nEmp:Number(el('obp-nemp').value)||0, inicio:el('obp-ini').value,
           certValidade:el('obp-cert').value, alvaraValidade:el('obp-alv').value, obs:el('obp-obs').value
