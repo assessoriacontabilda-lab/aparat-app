@@ -6650,7 +6650,7 @@
   window.__HOME_ESC__={tiles:tiles, faixa:faixa, ficha:ficha, irPara:irPara, abrir:abrir};
 })();
 
-/* APARAT v58 - TRAVA DO APLICATIVO (digital do aparelho + PIN)
+/* APARAT v59 - TRAVA DO APLICATIVO (digital do aparelho + PIN)
    - depois do login, o app pede a digital (WebAuthn) ou o PIN para abrir
    - trava tambem depois de alguns minutos parado e sempre que volta do segundo plano
    - a digital NUNCA sai do aparelho; o app so recebe "e voce" ou "nao e"
@@ -6848,9 +6848,10 @@
         if(pin!==primeiro){ etapa=1; primeiro=''; desenha('Os dois PINs não bateram. Vamos de novo.','tv-er'); return; }
         var sal=b64(rnd(12));
         var h=await hashPin(pin,sal);
-        var c={pinHash:h, sal:sal, cred:'', min:MIN_PADRAO, criadoEm:Date.now()};
+        var antiga=lerConf()||{};                 /* trocar o PIN nao apaga a digital ja registrada */
+        var c={pinHash:h, sal:sal, cred:antiga.cred||'', min:antiga.min||MIN_PADRAO, criadoEm:Date.now()};
         gravarConf(c);
-        if(comLeitor) telaAtivarDigital(); else { avisarNuvem(); fechar(); }
+        if(!c.cred && comLeitor) telaAtivarDigital(); else { avisarNuvem(); fechar(); }
       });
       var s=el('tv-sair'); if(s) s.onclick=sair;
     }
@@ -7214,9 +7215,138 @@
 
   window.__TRAVA__={
     telaCriar:telaCriar, telaDestravar:telaDestravar, telaPin:telaPin, telaEsqueci:telaEsqueci,
+    telaAtivarDigital:telaAtivarDigital, gravar:gravarConf,
     fechar:fechar, conf:function(){ return conf||lerConf(); }, apagar:apagarConf,
     desligar:function(){ lsSet('apTravaOff','1'); if(mostrando) fechar(); return 'Trava desligada neste aparelho.'; },
     ligar:function(){ lsDel('apTravaOff'); return 'Trava ligada de novo.'; },
     temLeitor:temLeitor, painel:painel
   };
+})();
+
+/* APARAT v59 - AJUSTES DA TRAVA PARA O CLIENTE
+   A trava (v58) ja valia para o cliente, mas os ajustes tinham ficado so no painel.
+   Aqui entra a tela "Trava do app" para QUALQUER pessoa: troca o PIN, refaz a digital
+   e escolhe o tempo, sem depender do escritorio. */
+;(function(){
+  if(window.__APARAT_TRAVA_CLI__) return; window.__APARAT_TRAVA_CLI__=1;
+
+  function el(id){ return document.getElementById(id); }
+  function T(){ return window.__TRAVA__||null; }
+
+  function css(){
+    if(el('ap-tvc-css')) return;
+    var s=document.createElement('style'); s.id='ap-tvc-css';
+    s.textContent=
+       '#ap-trava .tv-lin{display:flex;align-items:center;gap:12px;width:100%;max-width:340px;'
+      +'padding:14px 4px;border-bottom:1px dotted rgba(127,150,190,.32);cursor:pointer;text-align:left}'
+      +'#ap-trava .tv-lin:last-of-type{border-bottom:0}'
+      +'#ap-trava .tv-lin .ei{font-size:22px;width:28px;text-align:center;flex:none}'
+      +'#ap-trava .tv-lin b{display:block;font-size:14px}'
+      +'#ap-trava .tv-lin span{display:block;font-size:11.5px;opacity:.7;margin-top:1px}'
+      +'#ap-trava .tv-lin .seta{margin-left:auto;opacity:.45;font-size:18px}'
+      +'#ap-trava .tv-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0 4px}'
+      +'#ap-trava .tv-chip{border:1.5px solid rgba(127,150,190,.4);background:transparent;color:inherit;'
+      +'border-radius:999px;padding:9px 16px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}'
+      +'#ap-trava .tv-chip.on{background:#3355FF;border-color:#3355FF;color:#fff}';
+    document.head.appendChild(s);
+  }
+
+  /* ---------- tela de ajustes (serve para cliente e para o escritorio) ---------- */
+  async function telaAjustes(){
+    var t=T(); if(!t) return;
+    css();
+    var d=el('ap-trava');
+    if(!d){ d=document.createElement('div'); d.id='ap-trava'; document.body.appendChild(d); }
+    try{ document.body.style.overflow='hidden'; }catch(e){}
+    var c=t.conf();
+    var temLeitor=false;
+    try{ temLeitor=await t.temLeitor(); }catch(e){}
+
+    var logo=(document.querySelector('#view-cliente img[src*="icone-aparat"], .sidebar img, img[src*="icone-aparat"]')||{}).src||'icone-aparat.png';
+    var estado = c ? ('Ativa neste aparelho · '+(c.cred?'digital + PIN':'só PIN')+' · trava depois de '+(c.min||5)+' min parado')
+                   : 'Ainda não configurada neste aparelho.';
+    var min = c ? (c.min||5) : 5;
+    d.innerHTML=
+       '<img class="tv-logo" src="'+logo+'" alt="" onerror="this.style.display=\'none\'">'
+      +'<div class="tv-tt">\u{1F512} Trava do app</div>'
+      +'<div class="tv-ds" id="tv-est">'+estado+'</div>'
+      +'<div class="tv-lin" id="tvc-pin"><span class="ei">\u{1F522}</span><div><b>Trocar o PIN</b>'
+      +'<span>os 4 números que abrem o app</span></div><span class="seta">›</span></div>'
+      +'<div class="tv-lin" id="tvc-dig"><span class="ei">\u{1F446}</span><div><b>'
+      +(c&&c.cred?'Refazer a digital':'Ativar a digital')+'</b><span>'
+      +(temLeitor?'usa o leitor deste aparelho':'este aparelho não tem leitor de digital')
+      +'</span></div><span class="seta">›</span></div>'
+      +'<div class="tv-ds" style="margin:16px 0 2px">Travar depois de quanto tempo parado?</div>'
+      +'<div class="tv-chips" id="tvc-tempo">'
+        +[1,5,15,30].map(function(n){ return '<button class="tv-chip'+(n===min?' on':'')+'" data-min="'+n+'">'+n+' min</button>'; }).join('')
+      +'</div>'
+      +'<button class="tv-big" id="tvc-fechar">Pronto</button>'
+      +'<div class="tv-av">Sua digital nunca sai deste aparelho. Se você entrar de outro celular, o app pede a senha e monta a trava lá também.</div>';
+
+    el('tvc-fechar').onclick=function(){ t.fechar(); };
+    el('tvc-pin').onclick=function(){ t.telaCriar(); };   /* mantem a digital e o tempo */
+    el('tvc-dig').onclick=function(){
+      if(!temLeitor){
+        var e2=el('tv-est');
+        if(e2){ e2.textContent='Este aparelho não tem leitor de digital. Continue usando o PIN.'; e2.className='tv-ds tv-er'; }
+        return;
+      }
+      if(!t.conf()){ t.telaCriar(); return; }
+      t.telaAtivarDigital();
+    };
+    [].slice.call(d.querySelectorAll('[data-min]')).forEach(function(b){
+      b.onclick=function(){
+        var cc=t.conf(); if(!cc){ t.telaCriar(); return; }
+        cc.min=Number(b.getAttribute('data-min'))||5;
+        t.gravar(cc);
+        [].slice.call(d.querySelectorAll('[data-min]')).forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        var e2=el('tv-est');
+        if(e2){ e2.textContent='Ativa neste aparelho · '+(cc.cred?'digital + PIN':'só PIN')+' · trava depois de '+cc.min+' min parado'; e2.className='tv-ds'; }
+      };
+    });
+  }
+
+  /* ---------- item na gaveta do cliente ---------- */
+  function itemGaveta(){
+    var g=el('ap-gaveta'); if(!g || el('ap-gav-trava')) return;
+    var grupo=document.createElement('div');
+    grupo.className='grupo'; grupo.id='ap-gav-seg'; grupo.textContent='Segurança';
+    var it=document.createElement('div');
+    it.className='it'; it.id='ap-gav-trava';
+    it.innerHTML='<span class="ei">\u{1F512}</span>Trava do app';
+    it.onclick=function(){
+      try{ var c=el('ap-cortina'); if(c) c.classList.remove('on'); g.classList.remove('on'); }catch(e){}
+      telaAjustes();
+    };
+    g.appendChild(grupo); g.appendChild(it);
+  }
+
+  /* ---------- botao no painel do escritorio ---------- */
+  function botaoPainel(){
+    var cx=el('ap-trava-cfg'); if(!cx || el('ap-tv-abrir')) return;
+    var b=document.createElement('button');
+    b.id='ap-tv-abrir';
+    b.style.cssText='font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--azul);'
+      +'background:var(--azul);color:#fff;cursor:pointer;margin-right:6px';
+    b.textContent='Abrir os ajustes da trava';
+    cx.insertBefore(b, cx.querySelector('button'));
+    b.onclick=telaAjustes;
+  }
+
+  var ocupado=false;
+  function tick(){
+    if(ocupado) return; ocupado=true;
+    try{
+      if(!T()){ ocupado=false; return; }
+      var vc=el('view-cliente');
+      if(vc && vc.classList.contains('active')) itemGaveta();
+      botaoPainel();
+    }catch(e){}
+    ocupado=false;
+  }
+  [2500,5000,9000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,6000);
+
+  window.__TRAVA_CLI__={telaAjustes:telaAjustes};
 })();
