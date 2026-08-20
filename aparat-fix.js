@@ -6649,3 +6649,574 @@
 
   window.__HOME_ESC__={tiles:tiles, faixa:faixa, ficha:ficha, irPara:irPara, abrir:abrir};
 })();
+
+/* APARAT v58 - TRAVA DO APLICATIVO (digital do aparelho + PIN)
+   - depois do login, o app pede a digital (WebAuthn) ou o PIN para abrir
+   - trava tambem depois de alguns minutos parado e sempre que volta do segundo plano
+   - a digital NUNCA sai do aparelho; o app so recebe "e voce" ou "nao e"
+   - saidas de emergencia: entrar com a senha, e-mail de recuperacao do Firebase,
+     ou pedir liberacao ao escritorio (Daniel libera no painel)
+   - CHAVE GERAL DE SOCORRO: localStorage.apTravaOff='1' desliga tudo
+   - o modulo FALHA ABERTO: qualquer erro inesperado nao pode prender ninguem */
+;(function(){
+  if(window.__APARAT_TRAVA__) return; window.__APARAT_TRAVA__=1;
+
+  var C_TRAVA='travas', C_LIB='travasLiberar';
+  var MIN_PADRAO=5;                 /* minutos parado ate travar */
+  var MAX_ERROS=5;
+  var pronto=false, mostrando=false, destravado=false, ultimoToque=Date.now(), uidAtual='';
+  var conf=null, checandoLib=false;
+
+  /* ---------------- utilitarios ---------------- */
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function limpo(n){ return String(n||'x').replace(/[^\w.\-]+/g,'_').slice(0,80); }
+  function ls(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  function desligada(){ return ls('apTravaOff')==='1'; }
+  function user(){ try{ return firebase.auth().currentUser||null; }catch(e){ return null; } }
+  function ehAdmin(){
+    var u=user(); if(!u) return false;
+    try{ if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL; }catch(e){}
+    return false;
+  }
+  function nomeDe(){
+    if(ehAdmin()) return 'Daniel';
+    try{ if(typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE) return String(CURRENT_CLIENTE); }catch(e){}
+    var u=user(); return u ? String(u.email||'').split('@')[0] : '';
+  }
+  function chave(){ var u=user(); return 'apTrava_'+(u?limpo(u.uid).slice(0,24):'x'); }
+  function b64(buf){ var b=new Uint8Array(buf), s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+  function deB64(str){ var s=atob(str), a=new Uint8Array(s.length); for(var i=0;i<s.length;i++) a[i]=s.charCodeAt(i); return a.buffer; }
+  function rnd(n){ var a=new Uint8Array(n); (window.crypto||window.msCrypto).getRandomValues(a); return a; }
+  function hex(buf){ var b=new Uint8Array(buf), s=''; for(var i=0;i<b.length;i++) s+=('0'+b[i].toString(16)).slice(-2); return s; }
+
+  async function hashPin(pin, sal){
+    if(!window.crypto || !crypto.subtle) return 'sem-cripto:'+sal+':'+pin;   /* fallback so em http */
+    var enc=new TextEncoder();
+    var dado=enc.encode(String(sal)+'|'+String(pin)+'|aparat');
+    var h=await crypto.subtle.digest('SHA-256', dado);
+    for(var i=0;i<2000;i++){ h=await crypto.subtle.digest('SHA-256', h); }
+    return hex(h);
+  }
+
+  function lerConf(){
+    try{ var j=ls(chave()); return j ? JSON.parse(j) : null; }catch(e){ return null; }
+  }
+  function gravarConf(c){ try{ lsSet(chave(), JSON.stringify(c)); }catch(e){} conf=c; }
+  function apagarConf(){ lsDel(chave()); conf=null; }
+
+  /* ---------------- digital do aparelho ---------------- */
+  async function temLeitor(){
+    try{
+      if(!window.PublicKeyCredential) return false;
+      if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }catch(e){ return false; }
+  }
+  async function registrarDigital(){
+    var u=user(); if(!u) throw new Error('Sem usuário');
+    var cred=await navigator.credentials.create({publicKey:{
+      challenge: rnd(32),
+      rp:{ name:'APARAT Contabilidade' },
+      user:{ id: rnd(16), name: String(u.email||'cliente'), displayName: nomeDe()||'Cliente APARAT' },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout:60000, attestation:'none'
+    }});
+    if(!cred) throw new Error('Não foi possível registrar a digital');
+    return b64(cred.rawId);
+  }
+  async function pedirDigital(idB64){
+    var r=await navigator.credentials.get({publicKey:{
+      challenge: rnd(32),
+      allowCredentials:[{ type:'public-key', id: deB64(idB64) }],
+      userVerification:'required', timeout:60000
+    }});
+    if(!r) throw new Error('Digital não reconhecida');
+    return true;
+  }
+
+  /* ---------------- estilo ---------------- */
+  function css(){
+    if(el('ap-trava-css')) return;
+    var s=document.createElement('style'); s.id='ap-trava-css';
+    s.textContent=
+       '#ap-trava{position:fixed;inset:0;z-index:2147483000;background:#0A0F1E;color:#EEF3FC;'
+      +'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px 22px;text-align:center;'
+      +'font-family:Poppins,system-ui,-apple-system,Segoe UI,sans-serif;overflow:auto}'
+      +'body.ap-tema-claro #ap-trava,body.ap-esc-claro #ap-trava{background:#F4F7FC;color:#0F1B33}'
+      +'#ap-trava .tv-logo{width:64px;height:64px;border-radius:17px;margin-bottom:16px}'
+      +'#ap-trava .tv-tt{font-size:20px;font-weight:800;margin-bottom:5px}'
+      +'#ap-trava .tv-ds{font-size:13px;opacity:.75;margin-bottom:20px;line-height:1.55;max-width:330px}'
+      +'#ap-trava .tv-dig{width:104px;height:104px;border-radius:50%;border:3px solid #3355FF;display:flex;align-items:center;justify-content:center;'
+      +'font-size:48px;cursor:pointer;margin-bottom:16px;background:rgba(51,85,255,.12);transition:.2s}'
+      +'#ap-trava .tv-dig.ok{border-color:#0e9f6e;background:rgba(14,159,110,.18)}'
+      +'#ap-trava .tv-dig.erro{border-color:#d92d20;background:rgba(217,45,32,.18);animation:apTvTrem .35s}'
+      +'@keyframes apTvTrem{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}'
+      +'#ap-trava .tv-pts{display:flex;gap:13px;margin-bottom:20px}'
+      +'#ap-trava .tv-pt{width:15px;height:15px;border-radius:50%;border:2px solid #3355FF;opacity:.4}'
+      +'#ap-trava .tv-pt.f{background:#3355FF;opacity:1}'
+      +'#ap-trava .tv-tec{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;width:222px}'
+      +'#ap-trava .tv-tec button{aspect-ratio:1/1;border-radius:50%;border:1.5px solid rgba(127,150,190,.35);background:transparent;'
+      +'color:inherit;font:inherit;font-size:22px;font-weight:700;cursor:pointer}'
+      +'#ap-trava .tv-tec button:active{background:rgba(51,85,255,.25)}'
+      +'#ap-trava .tv-tec button.vazio{border:0;cursor:default}'
+      +'#ap-trava .tv-lk{font-size:13px;color:#5b8dff;font-weight:700;cursor:pointer;margin-top:9px;text-decoration:none;display:block}'
+      +'#ap-trava .tv-big{width:100%;max-width:330px;border:0;border-radius:14px;padding:14px;font:inherit;font-size:15px;font-weight:800;'
+      +'background:#3355FF;color:#fff;cursor:pointer;margin-top:8px}'
+      +'#ap-trava .tv-big.sec{background:transparent;border:1.5px solid rgba(127,150,190,.42);color:inherit}'
+      +'#ap-trava .tv-av{font-size:12px;opacity:.7;margin-top:14px;line-height:1.5;max-width:330px}'
+      +'#ap-trava .tv-ok{color:#0e9f6e}#ap-trava .tv-er{color:#ff6b60}'
+      +'#ap-trava input.tv-in{width:100%;max-width:330px;font:inherit;font-size:16px;padding:12px 14px;border-radius:12px;'
+      +'border:1.5px solid rgba(127,150,190,.4);background:transparent;color:inherit;text-align:center;letter-spacing:6px;margin-bottom:10px}';
+    document.head.appendChild(s);
+  }
+  function logoSrc(){
+    var im=document.querySelector('#view-cliente img[src*="icone-aparat"], .sidebar img, img[src*="icone-aparat"]');
+    return im ? im.getAttribute('src') : 'icone-aparat.png';
+  }
+
+  /* ---------------- telas ---------------- */
+  function caixa(){
+    var d=el('ap-trava');
+    if(!d){ d=document.createElement('div'); d.id='ap-trava'; document.body.appendChild(d); }
+    mostrando=true;
+    try{ document.body.style.overflow='hidden'; }catch(e){}
+    return d;
+  }
+  function fechar(){
+    var d=el('ap-trava'); if(d) d.remove();
+    mostrando=false; destravado=true; ultimoToque=Date.now();
+    try{ document.body.style.overflow=''; }catch(e){}
+  }
+  function cab(tt,ds){
+    return '<img class="tv-logo" src="'+esc(logoSrc())+'" alt="APARAT" onerror="this.style.display=\'none\'">'
+          +'<div class="tv-tt">'+esc(tt)+'</div><div class="tv-ds">'+ds+'</div>';
+  }
+  function pontos(n,total){
+    var h='<div class="tv-pts">';
+    for(var i=0;i<(total||4);i++) h+='<span class="tv-pt'+(i<n?' f':'')+'"></span>';
+    return h+'</div>';
+  }
+  function teclado(){
+    var h='<div class="tv-tec" id="tv-tec">';
+    [1,2,3,4,5,6,7,8,9].forEach(function(n){ h+='<button data-n="'+n+'">'+n+'</button>'; });
+    h+='<button class="vazio"></button><button data-n="0">0</button><button data-n="x">⌫</button>';
+    return h+'</div>';
+  }
+  function ligarTeclado(aoCompletar){
+    var pin='';
+    var t=el('tv-tec'); if(!t) return;
+    [].slice.call(t.querySelectorAll('button[data-n]')).forEach(function(b){
+      b.onclick=function(){
+        var n=b.getAttribute('data-n');
+        if(n==='x'){ pin=pin.slice(0,-1); pintar(); return; }
+        if(pin.length>=4) return;
+        pin+=n; pintar();
+        if(pin.length===4) setTimeout(function(){ var p=pin; pin=''; pintar(); aoCompletar(p); },140);
+      };
+    });
+    function pintar(){
+      var ps=document.querySelectorAll('#ap-trava .tv-pt');
+      [].slice.call(ps).forEach(function(p,i){ p.classList.toggle('f', i<pin.length); });
+    }
+  }
+
+  /* ---------- primeiro uso: criar PIN ---------- */
+  async function telaCriar(){
+    var d=caixa(), etapa=1, primeiro='';
+    var comLeitor=await temLeitor();
+    function desenha(msg,cor){
+      d.innerHTML=cab('Proteja seu aplicativo',
+          etapa===1 ? 'Daqui em diante o APARAT vai pedir a sua digital para abrir.<br>Comece escolhendo um <b>PIN de 4 números</b>, para usar quando a digital falhar.'
+                    : 'Digite o mesmo PIN outra vez para confirmar.')
+        + pontos(0)
+        + '<div class="tv-ds '+(cor||'')+'" id="tv-msg" style="margin-bottom:14px">'+(msg||(etapa===1?'Escolha 4 números':'Repita os 4 números'))+'</div>'
+        + teclado()
+        + '<div class="tv-av">Sua digital nunca sai deste aparelho. O APARAT só recebe a resposta "é você" ou "não é".</div>'
+        + '<a class="tv-lk" id="tv-sair" style="opacity:.7">Sair da minha conta</a>';
+      ligarTeclado(async function(pin){
+        if(etapa===1){
+          if(/^(\d)\1{3}$/.test(pin) || pin==='1234' || pin==='0000'){
+            desenha('Esse PIN é fácil demais. Escolha outro.','tv-er'); return;
+          }
+          primeiro=pin; etapa=2; desenha(); return;
+        }
+        if(pin!==primeiro){ etapa=1; primeiro=''; desenha('Os dois PINs não bateram. Vamos de novo.','tv-er'); return; }
+        var sal=b64(rnd(12));
+        var h=await hashPin(pin,sal);
+        var c={pinHash:h, sal:sal, cred:'', min:MIN_PADRAO, criadoEm:Date.now()};
+        gravarConf(c);
+        if(comLeitor) telaAtivarDigital(); else { avisarNuvem(); fechar(); }
+      });
+      var s=el('tv-sair'); if(s) s.onclick=sair;
+    }
+    desenha();
+  }
+
+  /* ---------- ativar a digital ---------- */
+  function telaAtivarDigital(){
+    var d=caixa();
+    d.innerHTML=cab('Ativar a digital','PIN criado. Agora encoste o dedo no leitor para o APARAT reconhecer você sem digitar nada.')
+      +'<div class="tv-dig" id="tv-dig">👆</div>'
+      +'<div class="tv-ds" id="tv-msg">Toque aqui e depois no leitor</div>'
+      +'<button class="tv-big sec" id="tv-depois">Deixar só o PIN por enquanto</button>';
+    el('tv-dig').onclick=async function(){
+      var m=el('tv-msg'), dg=el('tv-dig');
+      m.textContent='Lendo...'; m.className='tv-ds';
+      try{
+        var id=await registrarDigital();
+        conf=conf||lerConf()||{}; conf.cred=id; gravarConf(conf);
+        dg.className='tv-dig ok'; dg.textContent='✓';
+        m.textContent='Pronto! Digital ativada.'; m.className='tv-ds tv-ok';
+        avisarNuvem();
+        setTimeout(fechar,900);
+      }catch(e){
+        dg.className='tv-dig erro';
+        m.textContent='Não deu para registrar a digital neste aparelho. O PIN continua valendo.';
+        m.className='tv-ds tv-er';
+        setTimeout(function(){ dg.className='tv-dig'; dg.textContent='👆'; },600);
+      }
+    };
+    el('tv-depois').onclick=function(){ avisarNuvem(); fechar(); };
+  }
+
+  /* ---------- destravar ---------- */
+  function telaDestravar(){
+    var d=caixa();
+    var c=conf||lerConf(); if(!c){ fechar(); return; }
+    var nome=nomeDe();
+    if(c.cred){
+      d.innerHTML=cab('Olá'+(nome?', '+esc(nome):''),'Encoste o dedo para abrir o APARAT')
+        +'<div class="tv-dig" id="tv-dig">👆</div>'
+        +'<div class="tv-ds" id="tv-msg">Toque aqui e depois no leitor</div>'
+        +'<a class="tv-lk" id="tv-pin">Usar meu PIN</a>'
+        +'<a class="tv-lk" id="tv-esq" style="opacity:.7">Esqueci / entrar com a senha</a>';
+      el('tv-dig').onclick=tentarDigital;
+      el('tv-pin').onclick=telaPin;
+      el('tv-esq').onclick=telaEsqueci;
+      setTimeout(tentarDigital,350);           /* ja pede assim que abre */
+    } else {
+      telaPin();
+    }
+  }
+  async function tentarDigital(){
+    var c=conf||lerConf(); if(!c||!c.cred) return;
+    var dg=el('tv-dig'), m=el('tv-msg'); if(!dg) return;
+    m.textContent='Lendo...'; m.className='tv-ds';
+    try{
+      await pedirDigital(c.cred);
+      dg.className='tv-dig ok'; dg.textContent='✓';
+      m.textContent='É você! Abrindo o APARAT...'; m.className='tv-ds tv-ok';
+      zerarErros();
+      setTimeout(fechar,450);
+    }catch(e){
+      dg.className='tv-dig erro';
+      m.textContent='Não reconheci. Tente de novo ou use o PIN.'; m.className='tv-ds tv-er';
+      setTimeout(function(){ if(el('tv-dig')){ el('tv-dig').className='tv-dig'; el('tv-dig').textContent='👆'; } },700);
+    }
+  }
+  function erros(){ return Number(ls('apTravaErros')||0); }
+  function zerarErros(){ lsDel('apTravaErros'); }
+  function maisUmErro(){ var n=erros()+1; lsSet('apTravaErros',String(n)); return n; }
+
+  function telaPin(){
+    var d=caixa(), c=conf||lerConf();
+    function desenha(msg,cor){
+      d.innerHTML=cab('Digite seu PIN','4 números')
+        + pontos(0)
+        + '<div class="tv-ds '+(cor||'')+'" id="tv-msg" style="margin-bottom:6px">'+(msg||'')+'</div>'
+        + teclado()
+        + (c && c.cred ? '<a class="tv-lk" id="tv-volta">Voltar para a digital</a>' : '')
+        + '<a class="tv-lk" id="tv-esq" style="opacity:.7">Esqueci / entrar com a senha</a>';
+      ligarTeclado(async function(pin){
+        var h=await hashPin(pin, c.sal);
+        if(h===c.pinHash){ zerarErros(); fechar(); return; }
+        var n=maisUmErro();
+        if(n>=MAX_ERROS){ desenha('Muitas tentativas. Você vai precisar entrar com a senha.','tv-er'); setTimeout(sair,1400); return; }
+        desenha('PIN errado. Faltam '+(MAX_ERROS-n)+' tentativa(s).','tv-er');
+      });
+      var v=el('tv-volta'); if(v) v.onclick=telaDestravar;
+      var e2=el('tv-esq'); if(e2) e2.onclick=telaEsqueci;
+    }
+    desenha();
+  }
+
+  /* ---------- esqueci ---------- */
+  function telaEsqueci(){
+    var d=caixa();
+    d.innerHTML=cab('Esqueceu o PIN?','Sem problema. Escolha uma das saídas abaixo — nenhuma delas deixa você trancado para fora.')
+      +'<button class="tv-big" id="tv-login">↩️ Entrar com e-mail e senha</button>'
+      +'<button class="tv-big sec" id="tv-mail">✉️ Não lembro a senha — receber e-mail</button>'
+      +'<button class="tv-big sec" id="tv-pedir">🙋 Pedir liberação à APARAT</button>'
+      +'<div class="tv-av" id="tv-av"></div>'
+      +'<a class="tv-lk" id="tv-volta2">Voltar</a>';
+    el('tv-login').onclick=sair;
+    el('tv-volta2').onclick=telaDestravar;
+    el('tv-mail').onclick=async function(){
+      var av=el('tv-av'), u=user();
+      this.disabled=true;
+      try{
+        await firebase.auth().sendPasswordResetEmail(u.email);
+        av.className='tv-av tv-ok';
+        av.innerHTML='✓ E-mail enviado para '+esc(u.email)+'. Abra o link, escolha uma senha nova e entre de novo.';
+      }catch(e){
+        av.className='tv-av tv-er';
+        av.textContent='Não consegui enviar agora. Use o botão de entrar com a senha.';
+        this.disabled=false;
+      }
+    };
+    el('tv-pedir').onclick=async function(){
+      var av=el('tv-av');
+      this.disabled=true;
+      var ok=await pedirLiberacao();
+      av.className='tv-av '+(ok?'tv-ok':'tv-er');
+      av.textContent = ok
+        ? '✓ Pedido enviado. O escritório libera e você entra sem o PIN na próxima vez que abrir o app.'
+        : 'Não consegui enviar o pedido. Fale com a APARAT no (16) 98869-9203 ou entre com a senha.';
+      if(!ok) this.disabled=false;
+    };
+  }
+
+  function sair(){
+    try{ apagarConf(); }catch(e){}
+    zerarErros();
+    try{ document.body.style.overflow=''; }catch(e){}
+    try{ firebase.auth().signOut(); }catch(e){}
+    setTimeout(function(){ try{ location.reload(); }catch(e){} }, 400);
+  }
+
+  /* ---------------- nuvem: status, pedido e liberacao ---------------- */
+  function idNuvem(){
+    var u=user(); if(!u) return '';
+    return limpo(u.uid).slice(0,60);
+  }
+  async function avisarNuvem(){
+    var d=db(), u=user(); if(!d||!u) return;
+    var c=conf||lerConf();
+    try{
+      await d.collection(C_TRAVA).doc(idNuvem()).set({
+        cliente: nomeDe(), email: u.email||'', uid: u.uid,
+        admin: ehAdmin(), ativa: !!c, comDigital: !!(c&&c.cred),
+        atualizadoEm: new Date().toISOString()
+      },{merge:true});
+    }catch(e){}
+  }
+  async function pedirLiberacao(){
+    var d=db(), u=user(); if(!d||!u) return false;
+    try{
+      await d.collection(C_TRAVA).doc(idNuvem()).set({
+        cliente: nomeDe(), email: u.email||'', uid: u.uid, admin: ehAdmin(), ativa:true,
+        pedido: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString()
+      },{merge:true});
+      return true;
+    }catch(e){ return false; }
+  }
+  /* o escritorio liberou? doc em travasLiberar/<uid> com liberar:true */
+  async function checarLiberacao(){
+    if(checandoLib) return false;
+    var d=db(), u=user(); if(!d||!u) return false;
+    checandoLib=true;
+    var lib=false;
+    try{
+      var s=await d.collection(C_LIB).doc(idNuvem()).get();
+      if(s.exists && (s.data()||{}).liberar===true){
+        lib=true;
+        try{ await d.collection(C_LIB).doc(idNuvem()).set({liberar:false, usadoEm:new Date().toISOString()},{merge:true}); }catch(e){}
+      }
+    }catch(e){}
+    checandoLib=false;
+    return lib;
+  }
+
+  /* ---------------- painel do escritorio: liberar cliente ---------------- */
+  function painelCss(){
+    if(el('ap-trava-adm-css')) return;
+    var s=document.createElement('style'); s.id='ap-trava-adm-css';
+    s.textContent=
+       '#ap-trava-adm{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:15px 17px;margin:14px 0}'
+      +'#ap-trava-adm h4{margin:0 0 3px;font-size:15px}'
+      +'#ap-trava-adm .sub{font-size:11.5px;color:var(--cinza);margin-bottom:11px}'
+      +'#ap-trava-adm .it{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px dotted var(--border)}'
+      +'#ap-trava-adm .it:last-child{border-bottom:0}'
+      +'#ap-trava-adm .it .ic{font-size:20px;width:26px;text-align:center;flex:none}'
+      +'#ap-trava-adm .it b{display:block;font-size:13.5px}'
+      +'#ap-trava-adm .it span{font-size:11.5px;color:var(--cinza)}'
+      +'#ap-trava-adm .lib{margin-left:auto;border:0;border-radius:10px;padding:8px 13px;font:inherit;font-size:12px;'
+      +'font-weight:800;background:#0e9f6e;color:#fff;cursor:pointer;flex:none}'
+      +'#ap-trava-adm .lib.sec{background:transparent;border:1.5px solid var(--border);color:var(--cinza)}'
+      +'#ap-trava-adm .lib:disabled{opacity:.6;cursor:default}';
+    document.head.appendChild(s);
+  }
+  async function painel(){
+    if(!ehAdmin()) return;
+    var pg=el('pp-seguranca'); if(!pg) return;
+    painelCss();
+    var box=el('ap-trava-adm');
+    if(!box){
+      box=document.createElement('div'); box.id='ap-trava-adm';
+      box.innerHTML='<h4>\u{1F513} Travas dos clientes</h4><div class="sub">Carregando...</div>';
+      pg.appendChild(box);
+    }
+    if(!pg.classList.contains('active')) return;
+    var d=db(); if(!d) return;
+    var linhas=[];
+    try{
+      var s=await d.collection(C_TRAVA).get();
+      s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; linhas.push(o); });
+    }catch(e){
+      box.innerHTML='<h4>\u{1F513} Travas dos clientes</h4><div class="sub">Não consegui ler a lista. Falta publicar as regras do Firestore para a coleção <b>travas</b>.</div>';
+      return;
+    }
+    linhas.sort(function(a,b){
+      if(!!a.pedido!==!!b.pedido) return a.pedido?-1:1;
+      return String(a.cliente||'').localeCompare(String(b.cliente||''));
+    });
+    var h='<h4>\u{1F513} Travas dos clientes</h4><div class="sub">Quem pediu liberação aparece no topo. Liberar vale uma vez só: o cliente entra sem PIN na próxima abertura e cria um novo.</div>';
+    if(!linhas.length) h+='<div class="sub">Ninguém criou a trava ainda.</div>';
+    linhas.forEach(function(l){
+      var pediu=!!l.pedido;
+      h+='<div class="it"><span class="ic">'+(pediu?'\u{1F64B}':(l.ativa?'\u{1F512}':'\u{26AA}'))+'</span>'
+        +'<div><b>'+esc(l.cliente||l.email||'—')+'</b><span>'
+        +(pediu ? ('pediu liberação em '+esc(String(l.pedido).slice(0,16).replace('T',' às ')))
+                : (l.ativa ? ('trava ativa'+(l.comDigital?' · com digital':' · só PIN')) : 'ainda não criou o PIN'))
+        +'</span></div>'
+        +(l.ativa ? '<button class="lib'+(pediu?'':' sec')+'" data-tv-lib="'+esc(l.id)+'">Liberar</button>' : '')
+        +'</div>';
+    });
+    box.innerHTML=h;
+    [].slice.call(box.querySelectorAll('[data-tv-lib]')).forEach(function(b){
+      b.onclick=async function(){
+        b.disabled=true; b.textContent='...';
+        try{
+          await d.collection(C_LIB).doc(b.getAttribute('data-tv-lib')).set({
+            liberar:true, liberadoEm:new Date().toISOString(), por:'Daniel'
+          },{merge:true});
+          try{ await d.collection(C_TRAVA).doc(b.getAttribute('data-tv-lib')).set({pedido:null},{merge:true}); }catch(e){}
+          b.textContent='✓ Liberado';
+          try{ if(typeof notif==='function') notif('Cliente liberado. Ele entra sem PIN na próxima abertura.','ok'); }catch(e){}
+        }catch(e){
+          b.disabled=false; b.textContent='Liberar';
+          try{ if(typeof notif==='function') notif('Não consegui liberar: '+(e.message||e),'erro'); }catch(e2){}
+        }
+      };
+    });
+  }
+
+  /* ---------------- ajustes na aba Segurança / Aparência ---------------- */
+  function estadoTexto(){
+    var cc=conf||lerConf();
+    var e=el('ap-tv-est'); if(!e) return;
+    e.innerHTML = cc ? ('Ativa neste aparelho \u00b7 '+(cc.cred?'digital + PIN':'s\u00f3 PIN')+' \u00b7 trava depois de '+(cc.min||MIN_PADRAO)+' min parado')
+                     : 'Ainda n\u00e3o configurada neste aparelho.';
+  }
+  function botaoAjustes(){
+    if(el('ap-trava-cfg')){ estadoTexto(); return; }   /* ja existe: so atualiza o texto */
+    var alvo=null;
+    if(ehAdmin()) alvo=el('pp-seguranca');
+    if(!alvo) return;
+    painelCss();
+    var b=document.createElement('div'); b.id='ap-trava-cfg';
+    b.style.cssText='background:var(--card);border:1px solid var(--border);border-radius:14px;padding:15px 17px;margin:14px 0';
+    b.innerHTML='<h4 style="margin:0 0 3px;font-size:15px">\u{1F512} Trava deste aparelho</h4>'
+      +'<div style="font-size:11.5px;color:var(--cinza);margin-bottom:11px" id="ap-tv-est"></div>'
+      +'<button class="ex-bt" id="ap-tv-troca" style="font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;margin-right:6px">Trocar o PIN</button>'
+      +'<button class="ex-bt" id="ap-tv-dig" style="font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer;margin-right:6px">Ativar/refazer a digital</button>'
+      +'<button class="ex-bt" id="ap-tv-tempo" style="font-size:12px;font-weight:700;padding:8px 13px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer">Tempo para travar</button>';
+    alvo.appendChild(b);
+    var estado=estadoTexto;
+    estado();
+    el('ap-tv-troca').onclick=function(){ apagarConf(); telaCriar(); };
+    el('ap-tv-dig').onclick=function(){ if(!(conf||lerConf())){ telaCriar(); return; } telaAtivarDigital(); };
+    el('ap-tv-tempo').onclick=function(){
+      var cc=conf||lerConf(); if(!cc){ telaCriar(); return; }
+      var v=prompt('Travar o app depois de quantos minutos parado? (1 a 60)', String(cc.min||MIN_PADRAO));
+      if(v===null) return;
+      var n=Math.max(1,Math.min(60,Number(v)||MIN_PADRAO));
+      cc.min=n; gravarConf(cc); estado();
+      try{ if(typeof notif==='function') notif('Vai travar depois de '+n+' minuto(s) parado.','ok'); }catch(e){}
+    };
+  }
+
+  /* ---------------- relogio e gatilhos ---------------- */
+  function logado(){
+    var u=user(); if(!u) return false;
+    var vc=el('view-cliente'), vp=el('view-painel');
+    var visivel=(vc && vc.classList.contains('active')) || (vp && vp.classList.contains('active'));
+    return !!visivel;
+  }
+  function marcarToque(){ ultimoToque=Date.now(); }
+  ['click','keydown','touchstart','mousemove','scroll'].forEach(function(ev){
+    try{ document.addEventListener(ev, marcarToque, {passive:true}); }catch(e){ document.addEventListener(ev, marcarToque); }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='visible' && destravado && !mostrando){
+      var c=conf||lerConf(); if(!c) return;
+      var lim=(c.min||MIN_PADRAO)*60000;
+      if(Date.now()-ultimoToque > lim) destravado=false;
+    } else if(document.visibilityState==='hidden'){
+      marcarToque();
+    }
+  });
+
+  var ocupado=false, voltas=0, uidAnterior='';
+  async function tick(){
+    if(ocupado) return; ocupado=true; voltas++;
+    try{
+      if(desligada()){ if(mostrando) fechar(); ocupado=false; return; }
+      css();
+      var u=user();
+
+      /* trocou de usuario (ou deslogou) -> recomeca */
+      var uid=u?u.uid:'';
+      if(uid!==uidAnterior){ uidAnterior=uid; conf=null; destravado=false; if(mostrando && !uid) fechar(); }
+      if(!u){ ocupado=false; return; }
+
+      if(ehAdmin()){ botaoAjustes(); painel(); }
+
+      if(!logado()){ ocupado=false; return; }          /* ainda na tela de login */
+
+      conf=conf||lerConf();
+
+      /* O escritorio liberou este usuario?
+         Isto roda ANTES de qualquer saida antecipada: quem esta preso na tela da
+         trava e exatamente quem precisa da liberacao. Com a trava na tela conferimos
+         a cada volta (5s); com o app aberto, de 12 em 12 voltas (1 min). */
+      if(mostrando || voltas===2 || voltas%12===0){
+        var lib=await checarLiberacao();
+        if(lib){
+          apagarConf(); zerarErros(); destravado=false;
+          if(mostrando) fechar();
+          await telaCriar();
+          ocupado=false; return;
+        }
+      }
+
+      if(mostrando){ ocupado=false; return; }
+
+      if(!conf){ await telaCriar(); ocupado=false; return; }
+      if(!destravado){ telaDestravar(); ocupado=false; return; }
+
+      var lim=(conf.min||MIN_PADRAO)*60000;
+      if(Date.now()-ultimoToque > lim){ destravado=false; telaDestravar(); }
+    }catch(e){
+      /* falha aberto: nunca prender ninguem por causa de erro */
+      try{ if(mostrando && !(conf||lerConf())) fechar(); }catch(e2){}
+    }
+    ocupado=false;
+  }
+  [1500,3200,6000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,5000);
+
+  window.__TRAVA__={
+    telaCriar:telaCriar, telaDestravar:telaDestravar, telaPin:telaPin, telaEsqueci:telaEsqueci,
+    fechar:fechar, conf:function(){ return conf||lerConf(); }, apagar:apagarConf,
+    desligar:function(){ lsSet('apTravaOff','1'); if(mostrando) fechar(); return 'Trava desligada neste aparelho.'; },
+    ligar:function(){ lsDel('apTravaOff'); return 'Trava ligada de novo.'; },
+    temLeitor:temLeitor, painel:painel
+  };
+})();
