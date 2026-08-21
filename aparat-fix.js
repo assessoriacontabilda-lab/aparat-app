@@ -571,7 +571,7 @@
       if (!tipo || !status) return;
       if (tipo.getAttribute("data-apob") === "1") return;
       var origStatus = [].slice.call(status.options).map(function (o) { return { v: o.value, t: o.textContent }; });
-      var novos = ["Extrato Bancário", "NF-e Emitida", "Certidão Fiscal", "Lançamento no Domínio"];
+      var novos = ["NF-e Emitida", "Certidão Fiscal", "Lançamento no Domínio"];  /* extrato saiu: tem aba propria */
       var have = {};
       [].forEach.call(tipo.options, function (o) { have[o.value] = 1; });
       novos.forEach(function (n) {
@@ -936,9 +936,7 @@
     setInterval(setupObrigacoes, 4000);
     setSecretaryAvatar();
     [400, 1200, 2500, 5000].forEach(function (t) { setTimeout(setSecretaryAvatar, t); });
-    markExtratoUpload();
-    document.addEventListener("click", function () { setTimeout(markExtratoUpload, 250); }, true);
-    [800, 2500].forEach(function (t) { setTimeout(markExtratoUpload, t); });
+    /* selo do extrato desativado: o envio agora e na aba "Meus Extratos" */
     setupInstall();
     var sel = document.getElementById("docs-cli-sel");
     if (sel) {
@@ -2735,8 +2733,8 @@
     {k:'dados',  ic:'\u{1F464}', lb:'Meus Dados',     alvos:['sec-dados','sec-docs','sec-doc'],col:'docs'},
     {k:'pedidos',ic:'\u{1F4E8}', lb:'Meus Pedidos',   alvos:['sec-pedidos'],                   col:'pedidos'},
     {k:'nota',   ic:'\u{1F9FE}', lb:'Enviar Nota',    alvos:['sec-notas'],                     col:null},
-    {k:'extrato',ic:'\u{1F3E6}', lb:'Meus Extratos',  alvos:['sec-extratos','ap-blk-arq'],    col:null},
-    {k:'falar',  ic:'\u{1F4AC}', lb:'Falar Conosco',  alvos:['ap-blk-falar'],                  col:null}
+    {k:'extrato',ic:'\u{1F3E6}', lb:'Meus Extratos',  alvos:['sec-extratos'],                  col:null},
+    {k:'falar',  ic:'\u{1F4AC}', lb:'Falar Conosco',  alvos:['ap-blk-falar','ap-blk-arq'],     col:null}
   ];
   var SETA='<svg viewBox="0 0 24 24" fill="none" style="width:26px;height:26px"><path d="M15.5 4 8 12l7.5 8" stroke="#9cc4ff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function css(){
@@ -2903,7 +2901,7 @@
       +'🔔 <b>Avisos</b> — recados do escritório (bolinha vermelha = novidade)<br>'
       +'👤 <b>Meus Dados</b> — CNPJ, inscrições e documentos da empresa<br>'
       +'🧾 <b>Enviar Nota</b> — mandar nota fiscal para a Aparat<br>'
-      +'📤 <b>Enviar Extrato</b> — mandar o extrato do banco (PDF/OFX)<br>'
+      +'\u{1F3E6} <b>Meus Extratos</b> — mandar o extrato do banco (PDF/OFX) e ver o histórico<br>'
       +'💬 <b>Falar Conosco</b> — mensagem direta para o Daniel<br><br>'
       +'Para <b>voltar</b>, toque na <b>seta azul brilhante ←</b> no topo. E o 📅 no canto abre o calendário de vencimentos!';
     var w=async function(q){
@@ -3265,9 +3263,10 @@
     {k:'avisos', ic:'\u{1F514}', lb:'Avisos'},
     {g:'Enviar para o escritório'},
     {k:'nota',   ic:'\u{1F9FE}', lb:'Enviar Nota'},
-    {k:'extrato',ic:'\u{1F4E4}', lb:'Enviar Extrato'},
+    {k:'extrato',ic:'\u{1F3E6}', lb:'Meus Extratos'},
     {k:'falar',  ic:'\u{1F4AC}', lb:'Falar Conosco'},
     {g:'Minha conta'},
+    {k:'pedidos',ic:'\u{1F4E8}', lb:'Meus Pedidos'},
     {k:'dados',  ic:'\u{1F464}', lb:'Meus Dados'}
   ];
   function gaveta(abrir){
@@ -3607,7 +3606,7 @@
   function abrir(item){
     try{ if(typeof pPage==='function'){ pPage('pedidos', item); } }catch(e){}
     var p=el('pp-pedidos'); if(p) p.classList.add('active');
-    listarSolic(); listar();
+    listar();
   }
 
   function pagina(){
@@ -3615,9 +3614,7 @@
     var base=el('pp-docs'); if(!base || !base.parentNode) return;
     var p=document.createElement('div'); p.className='ppage'; p.id='pp-pedidos';
     p.innerHTML=
-      '<div class="sec">\u{1F4E8} Pedidos dos clientes</div>'
-      +'<div id="ped-sols"></div>'
-      +'<div class="fbox" id="ped-form" style="margin-top:12px">'
+      '<div class="fbox" id="ped-form">'
         +'<div class="ftitle" id="ped-ftit">\u{1F4E4} Enviar documento ao cliente</div>'
         +'<div class="fgrid">'
           +'<div class="fg"><label>Cliente</label><select id="ped-cli"><option value="">Selecione o cliente...</option></select></div>'
@@ -3643,7 +3640,7 @@
     el('ped-btn').onclick=enviar;
     el('ped-cancel').onclick=function(){ limparForm(); };
     el('ped-filtro').onchange=listar;
-    el('ped-recarrega').onclick=function(){ listarSolic(); listar(); };
+    el('ped-recarrega').onclick=function(){ listar(); };
     checarStorage();
     try{ if(window.ABA_NOMES) window.ABA_NOMES.pedidos='Documentos Solicitados'; }catch(e){}
   }
@@ -3689,6 +3686,13 @@
       };
     });
   }
+
+  window.apResponderSolic=function(id,cliente,mensagem){
+    try{
+      var it=el('ap-nav-ped'); if(it) it.click();
+      setTimeout(function(){ responder({id:id, cliente:cliente||'', mensagem:mensagem||''}); }, 700);
+    }catch(e){}
+  };
 
   function responder(x){
     limparForm();
@@ -3759,7 +3763,7 @@
         try{ if(typeof syncAnim==='function') syncAnim('Documento → '+cli); }catch(e){}
       }
       limparForm();
-      await listar(); await listarSolic();
+      await listar();
     }catch(e){
       aviso('Erro ao enviar: '+(e && e.message ? e.message : e),'warn');
     }
@@ -4506,15 +4510,7 @@
         dados.arquivoData=await base64(file);
       }
       await d.collection(COL).doc(idDoc(CURRENT_CLIENTE,cp)).set(dados,{merge:true});
-      /* mantem a aba "Recebidos" do escritorio funcionando como sempre */
-      try{
-        if(typeof dbAdd==='function'){
-          await dbAdd('enviosCliente',{cliente:CURRENT_CLIENTE, nome:file.name,
-            tipo:(String(file.name).split('.').pop()||'').toUpperCase(),
-            arquivoData:dados.arquivoData||'', arquivoUrl:dados.arquivoUrl||'',
-            data:new Date().toLocaleString('pt-BR'), origem:'extrato '+cp});
-        }
-      }catch(e){}
+      /* o extrato fica so na aba "Extratos" - nao duplica mais em "Recebidos" */
       if(fi) fi.value='';
       aviso('\u{1F4E4} Extrato de '+MESES[ca.mi]+' enviado para a APARAT!');
       await telaCliente();

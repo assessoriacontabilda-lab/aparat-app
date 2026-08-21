@@ -1328,7 +1328,7 @@ async function checarLembreteMensal(){
     await dbAdd('urgencias',{
       dest:'Todos os Clientes', prio:'📄',
       titulo:'Envio do Extrato Bancário PJ',
-      msg:'Olá! Lembrete mensal da Aparat Contabilidade: por favor, envie o extrato bancário da sua conta PJ (referente ao mês anterior) em PDF e também em OFX. O envio é feito aqui no app, na seção "📥 Setor Contábil — Enviar Arquivos". Qualquer dúvida, fale com a gente. Obrigado!',
+      msg:'Olá! Lembrete mensal da Aparat Contabilidade: por favor, envie o extrato bancário da sua conta PJ (referente ao mês anterior) em PDF e também em OFX. O envio é feito aqui no app, no quadradinho "🏦 Meus Extratos". Qualquer dúvida, fale com a gente. Obrigado!',
       data:new Date().toLocaleDateString('pt-BR'),
       mesRef:mesRef, lembreteExtrato:true
     });
@@ -2282,7 +2282,7 @@ async function responderAssistente(q){
   }
   if(has('arquivo','enviar arq','ofx','extrato','mandar arq','anexar','upload','enviar documento','enviar pdf','como envio','como mandar','mandar documento')){
     return 'Você tem <b>3 formas</b> de enviar documentos/arquivos para a Aparat:<br><br>'
-     +'<b>1) 📥 Setor Contábil — Enviar Arquivos</b> (ideal para extrato): role até essa seção, toque em <b>Escolher arquivo</b>, selecione o PDF ou OFX e toque em <b>📤 Enviar para a Contabilidade</b>.<br><br>'
+     +'<b>1) 🏦 Meus Extratos</b> (para o extrato do banco): toque nesse quadradinho, escolha o PDF ou OFX e toque em <b>📤 Enviar extrato</b>. Ali você também vê o histórico e o que está em atraso.<br><br>'
      +'<b>2) ✉️ Falar com o Escritório</b>: escreva uma mensagem e use o campo <b>📎 Anexar imagem ou documento</b> para mandar junto (PDF, foto, Word, Excel).<br><br>'
      +'<b>3) 🧾 Notas Fiscais → Enviar Nota Fiscal</b>: para mandar uma nota fiscal (PDF/XML) ao escritório.<br><br>'
      +'Dica: fotos grandes são otimizadas automaticamente. PDFs devem ter até ~700 KB; se for maior, comprima (ex.: ilovepdf.com) ou fale com a Aparat.';
@@ -2920,7 +2920,11 @@ async function carregarSolicitacoes(){
     const tr=document.createElement('tr');
     var anexoO=x.arquivoData?('<br><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light);font-size:10px">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
     var novoS=_ehNovo('solicitacoes',x.id); if(novoS){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'solicitacoes',x.id); }; }
-    tr.innerHTML='<td>'+esc(x.cliente||'')+(novoS?'<span class="tag-novo">NOVO</span>':'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
+    tr.innerHTML='<td>'+esc(x.cliente||'')+(novoS?'<span class="tag-novo">NOVO</span>':'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm" data-resp="1">📎 Responder com arquivo</button> <button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
+    var _bR=tr.querySelector('[data-resp]');
+    if(_bR) _bR.onclick=function(ev){ ev.stopPropagation();
+      if(typeof window.apResponderSolic==='function') window.apResponderSolic(x.id, x.cliente||'', x.mensagem||'');
+      else notif('Abra a aba "Doc. Solicitados" para responder.','info'); };
     tb.appendChild(tr);
   });
 }
@@ -3194,7 +3198,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
     <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
   </div>
 </div>
-<script defer src="aparat-fix.js?v=64"></script>
+<script defer src="aparat-fix.js?v=65"></script>
 <script defer src="nav-snippet.js?v=6"></script>
 <script defer src="client-pages.js?v=4"></script>
 <script>/*__APARAT_NAV_INLINE__*/
