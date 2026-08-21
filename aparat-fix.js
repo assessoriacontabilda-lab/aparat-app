@@ -7812,3 +7812,96 @@
   window.__PAGOU__={carregar:carregar, pintarAdmin:pintarAdmin, blocoCliente:blocoCliente,
                     pendentes:pendentes, cache:function(){ return cache; }};
 })();
+
+/* APARAT v66 - responder a solicitacao do cliente (texto + anexo, sem apagar) */
+;(function(){
+  if(window.__APARAT_SOLIC_RESP__) return; window.__APARAT_SOLIC_RESP__=1;
+  var MAXB=700*1024, enviando=false;
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+
+  function css(){
+    if(el('ap-rsp-css')) return;
+    var s=document.createElement('style'); s.id='ap-rsp-css';
+    s.textContent=
+      '#ap-rsp-modal{position:fixed;inset:0;background:rgba(6,12,26,.66);display:flex;align-items:center;justify-content:center;z-index:99999;padding:14px}'
+      +'#ap-rsp-modal .cx{position:relative;background:var(--card);border:1px solid var(--border);border-radius:18px;max-width:540px;width:100%;max-height:88vh;overflow:auto;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
+      +'#ap-rsp-modal .x{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--cinza);font-size:14px;cursor:pointer;line-height:1}'
+      +'#ap-rsp-modal h3{margin:0 34px 10px 0;font-size:16px}'
+      +'#ap-rsp-modal .ln{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dotted var(--border);font-size:13px}'
+      +'#ap-rsp-modal .ln:last-of-type{border-bottom:0}'
+      +'#ap-rsp-modal .ln span{color:var(--cinza)}'
+      +'#ap-rsp-modal label{display:block;font-size:11px;color:var(--cinza);margin:12px 0 4px}'
+      +'#ap-rsp-modal textarea{width:100%;min-height:96px;font:inherit;font-size:13px;padding:10px;border-radius:11px;border:1px solid var(--border);background:transparent;color:inherit}'
+      +'#ap-rsp-modal input[type=file]{width:100%;font-size:12px}'
+      +'#ap-rsp-modal .bts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}'
+      +'#ap-rsp-modal .bt{font-size:12.5px;font-weight:700;padding:10px 15px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer}'
+      +'#ap-rsp-modal .bt.az{background:var(--azul);border-color:var(--azul);color:#fff}';
+    document.head.appendChild(s);
+  }
+  function fechar(){ var m=el('ap-rsp-modal'); if(m) m.remove(); }
+
+  window.apAbrirResposta=async function(id){
+    css();
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return; }
+    var x=null;
+    try{ var sn=await d.collection('solicitacoes').doc(id).get(); x=sn.exists?(sn.data()||{}):null; }catch(e){}
+    if(!x){ aviso('Solicitação não encontrada.','warn'); return; }
+    fechar();
+    var det='';
+    if(x.valor)   det+='<div class="ln"><span>Valor informado</span><b>R$ '+esc(x.valor)+'</b></div>';
+    if(x.tomador) det+='<div class="ln"><span>Tomador</span><b>'+esc(x.tomador)+'</b></div>';
+    if(x.mensagem)det+='<div class="ln"><span>Detalhes</span><b>'+esc(x.mensagem)+'</b></div>';
+    if(x.arquivoData) det+='<div class="ln"><span>Anexo do cliente</span><a href="'+x.arquivoData+'" target="_blank" rel="noopener" style="color:var(--azul-light);font-weight:700">📎 '+esc(x.arquivoNome||'abrir')+'</a></div>';
+    var m=document.createElement('div'); m.id='ap-rsp-modal';
+    m.innerHTML='<div class="cx"><button class="x" id="ap-rsp-x">✖</button>'
+      +'<h3>\u{1F4AC} Responder '+esc(x.cliente||'cliente')+'</h3>'
+      +'<div class="ln"><span>Serviço pedido</span><b>'+esc(x.servico||'(não informado)')+'</b></div>'
+      +det
+      +'<div class="ln"><span>Recebido em</span><b>'+esc(x.data||'-')+'</b></div>'
+      +'<label>Sua resposta ao cliente</label>'
+      +'<textarea id="ap-rsp-txt" placeholder="Ex.: Nota emitida e anexada aqui. Qualquer coisa me chame.">'+esc(x.resposta||'')+'</textarea>'
+      +'<label>Anexar arquivo (opcional · até 700 KB)</label>'
+      +'<input id="ap-rsp-file" type="file"/>'
+      +'<div class="bts">'
+        +'<button class="bt az" id="ap-rsp-env">\u{1F4E4} Enviar resposta</button>'
+        +'<button class="bt" id="ap-rsp-doc">\u{1F4CE} Mandar documento grande</button>'
+        +'<button class="bt" id="ap-rsp-fechar">Fechar</button>'
+      +'</div></div>';
+    m.onclick=function(ev){ if(ev.target===m) fechar(); };
+    document.body.appendChild(m);
+    el('ap-rsp-x').onclick=fechar;
+    el('ap-rsp-fechar').onclick=fechar;
+    el('ap-rsp-doc').onclick=function(){ fechar(); if(typeof window.apResponderSolic==='function') window.apResponderSolic(id, x.cliente||'', x.servico||x.mensagem||''); };
+    el('ap-rsp-env').onclick=function(){ enviar(id, x.cliente||''); };
+  };
+
+  async function enviar(id, cliente){
+    if(enviando) return;
+    var d=db(); if(!d) return;
+    var txt=(el('ap-rsp-txt')||{}).value||'';
+    var fi=el('ap-rsp-file'), file=(fi && fi.files && fi.files[0]) ? fi.files[0] : null;
+    if(!txt.trim() && !file){ aviso('⚠ Escreva a resposta ou anexe um arquivo','warn'); return; }
+    if(file && file.size>MAXB){ aviso('⚠ Arquivo acima de 700 KB. Use o botão "Mandar documento grande".','warn'); return; }
+    enviando=true;
+    var bt=el('ap-rsp-env'); if(bt){ bt.disabled=true; bt.innerHTML='⏳ Enviando...'; }
+    try{
+      var dados={ resposta:txt.trim(), status:'Respondida', respondidoEm:new Date().toLocaleString('pt-BR') };
+      if(file){
+        dados.respostaArquivoNome=file.name;
+        dados.respostaArquivoData=await new Promise(function(ok,err){
+          var fr=new FileReader(); fr.onload=function(){ ok(fr.result); }; fr.onerror=function(){ err(new Error('Não foi possível ler o arquivo')); }; fr.readAsDataURL(file);
+        });
+      }
+      await d.collection('solicitacoes').doc(id).update(dados);
+      aviso('\u{1F4E4} Resposta enviada para '+cliente+'!');
+      try{ if(typeof syncAnim==='function') syncAnim('Resposta → '+cliente); }catch(e){}
+      fechar();
+      if(typeof carregarSolicitacoes==='function') await carregarSolicitacoes();
+    }catch(e){ aviso('Erro ao responder: '+(e && (e.code||e.message) || e),'warn'); }
+    if(bt){ bt.disabled=false; bt.innerHTML='\u{1F4E4} Enviar resposta'; }
+    enviando=false;
+  }
+})();

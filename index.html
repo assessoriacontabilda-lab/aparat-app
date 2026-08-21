@@ -881,8 +881,9 @@ body.foco .cli-top{display:none}
     <!-- SOLICITACOES -->
     <div class="ppage" id="pp-solicitacoes">
       <div class="sec">📨 Solicitações dos Clientes</div>
+      <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--cinza);cursor:pointer"><input type="checkbox" id="solic-ver-tudo" onchange="carregarSolicitacoes()" style="vertical-align:-2px"> mostrar também as concluídas</label></div>
       <div class="tbox"><table>
-        <thead><tr><th>Cliente</th><th>Solicitação</th><th>Data</th><th>Ação</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Serviço</th><th>Pedido</th><th>Data</th><th>Situação</th><th>Ação</th></tr></thead>
         <tbody id="tb-solic"></tbody>
       </table></div>
     </div>
@@ -2559,7 +2560,19 @@ async function renderClientePortal(nome){
         +'<div class="fbox-light">'
           +'<div class="asec2">🚨 Avisos</div><div id="cli-avi"></div>'
           +'<div class="asec2" style="margin-top:14px">✉️ Falar com o Escritório</div>'
-          +'<div class="fg"><textarea id="cli-sol-msg" placeholder="Sua mensagem / dúvida..."></textarea></div>'
+          +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">O que você precisa?</label>'
+            +'<select id="cli-sol-serv" onchange="solServTrocou()">'
+              +'<option value="">Escolha o serviço...</option>'
+              +'<option value="Emitir nota fiscal">\u{1F9FE} Emitir nota fiscal</option>'
+              +'<option value="Guia / 2ª via">\u{1F4CB} Guia ou 2ª via (DAS, boleto)</option>'
+              +'<option value="Certidão ou documento">\u{1F4C4} Certidão ou documento da empresa</option>'
+              +'<option value="Dúvida / falar com o contador">\u{1F4AC} Dúvida / falar com o contador</option>'
+            +'</select></div>'
+          +'<div id="cli-sol-nf" style="display:none">'
+            +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">Valor da nota (R$)</label><input id="cli-sol-valor" type="number" step="0.01" placeholder="0,00"/></div>'
+            +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">Para quem é a nota (tomador)</label><input id="cli-sol-tomador" type="text" placeholder="Nome ou CNPJ do cliente final"/></div>'
+          +'</div>'
+          +'<div class="fg"><textarea id="cli-sol-msg" placeholder="Detalhes (opcional)..."></textarea></div>'
           +'<div class="fg"><label style="font-size:9px;color:var(--cinza)">📎 Anexar imagem ou documento (opcional · máx. 900 KB)</label><input id="cli-sol-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.ofx"/></div>'
           +'<button class="btn btn-az" id="cli-sol-btn" style="width:100%;margin-top:8px" onclick="enviarSolicitacao()">✉️ Enviar Solicitação</button>'
           +'<div id="cli-sol-lista" style="margin-top:8px"></div>'
@@ -2872,29 +2885,47 @@ async function renderSolicitacoesCliente(){
   const s=await getMine('solicitacoes',CURRENT_CLIENTE);
   if(!s.length){l.innerHTML='<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma solicitação enviada.</div>';return;}
   l.innerHTML='';
-  s.slice().reverse().forEach(x=>{const sc=(/resolv|conclu/i.test(x.status||''))?'tp':'tn';
+  s.slice().reverse().forEach(x=>{const sc=(/resolv|conclu|respond/i.test(x.status||''))?'tp':'tn';
     var anexo=x.arquivoData?(' · <a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
-    l.innerHTML+='<div class="lcard"><div class="lcico lc-az">✉️</div><div class="lcinfo"><strong>'+esc(x.mensagem||'')+'</strong><span>'+esc(x.data||'')+anexo+'</span></div><span class="tag '+sc+'">'+esc(x.status||'Nova')+'</span><div style="white-space:nowrap;margin-left:6px"><span style="cursor:pointer;margin-right:8px" title="Editar" onclick="editarSolicitacaoCliente(\''+x.id+'\')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirSolicitacaoCliente(\''+x.id+'\')">🗑️</span></div></div>';});
+    var titulo=esc(x.servico||x.mensagem||'Solicitação');
+    var det=[]; if(x.valor) det.push('R$ '+esc(x.valor)); if(x.tomador) det.push(esc(x.tomador));
+    if(x.servico && x.mensagem) det.push(esc(x.mensagem));
+    var sub=det.join(' · '); if(sub) sub+=' · ';
+    var resp='';
+    if(x.resposta || x.respostaArquivoData){
+      var ranexo=x.respostaArquivoData?('<br><a href="'+blobUrl(x.respostaArquivoData)+'" target="_blank" style="color:var(--azul-light)">📎 '+esc(x.respostaArquivoNome||'arquivo')+'</a>'):'';
+      resp='<div style="margin:6px 0 0;padding:9px 11px;border-left:3px solid var(--azul);background:rgba(51,85,255,.08);border-radius:9px;font-size:12px;line-height:1.5"><b style="color:var(--azul-light)">Resposta da APARAT</b><br>'+esc(x.resposta||'')+ranexo+'<br><span style="color:var(--cinza);font-size:10px">'+esc(x.respondidoEm||'')+'</span></div>';
+    }
+    l.innerHTML+='<div class="lcard" style="flex-wrap:wrap"><div class="lcico lc-az">✉️</div><div class="lcinfo"><strong>'+titulo+'</strong><span>'+sub+esc(x.data||'')+anexo+'</span></div><span class="tag '+sc+'">'+esc(x.status||'Nova')+'</span><div style="white-space:nowrap;margin-left:6px"><span style="cursor:pointer;margin-right:8px" title="Editar" onclick="editarSolicitacaoCliente(\''+x.id+'\')">✏️</span><span style="cursor:pointer" title="Excluir" onclick="excluirSolicitacaoCliente(\''+x.id+'\')">🗑️</span></div><div style="flex-basis:100%">'+resp+'</div></div>';});
 }
 var editSolId=null;
+function solServTrocou(){
+  var s=document.getElementById('cli-sol-serv'), nf=document.getElementById('cli-sol-nf'), m=document.getElementById('cli-sol-msg');
+  var ehNota = s && s.value==='Emitir nota fiscal';
+  if(nf) nf.style.display = ehNota ? 'block' : 'none';
+  if(m) m.placeholder = ehNota ? 'Descrição do serviço prestado...' : (s&&s.value==='Dúvida / falar com o contador' ? 'Escreva a sua dúvida...' : 'Detalhes (opcional)...');
+}
 async function enviarSolicitacao(){
   const msg=val('cli-sol-msg');
-  if(!msg){notif('⚠ Escreva sua solicitação','warn');return;}
+  const serv=val('cli-sol-serv'), sval=val('cli-sol-valor'), stom=val('cli-sol-tomador');
+  if(!serv){notif('⚠ Escolha o serviço que você precisa','warn');return;}
+  if(serv==='Emitir nota fiscal' && !sval){notif('⚠ Informe o valor da nota','warn');return;}
+  if(serv==='Dúvida / falar com o contador' && !msg){notif('⚠ Escreva a sua dúvida','warn');return;}
   if(!CURRENT_CLIENTE){notif('Não identifiquei seu cadastro. Avise o escritório.','warn');return;}
   var fi=document.getElementById('cli-sol-file');
   var arquivoData='',arquivoNome='';
   if(fi&&fi.files&&fi.files[0]){ arquivoNome=fi.files[0].name; try{ arquivoData=await lerArquivoBase64(fi.files[0]); }catch(e){ notif(e.message||'Erro no arquivo','warn'); return; } }
   try{
     if(editSolId){
-      var upd={mensagem:msg}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivoNome=arquivoNome;}
+      var upd={mensagem:msg,servico:serv,valor:sval,tomador:stom}; if(arquivoData){upd.arquivoData=arquivoData;upd.arquivoNome=arquivoNome;}
       await dbUpdate('solicitacoes',editSolId,upd); editSolId=null;
       var b=document.getElementById('cli-sol-btn'); if(b)b.textContent='✉️ Enviar Solicitação';
       notif('✏️ Solicitação atualizada!');
     } else {
-      await dbAdd('solicitacoes',{cliente:CURRENT_CLIENTE,mensagem:msg,status:'Nova',data:new Date().toLocaleString('pt-BR'),arquivoData:arquivoData,arquivoNome:arquivoNome});
+      await dbAdd('solicitacoes',{cliente:CURRENT_CLIENTE,mensagem:msg,servico:serv,valor:sval,tomador:stom,status:'Nova',data:new Date().toLocaleString('pt-BR'),arquivoData:arquivoData,arquivoNome:arquivoNome});
       notif('✉️ Solicitação enviada ao escritório!');
     }
-    setVal('cli-sol-msg',''); if(fi)fi.value='';
+    setVal('cli-sol-msg',''); setVal('cli-sol-valor',''); setVal('cli-sol-tomador',''); setVal('cli-sol-serv',''); solServTrocou(); if(fi)fi.value='';
     await renderSolicitacoesCliente();
   }catch(e){ if((e.code||'').indexOf('permission')>-1||/permission|insufficient/i.test(e.message||'')){ notif('⚠ O escritório precisa publicar a regra atualizada no Firebase.','warn'); } else { notif('Erro ao enviar: '+(e.code||e.message||''),'warn'); } }
 }
@@ -2912,23 +2943,44 @@ async function excluirSolicitacaoCliente(id){
 }
 async function carregarSolicitacoes(){
   const tb=document.getElementById('tb-solic'); if(!tb)return;
-  const s=await dbGetAll('solicitacoes');
-  _seedVistos('solicitacoes',s); setDot('dot-solic',s,'seen_solic','solicitacoes');
-  if(!s.length){tb.innerHTML='<tr><td colspan="4" style="color:var(--cinza)">Nenhuma solicitação recebida.</td></tr>';return;}
+  const todas=await dbGetAll('solicitacoes');
+  _seedVistos('solicitacoes',todas); setDot('dot-solic',todas,'seen_solic','solicitacoes');
+  var verTudo=(document.getElementById('solic-ver-tudo')||{}).checked;
+  const s=verTudo?todas:todas.filter(function(o){ return !/conclu/i.test(o.status||''); });
+  if(!s.length){tb.innerHTML='<tr><td colspan="6" style="color:var(--cinza)">'+(verTudo?'Nenhuma solicitação recebida.':'Nenhuma solicitação em aberto. ✅')+'</td></tr>';return;}
   tb.innerHTML='';
   s.slice().reverse().forEach(x=>{
     const tr=document.createElement('tr');
     var anexoO=x.arquivoData?('<br><a href="'+blobUrl(x.arquivoData)+'" target="_blank" style="color:var(--azul-light);font-size:10px">📎 '+esc(x.arquivoNome||'anexo')+'</a>'):'';
     var novoS=_ehNovo('solicitacoes',x.id); if(novoS){ tr.className='neon-novo'; tr.style.cursor='pointer'; tr.onclick=function(){ _verNovo(tr,'solicitacoes',x.id); }; }
-    tr.innerHTML='<td>'+esc(x.cliente||'')+(novoS?'<span class="tag-novo">NOVO</span>':'')+'</td><td>'+esc(x.mensagem||'')+anexoO+'</td><td>'+esc(x.data||'')+'</td><td><button class="btn-sm" data-resp="1">📎 Responder com arquivo</button> <button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button></td>';
+    var _det=[]; if(x.valor) _det.push('R$ '+esc(x.valor)); if(x.tomador) _det.push(esc(x.tomador));
+    if(x.mensagem) _det.push(esc(x.mensagem));
+    var _stt=/conclu/i.test(x.status||'')?'tp':(/respond/i.test(x.status||'')?'ta':'tn');
+    var _resp=x.resposta?('<br><span style="font-size:10px;color:var(--cinza)">↳ '+esc(String(x.resposta).slice(0,60))+'</span>'):'';
+    tr.innerHTML='<td>'+esc(x.cliente||'')+(novoS?'<span class="tag-novo">NOVO</span>':'')+'</td>'
+      +'<td><b>'+esc(x.servico||'—')+'</b></td>'
+      +'<td>'+_det.join(' · ')+anexoO+_resp+'</td>'
+      +'<td>'+esc(x.data||'')+'</td>'
+      +'<td><span class="tag '+_stt+'">'+esc(x.status||'Nova')+'</span></td>'
+      +'<td><button class="btn-sm btn-az" data-resp="1">💬 Responder</button> <button class="btn-sm btn-vd" onclick="resolverSolicitacao(\''+x.id+'\')">Concluir</button> <button class="btn-sm" onclick="excluirSolicitacaoEsc(\''+x.id+'\')">🗑️</button></td>';
     var _bR=tr.querySelector('[data-resp]');
     if(_bR) _bR.onclick=function(ev){ ev.stopPropagation();
-      if(typeof window.apResponderSolic==='function') window.apResponderSolic(x.id, x.cliente||'', x.mensagem||'');
-      else notif('Abra a aba "Doc. Solicitados" para responder.','info'); };
+      if(typeof window.apAbrirResposta==='function') window.apAbrirResposta(x.id);
+      else notif('Atualize a página para carregar a resposta.','info'); };
     tb.appendChild(tr);
   });
 }
-async function resolverSolicitacao(id){ await dbDelete('solicitacoes',id); notif('Solicitação concluída.','info'); await carregarSolicitacoes(); }
+async function resolverSolicitacao(id){
+  try{ await dbUpdate('solicitacoes',id,{status:'Concluída',concluidoEm:new Date().toLocaleString('pt-BR')}); notif('✔ Solicitação concluída (o histórico fica guardado).','info'); }
+  catch(e){ notif('Erro ao concluir: '+(e.code||e.message||''),'warn'); }
+  await carregarSolicitacoes();
+}
+async function excluirSolicitacaoEsc(id){
+  if(!confirm('Excluir esta solicitação de vez?\n\nEla some do seu painel e do app do cliente.')) return;
+  try{ await dbDelete('solicitacoes',id); notif('🗑️ Solicitação excluída.','info'); }
+  catch(e){ notif('Erro ao excluir: '+(e.code||e.message||''),'warn'); }
+  await carregarSolicitacoes();
+}
 
 /* ===================== INIT (controlado pelo login) ===================== */
 const CNPJ_TXT='CNPJ 56.938.548/0001-31';
@@ -3198,7 +3250,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
     <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
   </div>
 </div>
-<script defer src="aparat-fix.js?v=65"></script>
+<script defer src="aparat-fix.js?v=66"></script>
 <script defer src="nav-snippet.js?v=6"></script>
 <script defer src="client-pages.js?v=4"></script>
 <script>/*__APARAT_NAV_INLINE__*/
