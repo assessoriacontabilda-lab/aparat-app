@@ -586,6 +586,17 @@
       function aplicar() {
         var lista = mapa[tipo.value];
         var atual = status.value;
+        try {
+          var campoV = document.getElementById("ob-val");
+          if (campoV) {
+            var semValor = !!mapa[tipo.value];
+            campoV.placeholder = semValor ? "não se aplica" : "0,00";
+            campoV.style.opacity = semValor ? ".5" : "";
+            if (semValor) campoV.value = "";
+            var lb = campoV.parentNode && campoV.parentNode.querySelector("label");
+            if (lb) lb.textContent = semValor ? "Valor (R$) — opcional" : "Valor (R$)";
+          }
+        } catch (e) {}
         status.innerHTML = "";
         var fonte = lista ? lista.map(function (s) { return { v: s, t: s }; }) : origStatus;
         fonte.forEach(function (s) {

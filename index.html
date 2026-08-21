@@ -1404,9 +1404,14 @@ async function atualizarSelects(){
 
 /* ===================== OBRIGAÇÕES ===================== */
 var editObId=null;
+/* tipos de obrigação que não têm valor em dinheiro */
+var OB_SEM_VALOR=['Extrato Bancário','NF-e Emitida','Certidão Fiscal','Lançamento no Domínio'];
+function obPrecisaValor(tipo){ return OB_SEM_VALOR.indexOf(String(tipo||''))<0; }
+function vlOb(v){ v=String(v==null?'':v).trim(); return (!v||v==='0'||v==='0,00'||v==='0.00') ? '—' : ('R$ '+esc(v)); }
 async function lancarObrigacao(){
   const cli=val('ob-cli'),tipo=val('ob-tipo'),v=val('ob-val'),venc=val('ob-venc'),status=val('ob-status'),comp=val('ob-comp');
-  if(!cli||!v||!venc){notif('⚠ Preencha cliente, valor e vencimento','warn');return;}
+  const precisaV=obPrecisaValor(tipo);
+  if(!cli||!venc||(precisaV&&!v)){notif(precisaV?'⚠ Preencha cliente, valor e vencimento':'⚠ Preencha o cliente e a data','warn');return;}
   const dados={cliente:cli,tipo:tipo,valor:v,vencimento:venc,competencia:comp,status:status};
   if(editObId){ await dbUpdate('obrigacoes',editObId,dados); editObId=null; var b=document.getElementById('ob-btn'); if(b)b.textContent='📤 Enviar para Cliente'; notif('✏️ Obrigação atualizada!'); }
   else { await dbAdd('obrigacoes',dados); notif('✅ Obrigação lançada e enviada ao cliente!'); }
@@ -1422,7 +1427,7 @@ async function carregarObrigacoes(){
   os.slice().reverse().forEach(o=>{
     const sc=o.status==='Pago'?'tp':o.status==='A Pagar'?'ta':'tn';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${esc(o.cliente)}</td><td>${esc(o.tipo)}</td><td>R$ ${esc(o.valor)}</td><td>${fmtData(o.vencimento)}</td><td><span class="tag ${sc}">${esc(o.status)}</span></td><td><button class="btn-sm" onclick="editarObrig('${o.id}')">Editar</button> <button class="btn-sm" onclick="excluirObrig('${o.id}')">Excluir</button></td>`;
+    tr.innerHTML=`<td>${esc(o.cliente)}</td><td>${esc(o.tipo)}</td><td>${vlOb(o.valor)}</td><td>${fmtData(o.vencimento)}</td><td><span class="tag ${sc}">${esc(o.status)}</span></td><td><button class="btn-sm" onclick="editarObrig('${o.id}')">Editar</button> <button class="btn-sm" onclick="excluirObrig('${o.id}')">Excluir</button></td>`;
     tb.appendChild(tr);
   });
 }
@@ -1964,7 +1969,7 @@ async function previewCliente(){
   hon.forEach(function(h){var pdf=h.arquivoData?(' · <a href="'+blobUrl(h.arquivoData)+'" target="_blank" style="color:var(--azul-light)">📄</a>'):''; ph.innerHTML+='<div class="lcard"><div class="lcico lc-pu">💳</div><div class="lcinfo"><strong>'+esc(h.referencia||'')+'</strong><span>R$ '+esc(h.valor||'')+' · '+fmtData(h.vencimento)+pdf+'</span></div><span class="tag '+((/pago/i.test(h.status||''))?'tp':'tn')+'">'+esc(h.status||'')+'</span></div>';});
   var obr=await getMine('obrigacoes',nome); var po=document.getElementById('pv-obr');
   po.innerHTML=obr.length?'':'<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma.</div>';
-  obr.forEach(function(o){var sc=o.status==='Pago'?'tp':o.status==='A Pagar'?'ta':'tn'; po.innerHTML+='<div class="lcard"><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'')+'</strong><span>R$ '+esc(o.valor||'')+' · '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
+  obr.forEach(function(o){var sc=o.status==='Pago'?'tp':o.status==='A Pagar'?'ta':'tn'; po.innerHTML+='<div class="lcard"><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'')+'</strong><span>'+vlOb(o.valor)+' · '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
   var docs=await getMine('docs',nome); var pd=document.getElementById('pv-doc');
   pd.innerHTML=docs.length?'':'<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhum.</div>';
   docs.forEach(function(d){pd.innerHTML+='<div class="docca"><div class="dico">📄</div><div class="dinf"><strong>'+esc(d.nome||'')+'</strong><span>'+esc(d.tipo||'')+' · '+esc(d.data||'')+'</span></div><a class="btndl" href="'+blobUrl(d.arquivoData)+'" target="_blank" style="text-decoration:none">Abrir</a></div>';});
@@ -2248,11 +2253,11 @@ async function responderAssistente(q){
     return 'Os honorários ficam na seção <b>💳 Honorários</b>, com o boleto para baixar e pagar.'+disc;
   }
   if(has('vence','vencimento','prazo','quando pag','quando vou')){
-    if(nome){ try{ var obs=await getMine('obrigacoes',nome); var ab=obs.filter(function(o){return o.status!=='Pago';}); ab.sort(function(a,b){return (a.vencimento||'').localeCompare(b.vencimento||'');}); if(ab.length){ var o=ab[0]; return 'Sua próxima obrigação é <b>'+esc(o.tipo||'')+'</b> de <b>R$ '+esc(o.valor||'')+'</b>, vencimento <b>'+fmtData(o.vencimento)+'</b>. Veja em <b>📋 Suas Obrigações</b>.'+disc; } return 'No momento não há obrigações em aberto no seu portal ✅.'; }catch(e){} }
+    if(nome){ try{ var obs=await getMine('obrigacoes',nome); var ab=obs.filter(function(o){return o.status!=='Pago';}); ab.sort(function(a,b){return (a.vencimento||'').localeCompare(b.vencimento||'');}); if(ab.length){ var o=ab[0]; return 'Sua próxima obrigação é <b>'+esc(o.tipo||'')+'</b> de <b>'+vlOb(o.valor)+'</b>, vencimento <b>'+fmtData(o.vencimento)+'</b>. Veja em <b>📋 Suas Obrigações</b>.'+disc; } return 'No momento não há obrigações em aberto no seu portal ✅.'; }catch(e){} }
     return 'Os vencimentos aparecem em <b>📋 Suas Obrigações</b>.'+disc;
   }
   if(has('obrigacao','das','guia','imposto','darf','tributo')){
-    if(nome){ try{ var os2=await getMine('obrigacoes',nome); if(os2.length){ var lin=os2.slice(0,4).map(function(o){return '• '+esc(o.tipo||'')+' — R$ '+esc(o.valor||'')+' (vence '+fmtData(o.vencimento)+')';}).join('<br>'); return 'Suas guias/obrigações:<br>'+lin+disc; } return 'Você não tem guias em aberto no portal agora.'+disc; }catch(e){} }
+    if(nome){ try{ var os2=await getMine('obrigacoes',nome); if(os2.length){ var lin=os2.slice(0,4).map(function(o){return '• '+esc(o.tipo||'')+' — '+vlOb(o.valor)+' (vence '+fmtData(o.vencimento)+')';}).join('<br>'); return 'Suas guias/obrigações:<br>'+lin+disc; } return 'Você não tem guias em aberto no portal agora.'+disc; }catch(e){} }
     return 'O DAS é a guia do Simples Nacional/MEI. As suas guias ficam em <b>📋 Suas Obrigações</b>.'+disc;
   }
   if(has('arquivo','enviar arq','ofx','extrato','mandar arq','anexar','upload','enviar documento','enviar pdf','como envio','como mandar','mandar documento')){
@@ -2566,7 +2571,7 @@ async function renderClientePortal(nome){
   const co=document.getElementById('cli-obr');
   co.innerHTML = obr.length? '' : '<div style="color:var(--cinza);font-size:11px;padding:4px 0">Nenhuma obrigação no momento.</div>';
   obr.forEach(o=>{const sc=o.status==='Pago'?'tp':o.status==='A Pagar'?'ta':'tn';
-    co.innerHTML+='<div'+_neonAttrs('obrigacoes',o.id)+'><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'Guia')+_tagNovo('obrigacoes',o.id)+'</strong><span>R$ '+esc(o.valor||'')+' · venc. '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
+    co.innerHTML+='<div'+_neonAttrs('obrigacoes',o.id)+'><div class="lcico lc-or">💰</div><div class="lcinfo"><strong>'+esc(o.tipo||'Guia')+_tagNovo('obrigacoes',o.id)+'</strong><span>'+vlOb(o.valor)+' · venc. '+fmtData(o.vencimento)+'</span></div><span class="tag '+sc+'">'+esc(o.status||'')+'</span></div>';});
   // Agendamentos do cliente
   var cag=document.getElementById('cli-age');
   if(cag){ var ags=await getMine('agenda',nome);
@@ -3169,7 +3174,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
     <button class="btn-fechar-otp" onclick="fecharOTP()">Cancelar</button>
   </div>
 </div>
-<script defer src="aparat-fix.js?v=62"></script>
+<script defer src="aparat-fix.js?v=63"></script>
 <script defer src="nav-snippet.js?v=6"></script>
 <script defer src="client-pages.js?v=4"></script>
 <script>/*__APARAT_NAV_INLINE__*/
