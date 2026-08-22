@@ -753,11 +753,14 @@
       var db = firebase.firestore();
       var orig = [].slice.call(page.children);
 
-      var bar = elx("div", null, "display:flex;gap:10px;margin-bottom:14px");
+      var bar = elx("div", { id: "ob-toggle" }, "display:flex;gap:10px;margin-bottom:14px");
       function styBtn(on) { return "padding:10px 18px;border-radius:10px;font-weight:800;border:1px solid rgba(120,160,255,.3);cursor:pointer;font-size:13px;" + (on ? "background:linear-gradient(135deg,#2b6fff,#1b3a8f);color:#fff" : "background:#12122a;color:#c8d2f0"); }
       var bM = elx("button", { textContent: "📋 Obrigações Mensais" }, styBtn(true));
       var bA = elx("button", { textContent: "🗓️ Obrigações Anuais" }, styBtn(false));
       bar.appendChild(bM); bar.appendChild(bA);
+      bM.classList.add("ap-on");
+      bM.addEventListener("click", function(){ bM.classList.add("ap-on"); bA.classList.remove("ap-on"); });
+      bA.addEventListener("click", function(){ bA.classList.add("ap-on"); bM.classList.remove("ap-on"); });
 
       var anu = elx("div", { id: "ob-anuais-wrap" }, "display:none");
       var card = elx("div", null, "background:#12122a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px");
@@ -4071,6 +4074,9 @@
       +'#ap-ext-modal .bt.vm{border-color:rgba(217,45,32,.55);color:#d92d20}'
       +'#ap-ext-modal .cx input[type=file]{width:100%;margin-top:8px;font-size:12px}'
       +'#ap-ext-modal .cx label{font-size:11px;color:var(--cinza)}'
+      +'body.ap-esc-claro #ap-ext-modal .cx{background:#FFF;border-color:#E6EDF7;color:#0F1B33}'
+      +'body.ap-esc-claro #ap-ext-modal .bt{border-color:#E6EDF7;color:#66748C}'
+      +'body.ap-esc-claro #ap-ext-modal .bt.az{background:#3355FF;border-color:#3355FF;color:#fff}'
       +'#sec-extratos .ex-hist{display:flex;align-items:center;gap:9px;border-top:1px dotted var(--border);padding:9px 0}'
       +'#sec-extratos .ex-hist .in{flex:1;min-width:0}'
       +'#sec-extratos .ex-hist .in b{display:block;font-size:13px}'
@@ -4236,7 +4242,7 @@
     var m=document.createElement('div'); m.id='ap-ext-modal';
     m.innerHTML='<div class="cx"><button class="x" id="ex-mx">✖</button>'+html+'</div>';
     m.onclick=function(ev){ if(ev.target===m) fecharModal(); };
-    document.body.appendChild(m);
+    (document.getElementById('view-painel')||document.body).appendChild(m);
     var x=el('ex-mx'); if(x) x.onclick=fecharModal;
     return m;
   }
@@ -5632,7 +5638,7 @@
     var m=document.createElement('div'); m.id='ap-obc-modal';
     m.innerHTML='<div class="cx"><button class="x" id="obc-mx">✖</button>'+html+'</div>';
     m.onclick=function(ev){ if(ev.target===m) fecharModal(); };
-    document.body.appendChild(m);
+    (document.getElementById('view-painel')||document.body).appendChild(m);
     var x=el('obc-mx'); if(x) x.onclick=fecharModal;
     return m;
   }
@@ -5829,6 +5835,7 @@
       +'</select>'
       +'<label>Observação</label><textarea id="obm-obs" rows="2">'+esc(r.obs||'')+'</textarea>'
       +'<div class="bts"><button class="bt az" id="obm-ok">\u{2705} Marcar como entregue</button>'
+      +'<button class="bt" id="obm-guia">\u{1F4CB} Lançar guia para o cliente</button>'
       +'<button class="bt" id="obm-an">\u{1F535} Em andamento</button>'
       +'<button class="bt" id="obm-na">\u{26AA} Não se aplica</button>'
       +'<button class="bt" id="obm-cob">\u{1F514} Cobrar</button>'
@@ -5849,6 +5856,16 @@
     el('obm-an').onclick=function(){ this.disabled=true; grava('an'); };
     el('obm-na').onclick=function(){ this.disabled=true; grava('na'); };
     el('obm-cob').onclick=function(){ cobrar(cli, 'Precisamos de informação para fechar a obrigação '+o.n+' da competência '+MESES[mi]+'/'+ano+'.'); };
+    var bg=el('obm-guia');
+    if(bg) bg.onclick=function(){
+      var TIPO={DAS:'DAS Simples Nacional', SIMEI:'DAS Simples Nacional', FGTS:'FGTS',
+                ESOC:'INSS', ISSR:'ISS', DEST:'ICMS'};
+      fecharModal();
+      if(typeof window.apLancarGuia==='function'){
+        window.apLancarGuia(cli, TIPO[o.s]||'', el('obm-val')?el('obm-val').value:'',
+          '\u{1F4CB} Lançando '+o.n+' de '+cli+' — competência '+MESES[mi]+'/'+ano+'.');
+      }
+    };
     var bl=el('obm-lim');
     if(bl) bl.onclick=async function(){
       this.disabled=true;
@@ -7838,7 +7855,23 @@
       +'#ap-rsp-modal input[type=file]{width:100%;font-size:12px}'
       +'#ap-rsp-modal .bts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}'
       +'#ap-rsp-modal .bt{font-size:12.5px;font-weight:700;padding:10px 15px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer}'
-      +'#ap-rsp-modal .bt.az{background:var(--azul);border-color:var(--azul);color:#fff}';
+      +'#ap-rsp-modal .bt.az{background:var(--azul);border-color:var(--azul);color:#fff}'
+      +'body.ap-esc-claro #ap-rsp-modal .cx{background:#FFF;border-color:#E6EDF7;color:#0F1B33}'
+      +'body.ap-esc-claro #ap-rsp-modal textarea{background:#FFF;border-color:#E6EDF7;color:#0F1B33}'
+      +'body.ap-esc-claro #ap-rsp-modal .bt{border-color:#E6EDF7;color:#66748C}'
+      +'body.ap-esc-claro #ap-rsp-modal .bt.az{background:#3355FF;border-color:#3355FF;color:#fff}'
+      +'body.ap-esc-claro #ob-anuais-wrap>div{background:#FFF!important;border-color:#E6EDF7!important}'
+      +'body.ap-esc-claro #ob-anuais-wrap label{color:#66748C!important}'
+      +'body.ap-esc-claro #ob-anuais-wrap input,body.ap-esc-claro #ob-anuais-wrap select{background:#FFF!important;border-color:#E6EDF7!important;color:#0F1B33!important}'
+      +'body.ap-esc-claro #ob-anuais-wrap>div>div:first-child{color:#0B2A8A!important}'
+      +'body.ap-esc-claro #ob-toggle button{background:#FFF!important;color:#66748C!important;border-color:#E6EDF7!important}'
+      +'body.ap-esc-claro #ob-toggle button.ap-on{background:#3355FF!important;color:#fff!important;border-color:#3355FF!important}'
+      +'body.ap-esc-claro #ap-obc-modal .cx{background:#FFF!important;border-color:#E6EDF7!important;color:#0F1B33!important}'
+      +'body.ap-esc-claro #ap-obc-modal input,body.ap-esc-claro #ap-obc-modal select,body.ap-esc-claro #ap-obc-modal textarea{background:#FFF!important;border-color:#E6EDF7!important;color:#0F1B33!important}'
+      +'body.ap-esc-claro #ap-obc-modal label,body.ap-esc-claro #ap-obc-modal .ln span{color:#66748C!important}'
+      +'body.ap-esc-claro #ap-obc-modal .bt{border-color:#E6EDF7!important;color:#66748C!important;background:transparent!important}'
+      +'body.ap-esc-claro #ap-obc-modal .bt.az{background:#3355FF!important;border-color:#3355FF!important;color:#fff!important}'
+      +'body.ap-esc-claro #ap-obc-modal .x{border-color:#E6EDF7!important;color:#66748C!important}';
     document.head.appendChild(s);
   }
   function fechar(){ var m=el('ap-rsp-modal'); if(m) m.remove(); }
@@ -7867,16 +7900,133 @@
       +'<input id="ap-rsp-file" type="file"/>'
       +'<div class="bts">'
         +'<button class="bt az" id="ap-rsp-env">\u{1F4E4} Enviar resposta</button>'
+        +'<button class="bt" id="ap-rsp-guia">\u{1F4CB} Lançar guia / obrigação</button>'
         +'<button class="bt" id="ap-rsp-doc">\u{1F4CE} Mandar documento grande</button>'
         +'<button class="bt" id="ap-rsp-fechar">Fechar</button>'
       +'</div></div>';
     m.onclick=function(ev){ if(ev.target===m) fechar(); };
-    document.body.appendChild(m);
+    (document.getElementById('view-painel')||document.body).appendChild(m);
     el('ap-rsp-x').onclick=fechar;
     el('ap-rsp-fechar').onclick=fechar;
     el('ap-rsp-doc').onclick=function(){ fechar(); if(typeof window.apResponderSolic==='function') window.apResponderSolic(id, x.cliente||'', x.servico||x.mensagem||''); };
+    el('ap-rsp-guia').onclick=function(){ fechar(); window.apLancarGuiaDaSolic(id, x.cliente||'', x.servico||'', x.valor||''); };
     el('ap-rsp-env').onclick=function(){ enviar(id, x.cliente||''); };
   };
+
+  /* de que tipo de guia cada serviço costuma virar */
+  var TIPO_POR_SERVICO = {
+    'Guia / 2ª via':'DAS Simples Nacional',
+    'Emitir nota fiscal':'NF-e Emitida',
+    'Certidão ou documento':'Certidão Fiscal'
+  };
+
+  window.apLancarGuia=function(cliente, tipo, valor, aviso_txt){
+    try{
+      var it=[].slice.call(document.querySelectorAll('#view-painel .sidebar .nav .nav-item'))
+                .filter(function(x){ return /Guias/.test(x.textContent||''); })[0];
+      if(it) it.click();
+      setTimeout(function(){
+        try{
+          var bm=[].slice.call(document.querySelectorAll('#ob-toggle button'))
+                   .filter(function(b){ return /Mensais/.test(b.textContent||''); })[0];
+          if(bm) bm.click();
+        }catch(e){}
+        var sel=el('ob-cli');
+        if(sel && cliente){
+          var tem=false;
+          [].forEach.call(sel.options,function(o){ if(o.value===cliente) tem=true; });
+          if(!tem){ var o=document.createElement('option'); o.value=cliente; o.textContent=cliente; sel.appendChild(o); }
+          sel.value=cliente;
+        }
+        var tp=el('ob-tipo');
+        if(tp && tipo){
+          var achou=false;
+          [].forEach.call(tp.options,function(o){ if(o.value===tipo) achou=true; });
+          if(achou){ tp.value=tipo; try{ tp.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+        }
+        var vl=el('ob-val'); if(vl && valor) vl.value=valor;
+        var fb=el('ob-btn') && el('ob-btn').closest('.fbox');
+        if(fb){
+          try{ fb.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+          fb.style.transition='box-shadow .3s';
+          fb.style.boxShadow='0 0 0 3px rgba(51,85,255,.45)';
+          setTimeout(function(){ fb.style.boxShadow=''; },2600);
+        }
+        aviso(aviso_txt || ('\u{1F4CB} Lançando a guia de '+cliente+'.'), 'info');
+      }, 800);
+    }catch(e){}
+  };
+
+  window.apLancarGuiaDaSolic=function(id, cliente, servico, valor){
+    try{
+      var it=[].slice.call(document.querySelectorAll('#view-painel .sidebar .nav .nav-item'))
+                .filter(function(x){ return /Guias/.test(x.textContent||''); })[0];
+      if(it) it.click();
+      setTimeout(function(){
+        try{
+          /* garante o modo "Obrigações Mensais" */
+          var bm=[].slice.call(document.querySelectorAll('#ob-toggle button'))
+                   .filter(function(b){ return /Mensais/.test(b.textContent||''); })[0];
+          if(bm) bm.click();
+        }catch(e){}
+        var sel=el('ob-cli');
+        if(sel && cliente){
+          var tem=false;
+          [].forEach.call(sel.options,function(o){ if(o.value===cliente) tem=true; });
+          if(!tem){ var o=document.createElement('option'); o.value=cliente; o.textContent=cliente; sel.appendChild(o); }
+          sel.value=cliente;
+        }
+        var tp=el('ob-tipo'), alvo=TIPO_POR_SERVICO[servico];
+        if(tp && alvo){
+          var achou=false;
+          [].forEach.call(tp.options,function(o){ if(o.value===alvo) achou=true; });
+          if(achou){ tp.value=alvo; try{ tp.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+        }
+        var vl=el('ob-val'); if(vl && valor) vl.value=valor;
+        window.__apSolicGuia={ id:id, cliente:cliente, servico:servico };
+        var fb=el('ob-btn') && el('ob-btn').closest('.fbox');
+        if(fb){
+          try{ fb.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+          fb.style.transition='box-shadow .3s';
+          fb.style.boxShadow='0 0 0 3px rgba(51,85,255,.45)';
+          setTimeout(function(){ fb.style.boxShadow=''; },2600);
+        }
+        aviso('\u{1F4CB} Lançe a guia de '+cliente+'. Ao enviar, a solicitação é respondida sozinha.','info');
+      }, 800);
+    }catch(e){}
+  };
+
+  /* depois de lançar a guia, responde a solicitação automaticamente */
+  function ligarLancamento(){
+    if(typeof window.lancarObrigacao!=='function' || window.lancarObrigacao.__apSolic) return;
+    var orig=window.lancarObrigacao;
+    var novo=async function(){
+      var ctx=window.__apSolicGuia;
+      var r=await orig.apply(this, arguments);
+      try{
+        var deuCerto = ctx && ctx.id && !(el('ob-venc')||{}).value;
+        if(deuCerto){
+          var d=db();
+          if(d){
+            var tipo=(el('ob-tipo')||{}).value||'guia';
+            await d.collection('solicitacoes').doc(ctx.id).update({
+              status:'Respondida',
+              resposta:'Pronto! Lancei a '+tipo+' no seu app. Veja em "\u{1F4CB} Minhas Guias".',
+              respondidoEm:new Date().toLocaleString('pt-BR')
+            });
+            aviso('✔ Guia lançada e solicitação de '+ctx.cliente+' respondida.');
+            window.__apSolicGuia=null;
+            if(typeof carregarSolicitacoes==='function') carregarSolicitacoes();
+          }
+        }
+      }catch(e){}
+      return r;
+    };
+    novo.__apSolic=1;
+    window.lancarObrigacao=novo;
+  }
+  var tent=0;
+  var iv=setInterval(function(){ ligarLancamento(); if(++tent>80) clearInterval(iv); }, 700);
 
   async function enviar(id, cliente){
     if(enviando) return;
