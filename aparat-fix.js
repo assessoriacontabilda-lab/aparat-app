@@ -2057,15 +2057,21 @@
       if (typeof CURRENT_ROLE === "undefined" || !CURRENT_ROLE) return;
       {
         var velho = document.getElementById("ap-cal-btn"); if (velho) velho.remove();
-        if (document.getElementById("ap-cal-fab")) return;
-        if (CURRENT_ROLE !== "admin" && !document.querySelector(".apbot") && !document.getElementById("ap-honorarios")) return;
-        var f = document.createElement("button");
-        f.id = "ap-cal-fab";
-        f.innerHTML = "&#128197;";
-        f.title = "Meus Vencimentos";
-        f.style.cssText = "position:fixed;left:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9999;width:48px;height:48px;border-radius:50%;background:#101038;border:1px solid #8866ff;color:#b39bff;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)";
-        f.setAttribute("onclick", "abrirCalendarioAparat()");
-        document.body.appendChild(f);
+        var f = document.getElementById("ap-cal-fab");
+        if (!f) {
+          if (CURRENT_ROLE !== "admin" && !document.querySelector(".apbot") && !document.getElementById("ap-honorarios")) return;
+          f = document.createElement("button");
+          f.id = "ap-cal-fab";
+          f.innerHTML = "&#128197;";
+          f.title = "Meus Vencimentos";
+          f.style.cssText = "position:fixed;left:14px;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:9999;width:48px;height:48px;border-radius:50%;background:#101038;border:1px solid #8866ff;color:#b39bff;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)";
+          f.setAttribute("onclick", "abrirCalendarioAparat()");
+          document.body.appendChild(f);
+        }
+        /* v70: na area do cliente o botao so fica na tela inicial. Ao abrir um
+           quadradinho (#view-cliente.ap-open) ele some, para nao cobrir a lista. */
+        var vcl = document.getElementById("view-cliente");
+        f.style.display = (vcl && vcl.classList.contains("ap-open")) ? "none" : "";
       }
     } catch (e) {}
   }
@@ -2463,7 +2469,11 @@
         b.textContent='💬';
         document.body.appendChild(b);
       }
-      var vis = va.style.display!=='none' && va.offsetParent!==null && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE;
+      /* v70: o botao so aparece na tela inicial do cliente. Quando ele abre um
+         quadradinho (#view-cliente.ap-open) o botao some, para nao cobrir o fim da lista. */
+      var vcl=document.getElementById('view-cliente');
+      var paginaAberta=!!(vcl && vcl.classList.contains('ap-open'));
+      var vis = va.style.display!=='none' && va.offsetParent!==null && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE && !paginaAberta;
       b.style.display=vis?'flex':'none';
     }catch(e){}
   }
@@ -2621,18 +2631,13 @@
     c.innerHTML=html;
   }
 
-  /* 2) Botao WhatsApp flutuante */
+  /* 2) Botao WhatsApp flutuante — DESATIVADO na v70.
+     O app tinha DOIS botoes de WhatsApp ao mesmo tempo: este (esquerda, ap-wa-flut2)
+     e o do modulo __APARAT_WAFLUT__ (direita, ap-wa-flut). Ficou so o da direita.
+     Esta funcao agora apenas remove o botao repetido de quem ja tinha a versao antiga em cache. */
   function botaoWa(){
     var b=document.getElementById('ap-wa-flut2');
-    if(!b){
-      b=document.createElement('a'); b.id='ap-wa-flut2';
-      b.href='https://wa.me/5516988699203?text='+encodeURIComponent('Olá, Daniel! Sou cliente da APARAT e preciso de ajuda.');
-      b.target='_blank'; b.rel='noopener'; b.title='Falar com a APARAT no WhatsApp';
-      b.style.cssText='position:fixed;left:14px;bottom:150px;z-index:96;width:52px;height:52px;border-radius:50%;background:#25D366;display:none;align-items:center;justify-content:center;font-size:27px;box-shadow:0 4px 14px rgba(0,0,0,.45),0 0 14px rgba(37,211,102,.55);text-decoration:none';
-      b.textContent='💬';
-      document.body.appendChild(b);
-    }
-    b.style.display=(vcVisivel() && typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE)?'flex':'none';
+    if(b) b.remove();
   }
 
   /* 3) Nomes mais simples */
@@ -7619,24 +7624,49 @@
     });
   }
 
+  /* v70: o comprovante virou OPCIONAL. O cliente escolhe como pagou e pronto;
+     anexar o comprovante e um botao a mais, para quem quiser. */
   function pedirComprovante(botao, o, tipo, colecao){
     var pai=botao.parentNode;
     botao.style.display='none';
     var cx=document.createElement('div');
-    cx.innerHTML='<label class="ap-pgdrop">\u{1F4CE} Toque para anexar o comprovante'
+    cx.innerHTML='<div class="s" style="margin:9px 0 0">Como você pagou?</div>'
+      +'<button class="ap-pgbt" data-forma="boleto">\u{1F3E6} Paguei no boleto</button>'
+      +'<button class="ap-pgbt" data-forma="pix" style="background:#0E9F6E">\u{1F4F2} Paguei no PIX</button>'
+      +'<label class="ap-pgdrop">\u{1F4CE} Anexar o comprovante (opcional)'
       +'<div style="font-size:11px;margin-top:3px">PDF ou print do banco · foto é reduzida sozinha</div>'
       +'<input type="file" accept="image/*,application/pdf"></label>'
       +'<button class="ap-pgbt sec">Cancelar</button>';
     pai.appendChild(cx);
     var inp=cx.querySelector('input');
-    cx.querySelector('button').onclick=function(){ cx.remove(); botao.style.display=''; };
+    var btsForma=[].slice.call(cx.querySelectorAll('[data-forma]'));
+    var btCancelar=cx.querySelectorAll('button')[cx.querySelectorAll('button').length-1];
+    btCancelar.onclick=function(){ cx.remove(); botao.style.display=''; };
+
+    btsForma.forEach(function(bf){
+      bf.onclick=async function(){
+        btsForma.forEach(function(x){ x.disabled=true; });
+        bf.textContent='\u{23F3} Avisando a APARAT...';
+        try{
+          await declarar(o, tipo, colecao, null, bf.getAttribute('data-forma'));
+          cx.remove();
+          aviso('Pronto! A APARAT foi avisada e vai conferir o seu pagamento.','ok');
+          await carregar(); await blocoCliente(tipo);
+        }catch(e){
+          btsForma.forEach(function(x){ x.disabled=false; });
+          bf.textContent = bf.getAttribute('data-forma')==='pix' ? '\u{1F4F2} Paguei no PIX' : '\u{1F3E6} Paguei no boleto';
+          aviso('Não consegui avisar: '+(e.message||e),'erro');
+        }
+      };
+    });
+
     inp.onchange=async function(){
       var f=inp.files && inp.files[0]; if(!f) return;
       var drop=cx.querySelector('.ap-pgdrop');
       drop.innerHTML='\u{23F3} Enviando '+esc(f.name)+'...';
       try{
         var comp=await guardarComprovante(f, cliente());
-        await declarar(o, tipo, colecao, comp);
+        await declarar(o, tipo, colecao, comp, 'comprovante');
         cx.remove();
         aviso('Pronto! A APARAT foi avisada e vai conferir o seu pagamento.','ok');
         await carregar(); await blocoCliente(tipo);
@@ -7648,7 +7678,7 @@
     };
   }
 
-  async function declarar(o, tipo, colecao, comp){
+  async function declarar(o, tipo, colecao, comp, forma){
     var d=db(); if(!d) throw new Error('Sem conexão com o banco');
     var dados={
       cliente: cliente(),
@@ -7660,6 +7690,7 @@
       vencimento: String(o.vencimento||''),
       competencia: String(o.competencia||o.referencia||''),
       status: 'aguardando',
+      forma: String(forma||''),          /* boleto | pix | comprovante */
       declaradoEm: new Date().toISOString(),
       declaradoEmBR: agoraBR(),
       origem: 'cliente'
@@ -7701,7 +7732,9 @@
         h+='<div class="dec"><span class="ic">\u{1F64B}</span>'
           +'<div style="min-width:180px"><b>'+esc(p.cliente||'—')+' · '+esc(p.descricao||'')+'</b>'
           +'<span>'+money(p.valor)+(p.competencia?(' · '+esc(p.competencia)):'')
-          +' · vencia '+dataBR(p.vencimento)+' · declarado '+esc(p.declaradoEmBR||dataBR(String(p.declaradoEm||'').slice(0,10)))+'</span></div>'
+          +' · vencia '+dataBR(p.vencimento)
+          +(p.forma==='boleto'?' · pagou no boleto':(p.forma==='pix'?' · pagou no PIX':''))
+          +' · declarado '+esc(p.declaradoEmBR||dataBR(String(p.declaradoEm||'').slice(0,10)))+'</span></div>'
           +'<div class="acoes">'
             +((p.comprovanteUrl||p.comprovanteData)?'<button class="ab ver" data-pgver="'+esc(p.id)+'">\u{1F4CE} Comprovante</button>':'<span class="s" style="margin:0">sem comprovante</span>')
             +'<button class="ab ok" data-pgok="'+esc(p.id)+'">\u{2713} Confirmar</button>'
@@ -7827,7 +7860,9 @@
   setInterval(tick,6000);
 
   window.__PAGOU__={carregar:carregar, pintarAdmin:pintarAdmin, blocoCliente:blocoCliente,
-                    pendentes:pendentes, cache:function(){ return cache; }};
+                    pendentes:pendentes, cache:function(){ return cache; },
+                    /* v70: usados pelo cartao de cobranca da tela inicial (__APARAT_COBRA__) */
+                    declarar:declarar, guardarComprovante:guardarComprovante};
 })();
 
 /* APARAT v66 - responder a solicitacao do cliente (texto + anexo, sem apagar) */
@@ -8054,4 +8089,338 @@
     if(bt){ bt.disabled=false; bt.innerHTML='\u{1F4E4} Enviar resposta'; }
     enviando=false;
   }
+})();
+
+/* APARAT v70 - Cartao de cobranca do mes com PIX na tela inicial do cliente.
+   Todo dia 1o o robo gera o honorario e manda o aviso; aqui o cliente ve o valor
+   dele, copia o PIX (codigo ja com o valor) ou le o QR Code, e avisa que pagou.
+   A declaracao vai para a colecao 'pagamentos' com status 'aguardando': some da
+   cobranca do cliente na hora e o escritorio confirma no painel (quem grava
+   'Pago' na obrigacao continua sendo o admin). */
+;(function(){
+  if(window.__APARAT_COBRA__) return; window.__APARAT_COBRA__=70;
+
+  var CHAVE='e140ad9c-8e55-4fa4-853c-ebbc3a18c3c3';
+  var FAVORECIDO='APARAT CONTABILIDADE LTDA';   /* 25 caracteres: limite do BR Code */
+  var CIDADE='FRANCA';
+  var ocupado=false, qrCarregando=false;
+
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function db(){ try{ if(typeof fdb!=='undefined' && fdb) return fdb; if(window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore(); }catch(e){} return null; }
+  function cliente(){ try{ return (typeof CURRENT_CLIENTE!=='undefined' && CURRENT_CLIENTE) ? String(CURRENT_CLIENTE) : ''; }catch(e){ return ''; } }
+  function aviso(m,t){ try{ if(typeof notif==='function'){ notif(m,t); return; } }catch(e){} try{ alert(m); }catch(e){} }
+  function p2(n){ return ('0'+n).slice(-2); }
+  function hojeISO(){ var d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+  function dataBR(v){ var m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):String(v||''); }
+  function num(v){ v=(''+(v==null?'':v)).replace(/[^0-9,.-]/g,''); if(v.indexOf(',')>-1) v=v.replace(/\./g,'').replace(',','.'); return parseFloat(v)||0; }
+  function money(n){ return 'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function pago(s){ return /pago|conclu|entreg|recebid|quitad|baixad|emitid|lanc/i.test(String(s||'')); }
+  function dias(iso){ try{ return Math.round((new Date(String(iso).slice(0,10)+'T00:00:00')-new Date(hojeISO()+'T00:00:00'))/86400000); }catch(e){ return 9999; } }
+  function paginaAberta(){ var v=el('view-cliente'); return !!(v && v.classList.contains('ap-open')); }
+  function vcVisivel(){ var v=el('view-cliente'); return !!(v && v.style.display!=='none' && v.offsetParent!==null); }
+
+  /* ---------------- PIX copia e cola (BR Code) ---------------- */
+  function tlv(id,v){ return id+p2(String(v).length>99?99:String(v).length)+v; }
+  function crc16(txt){
+    var crc=0xFFFF;
+    for(var i=0;i<txt.length;i++){
+      crc^=(txt.charCodeAt(i)&0xFF)<<8;
+      for(var j=0;j<8;j++){ crc = (crc&0x8000) ? (((crc<<1)^0x1021)&0xFFFF) : ((crc<<1)&0xFFFF); }
+    }
+    var h=crc.toString(16).toUpperCase(); while(h.length<4) h='0'+h; return h;
+  }
+  function soAZ(s){
+    return String(s||'').normalize ? String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'')
+                                   : String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  }
+  function idPagamento(item){
+    var base=(item.tipo==='honorario'?'HON':'GUIA')+soAZ(item.competencia||'').slice(0,6);
+    var cli=soAZ(cliente()).slice(0,10);
+    return (base+cli).slice(0,25) || 'APARAT';
+  }
+  function pixCopiaCola(valor, txid){
+    var mai=tlv('00','br.gov.bcb.pix')+tlv('01',CHAVE);
+    var p=tlv('00','01')+tlv('26',mai)+tlv('52','0000')+tlv('53','986');
+    if(valor>0) p+=tlv('54',(Math.round(valor*100)/100).toFixed(2));
+    p+=tlv('58','BR')+tlv('59',FAVORECIDO.slice(0,25))+tlv('60',CIDADE.slice(0,15))+tlv('62',tlv('05',txid||'***'));
+    p+='6304';
+    return p+crc16(p);
+  }
+  /* gerador de QR: arquivo local do proprio app (sem internet de terceiros).
+     Se nao carregar, o cartao continua funcionando com o codigo copia e cola. */
+  function carregarQr(){
+    if(window.qrcode || qrCarregando) return;
+    qrCarregando=true;
+    var base='qrcode-gen.js?v=1';
+    try{
+      var s0=document.querySelector('script[src*="aparat-fix.js"]');
+      if(s0 && s0.src) base=s0.src.replace(/aparat-fix\.js.*$/,'qrcode-gen.js?v=1');
+    }catch(e){}
+    var s=document.createElement('script'); s.src=base; s.async=true;
+    s.onload=function(){ try{ desenhar(); }catch(e){} };
+    s.onerror=function(){ qrCarregando=false; };
+    document.head.appendChild(s);
+  }
+  function qrDataUrl(txt){
+    try{
+      if(!window.qrcode) return '';
+      var q=window.qrcode(0,'M'); q.addData(txt); q.make();
+      return q.createDataURL(4,2);
+    }catch(e){ return ''; }
+  }
+
+  /* ---------------- dados ---------------- */
+  async function coletar(nome){
+    var d=db(); if(!d) return null;
+    var itens=[], declaradas={};
+    try{
+      var pg=await d.collection('pagamentos').where('cliente','==',nome).get();
+      pg.forEach(function(x){ var o=x.data()||{}; if(o.status==='aguardando') declaradas[String(o.refColecao)+'|'+String(o.refId)]=o; });
+    }catch(e){}
+    try{
+      var h=await d.collection('honorarios').where('cliente','==',nome).get();
+      h.forEach(function(x){
+        var o=x.data()||{};
+        if(pago(o.status) || !o.vencimento) return;
+        itens.push({id:x.id, colecao:'honorarios', tipo:'honorario',
+                    desc:'Honorário '+(o.referencia||''), competencia:String(o.referencia||''),
+                    valor:num(o.valor), venc:String(o.vencimento)});
+      });
+    }catch(e){}
+    try{
+      var g=await d.collection('obrigacoes').where('cliente','==',nome).get();
+      g.forEach(function(x){
+        var o=x.data()||{};
+        if(pago(o.status) || !o.vencimento) return;
+        var v=num(o.valor); if(v<=0) return;   /* obrigacao sem valor nao entra na cobranca */
+        itens.push({id:x.id, colecao:'obrigacoes', tipo:'guia',
+                    desc:o.tipo||o.titulo||'Guia', competencia:String(o.competencia||''),
+                    valor:v, venc:String(o.vencimento)});
+      });
+    }catch(e){}
+    itens=itens.filter(function(i){ return /^\d{4}-\d{2}-\d{2}/.test(i.venc); });
+    itens.forEach(function(i){ i.declarada=declaradas[i.colecao+'|'+i.id]||null; });
+    itens.sort(function(a,b){ return a.venc<b.venc?-1:1; });
+    return itens;
+  }
+
+  /* ---------------- desenho ---------------- */
+  function css(){
+    if(el('ap-cobra-css')) return;
+    var s=document.createElement('style'); s.id='ap-cobra-css';
+    s.textContent=
+       '#view-cliente.ap-open #ap-cobra{display:none !important}'
+      +'#ap-cobra{margin:12px 0}'
+      +'#ap-cobra .cx{background:linear-gradient(160deg,#0f2e1c,#0b7f58);border:1.5px solid rgba(52,211,153,.55);'
+      +'border-radius:18px;padding:16px;color:#fff;box-shadow:0 8px 22px rgba(11,127,88,.28)}'
+      +'#ap-cobra .cx.ag{background:linear-gradient(160deg,#101c3d,#1c3a86);border-color:rgba(91,141,255,.55);box-shadow:0 8px 22px rgba(28,58,134,.3)}'
+      +'#ap-cobra .cx.gu{background:linear-gradient(160deg,#2a2210,#7a5a12);border-color:rgba(245,196,80,.55);box-shadow:0 8px 22px rgba(122,90,18,.3)}'
+      +'#ap-cobra .tt{font-size:11.5px;font-weight:800;letter-spacing:.6px;opacity:.9}'
+      +'#ap-cobra h3{margin:3px 0 2px;font-size:17.5px;font-weight:800}'
+      +'#ap-cobra .vl{font-size:27px;font-weight:800;letter-spacing:-.5px;line-height:1.15}'
+      +'#ap-cobra .vc{font-size:12.5px;opacity:.95;margin-top:2px}'
+      +'#ap-cobra .qr{background:#fff;border-radius:14px;padding:9px;display:flex;gap:11px;align-items:center;margin-top:11px}'
+      +'#ap-cobra .qr img{width:96px;height:96px;flex:none;image-rendering:pixelated}'
+      +'#ap-cobra .qr .ch{font-size:11px;color:#0F1B33;word-break:break-all;line-height:1.45}'
+      +'#ap-cobra .bt{display:block;width:100%;border:0;border-radius:13px;padding:14px;font:inherit;font-size:15px;'
+      +'font-weight:800;margin-top:9px;cursor:pointer;background:#0F1B33;color:#fff}'
+      +'#ap-cobra .bt.claro{background:#fff;color:#0B7F58}'
+      +'#ap-cobra .bt.az{background:#3355FF;color:#fff}'
+      +'#ap-cobra .bt.sec{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55)}'
+      +'#ap-cobra .bt:disabled{opacity:.6;cursor:default}'
+      +'#ap-cobra .mais{font-size:12.5px;opacity:.92;margin-top:10px;line-height:1.5}'
+      +'#ap-cobra .drop{border:2px dashed rgba(255,255,255,.5);border-radius:12px;padding:14px 10px;text-align:center;'
+      +'font-size:13px;margin-top:9px;cursor:pointer;display:block}'
+      +'#ap-cobra .drop input{display:none}';
+    document.head.appendChild(s);
+  }
+  function ancora(){
+    var v=el('view-cliente'); if(!v) return null;
+    var pv=el('ap-proxvenc2'); if(pv && pv.parentNode) return {pai:pv.parentNode, antes:pv.nextSibling};
+    var topo=el('cli-topo');   if(topo && topo.parentNode) return {pai:topo.parentNode, antes:topo.nextSibling};
+    return {pai:v, antes:v.firstChild};
+  }
+  function caixa(){
+    var c=el('ap-cobra');
+    if(!c){
+      var a=ancora(); if(!a) return null;
+      c=document.createElement('div'); c.id='ap-cobra';
+      a.pai.insertBefore(c, a.antes);
+    }
+    return c;
+  }
+
+  var ITENS=[], PRINCIPAL=null;
+
+  function html(){
+    var abertos=ITENS.filter(function(i){ return !i.declarada; });
+    var aguardando=ITENS.filter(function(i){ return !!i.declarada; });
+
+    if(!abertos.length && !aguardando.length) return '';
+
+    if(!abertos.length){
+      var soma=0; aguardando.forEach(function(i){ soma+=i.valor; });
+      return '<div class="cx ag"><div class="tt">\u{1F55C} AGUARDANDO CONFERÊNCIA</div>'
+        +'<h3>Você avisou que pagou</h3>'
+        +'<div class="vc">'+aguardando.length+' pagamento'+(aguardando.length>1?'s':'')+' · '+money(soma)
+        +' · a APARAT está conferindo e você recebe o aviso da baixa aqui mesmo.</div></div>';
+    }
+
+    /* o PIX e da APARAT: so entra em HONORARIO. Guia de imposto (DAS, FGTS...)
+       e paga no banco pelo codigo de barras da propria guia - por isso o cartao
+       da guia mostra o valor e o "Ja paguei", mas nunca a chave PIX. */
+    var honorarios=abertos.filter(function(i){ return i.tipo==='honorario'; });
+    PRINCIPAL = honorarios.length ? honorarios[0] : abertos[0];
+    var ehHonorario = PRINCIPAL.tipo==='honorario';
+    var d=dias(PRINCIPAL.venc);
+    var quando = d<0 ? ('venceu em '+dataBR(PRINCIPAL.venc)) : (d===0?'vence HOJE':(d===1?'vence amanhã':'vence em '+d+' dias · '+dataBR(PRINCIPAL.venc)));
+    var resto=abertos.filter(function(i){ return i!==PRINCIPAL; }), somaResto=0;
+    resto.forEach(function(i){ somaResto+=i.valor; });
+
+    var h='<div class="cx'+(ehHonorario?'':' gu')+'">'
+      +'<div class="tt">'+(ehHonorario?'\u{1F4B0} PAGUE AGORA PELO PIX':'\u{1F3DB}\u{FE0F} GUIA EM ABERTO')+'</div>'
+      +'<h3>'+esc(PRINCIPAL.desc)+'</h3>'
+      +'<div class="vl">'+money(PRINCIPAL.valor)+'</div>'
+      +'<div class="vc">'+esc(quando)+(ehHonorario?(' · '+esc(FAVORECIDO)):'')+'</div>';
+    if(ehHonorario){
+      var codigo=pixCopiaCola(PRINCIPAL.valor, idPagamento(PRINCIPAL));
+      var img=qrDataUrl(codigo);
+      h+='<div class="qr">'+(img?('<img src="'+img+'" alt="QR Code PIX">'):'')
+        +'<div class="ch"><b>Pague pelo PIX: o valor já vem preenchido.</b><br>'
+        +'Leia o QR Code no app do banco ou toque em copiar.<br>Chave: '+esc(CHAVE)+'</div></div>'
+        +'<button class="bt claro" id="ap-cobra-copiar">\u{1F4CB} Copiar código PIX</button>';
+    } else {
+      h+='<div class="mais">Esta guia é paga no banco pelo código de barras dela mesma. '
+        +'Abra <b>Minhas Guias</b> para ver o documento.</div>';
+    }
+    h+='<button class="bt sec" id="ap-cobra-paguei">✅ Já paguei</button>';
+    if(resto.length) h+='<div class="mais">Você tem mais '+resto.length+' pagamento'+(resto.length>1?'s':'')+' em aberto · '+money(somaResto)+'. Abra <b>Honorários</b> ou <b>Minhas Guias</b> para ver.</div>';
+    if(aguardando.length) h+='<div class="mais">\u{1F55C} '+aguardando.length+' pagamento'+(aguardando.length>1?'s':'')+' aguardando a conferência da APARAT.</div>';
+    h+='</div>';
+    return h;
+  }
+
+  function ligar(c){
+    var bc=el('ap-cobra-copiar');
+    if(bc) bc.onclick=function(){
+      var codigo=pixCopiaCola(PRINCIPAL.valor, idPagamento(PRINCIPAL));
+      function ok(){ bc.textContent='✅ Código copiado! Cole no app do banco'; setTimeout(function(){ bc.textContent='\u{1F4CB} Copiar código PIX'; },4000); }
+      try{
+        navigator.clipboard.writeText(codigo).then(ok,function(){ manual(codigo,ok); });
+      }catch(e){ manual(codigo,ok); }
+    };
+    var bp=el('ap-cobra-paguei');
+    if(bp) bp.onclick=function(){ escolherForma(bp); };
+  }
+  function manual(codigo,ok){
+    try{
+      var t=document.createElement('textarea'); t.value=codigo;
+      t.style.cssText='position:fixed;opacity:0'; document.body.appendChild(t); t.select();
+      document.execCommand('copy'); document.body.removeChild(t); ok();
+    }catch(e){ aviso('Não consegui copiar. Use a chave: '+CHAVE,'erro'); }
+  }
+
+  function escolherForma(botao){
+    if(el('ap-cobra-formas')) return;
+    var cx=document.createElement('div'); cx.id='ap-cobra-formas';
+    cx.innerHTML='<div class="mais" style="margin-top:12px"><b>Como você pagou?</b></div>'
+      +'<button class="bt az" data-forma="boleto">\u{1F3E6} Paguei no boleto</button>'
+      +'<button class="bt claro" data-forma="pix">\u{1F4F2} Paguei no PIX</button>'
+      +'<label class="drop">\u{1F4CE} Anexar o comprovante (opcional)<input type="file" accept="image/*,application/pdf"></label>'
+      +'<button class="bt sec" data-forma="">Cancelar</button>';
+    botao.parentNode.appendChild(cx);
+    botao.style.display='none';
+
+    var bts=[].slice.call(cx.querySelectorAll('[data-forma]'));
+    bts.forEach(function(b){
+      b.onclick=async function(){
+        var forma=b.getAttribute('data-forma');
+        if(!forma){ cx.remove(); botao.style.display=''; return; }
+        bts.forEach(function(x){ x.disabled=true; });
+        var texto=b.textContent; b.textContent='⏳ Avisando a APARAT...';
+        try{
+          await declarar(PRINCIPAL, null, forma);
+          cx.remove();
+          aviso('Pronto! A APARAT foi avisada e vai conferir o seu pagamento.','ok');
+          await atualizar(true);
+        }catch(e){
+          bts.forEach(function(x){ x.disabled=false; }); b.textContent=texto;
+          aviso('Não consegui avisar: '+(e && (e.message||e)),'erro');
+        }
+      };
+    });
+    var inp=cx.querySelector('input');
+    inp.onchange=async function(){
+      var f=inp.files && inp.files[0]; if(!f) return;
+      var drop=cx.querySelector('.drop'); var antes=drop.innerHTML;
+      drop.textContent='⏳ Enviando '+f.name+'...';
+      try{
+        var comp=null;
+        if(window.__PAGOU__ && window.__PAGOU__.guardarComprovante) comp=await window.__PAGOU__.guardarComprovante(f, cliente());
+        await declarar(PRINCIPAL, comp, 'comprovante');
+        cx.remove();
+        aviso('Pronto! Comprovante enviado, a APARAT vai conferir.','ok');
+        await atualizar(true);
+      }catch(e){
+        drop.innerHTML=antes;
+        aviso('Não consegui enviar o arquivo: '+(e && (e.message||e)),'erro');
+        var novo=cx.querySelector('input'); if(novo) novo.onchange=inp.onchange;
+      }
+    };
+  }
+
+  async function declarar(item, comp, forma){
+    /* usa a mesma gravacao do modulo __APARAT_PAGOU__ quando ele estiver ativo */
+    if(window.__PAGOU__ && window.__PAGOU__.declarar){
+      await window.__PAGOU__.declarar({id:item.id, valor:item.valor, vencimento:item.venc,
+                                       referencia:item.competencia, competencia:item.competencia,
+                                       tipo:item.desc, titulo:item.desc},
+                                      item.tipo, item.colecao, comp, forma);
+      if(window.__PAGOU__.carregar) await window.__PAGOU__.carregar();
+      return;
+    }
+    var d=db(); if(!d) throw new Error('Sem conexão com o banco');
+    var dados={cliente:cliente(), tipo:item.tipo, refColecao:item.colecao, refId:String(item.id),
+               descricao:item.desc, valor:item.valor, vencimento:String(item.venc||''),
+               competencia:String(item.competencia||''), status:'aguardando', forma:String(forma||''),
+               declaradoEm:new Date().toISOString(),
+               declaradoEmBR:p2(new Date().getDate())+'/'+p2(new Date().getMonth()+1)+' às '+p2(new Date().getHours())+'h'+p2(new Date().getMinutes()),
+               origem:'cliente'};
+    if(comp) Object.keys(comp).forEach(function(k){ dados[k]=comp[k]; });
+    try{ dados.criadoEm=(firebase.firestore.FieldValue && firebase.firestore.FieldValue.serverTimestamp)?firebase.firestore.FieldValue.serverTimestamp():new Date(); }catch(e){}
+    await d.collection('pagamentos').add(dados);
+  }
+
+  function desenhar(){
+    css();
+    var c=caixa(); if(!c) return;
+    var h=html();
+    if(!h){ c.innerHTML=''; c.style.display='none'; return; }
+    c.style.display='';
+    c.innerHTML=h;
+    ligar(c);
+  }
+
+  async function atualizar(forcar){
+    var nome=cliente(); if(!nome) return;
+    var itens=await coletar(nome);
+    if(itens===null) return;
+    ITENS=itens;
+    desenhar();
+    if(!window.qrcode) carregarQr();
+    if(forcar){ try{ if(window.__PAGOU__ && window.__PAGOU__.blocoCliente){ await window.__PAGOU__.blocoCliente('honorario'); await window.__PAGOU__.blocoCliente('guia'); } }catch(e){} }
+  }
+
+  async function tick(){
+    if(ocupado) return; ocupado=true;
+    try{
+      if(vcVisivel() && cliente() && !paginaAberta()){ css(); await atualizar(false); }
+      else { var c=el('ap-cobra'); if(c && paginaAberta()) c.style.display='none'; }
+    }catch(e){}
+    ocupado=false;
+  }
+  [1800,4000,9000].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,20000);
+  window.__COBRA__={atualizar:atualizar, pix:pixCopiaCola, itens:function(){ return ITENS; }};
 })();
