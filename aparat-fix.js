@@ -7422,7 +7422,10 @@
     if(carregando) return; var d=db(); if(!d) return;
     carregando=true;
     try{
-      var s=await d.collection(COL).get();
+      /* v71: pela regra do Firestore o cliente so pode listar os pagamentos dele.
+         O escritorio (admin) continua lendo a colecao inteira. */
+      var q = ehAdmin() ? d.collection(COL) : d.collection(COL).where('cliente','==',cliente());
+      var s=await q.get();
       var arr=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; arr.push(o); });
       cache=arr;
     }catch(e){}
