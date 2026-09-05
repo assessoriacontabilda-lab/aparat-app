@@ -1,0 +1,38 @@
+name: Aviso de pagamento com PIX + botoes flutuantes (v70)
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-cobra.yml'
+  workflow_dispatch:
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Subir a versao do script e do cache
+        run: |
+          python3 - << 'PYEOF'
+          import io
+          c = io.open('index.html', encoding='utf-8').read()
+          c = c.replace('aparat-fix.js?v=69', 'aparat-fix.js?v=70')
+          io.open('index.html', 'w', encoding='utf-8').write(c)
+          s = io.open('sw.js', encoding='utf-8').read().replace('aparat-v69', 'aparat-v70')
+          io.open('sw.js', 'w', encoding='utf-8').write(s)
+          n = io.open('index.html', encoding='utf-8').read()
+          f = io.open('aparat-fix.js', encoding='utf-8').read()
+          print('index v70:', 'aparat-fix.js?v=70' in n)
+          print('sw v70:', 'aparat-v70' in io.open('sw.js', encoding='utf-8').read())
+          print('modulo cobranca:', '__APARAT_COBRA__' in f)
+          print('botao whatsapp repetido removido:', "b=document.createElement('a'); b.id='ap-wa-flut2'" not in f)
+          PYEOF
+      - name: Commit e publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "v70: aviso de pagamento com PIX na tela do cliente e limpeza dos botoes flutuantes"
+          git push
