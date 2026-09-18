@@ -1,5 +1,3 @@
-/* teste APARAT */
-var x=1;
 /* =============================================================
    APARAT — ANEXO DA GUIA / BOLETO NO LANÇAMENTO DA OBRIGAÇÃO
    Módulo: __APARAT_GUIA_ANEXO__   ·   v1   ·   18/09/2026
