@@ -1,4 +1,4 @@
-/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v2, 20/09/2026) - uso exclusivo do escritorio
+/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v3, 20/09/2026) - uso exclusivo do escritorio
    - item de menu "Fichas dos Clientes" (#ap-nav-fichas) e pagina #pp-fichas
    - lista dos clientes ativos com sinal (atrasado / atencao / em dia) e o motivo
    - CLIENTE EM FOCO: abrir um cliente acende a faixa neon #fc-topo no alto do painel, em
@@ -11,13 +11,23 @@
    - SETA DE VOLTAR: o modulo guarda o caminho percorrido e volta para a funcao anterior
    - ficha enxuta: numeros + pendencias + atalhos para as abas de verdade + cadastro
      (as abas repetidas da v1 sairam)
-   - SOMENTE LEITURA: nao cria colecao e nao grava nada. O filtro so esconde elementos na tela
-     (classe fc-oculto); nao mexe nos dados nem nos outros modulos
+   - v3: DOIS SINAIS por cliente. FINANCEIRO (vermelho so com honorario ou guia vencida) e
+     TRABALHO DO MES (o que o escritorio ainda nao fez na competencia anterior pisca em
+     laranja neon; nunca fica vermelho). Extrato nao registrado deixou de pintar o cliente todo.
+   - v3: a ficha virou o checklist do mes, com botao "Feito" / "Realizado" / "Desfazer":
+       . obrigacao mensal -> grava em obrigCnpj, MESMO documento da grade Obrigacoes CNPJ ->
+         Mensais (id cliente__AAAA-MM__SIGLA, status ok, origem 'Ficha do Cliente')
+       . extrato -> grava em extratos (id cliente__AAAA-MM), sem arquivo, campo realizado:true;
+         "Sem movimento" grava igual ao botao da aba Extratos
+       . aba Extratos ganha "Marcar todos de MM/AAAA como realizados" (com confirmacao) e o
+         botao "Realizado" dentro da janela de cada celula pendente
+     Desfazer so apaga o que a propria ficha gravou. Nao cria colecao nova.
+   - o filtro do cliente em foco so esconde elementos na tela (classe fc-oculto)
    - window.apAbrirFicha(nome) abre a ficha; window.apFocarCliente(nome|null) liga/desliga o foco */
 ;(function(){
   if(window.__APARAT_FICHA__) return; window.__APARAT_FICHA__=1;
 
-  var INICIO_PADRAO='2026-07';
+  var INICIO_PADRAO='2026-07', ORIGEM='Ficha do Cliente';
   var MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   var ROT={ok:'Em dia', wa:'Atenção', ba:'Atrasado', ne:'Info'};
   var COLS=['clientes','perfilFiscal','obrigacoes','honorarios','extratos','obrigCnpj','notas','solicitacoes','pagamentos'];
@@ -162,62 +172,132 @@
     return {st: hojeISO()>venc ? 'at' : 'pd', venc:venc};
   }
 
-  /* pendencias de um cliente: [{st:'ba'|'wa', t, s, aba}] */
-  function pendencias(c){
-    var nome=c.nome, hoje=hojeISO(), lim=maisDias(5), cp=compAnterior(), p=perfilDe(c), P=[];
+  /* ---- trabalho do mes (competencia anterior): checklist do escritorio ---- */
+  function trabalhoDoMes(c){
+    var nome=c.nome, p=perfilDe(c), cp=compAnterior(), hoje=hojeISO(), T=[];
+    if(cp < String(p.inicio||INICIO_PADRAO)) return T;
+    var obrs=obrsMensais(p).slice();
+    if(p.regime==='Simples') obrs.unshift({s:'PGDAS', n:'PGDAS-D', dia:20});
+    obrs.forEach(function(o){
+      var x=sitObrig(nome,p,o,cp), r=x.r||null;
+      if(x.st==='na') return;
+      var feito=(x.st==='ok');
+      T.push({tipo:'obr', sigla:o.s, n:o.n+' '+compTxt(cp), cp:cp, venc:x.venc, feito:feito, andamento:(x.st==='an'),
+              vencido:(!feito && hoje>x.venc), r:r, porGuia:!!x.guia, meu:!!(r && r.origem===ORIGEM)});
+    });
+    var e=extratoDe(nome,cp), pz=vencDia(cp,10,false);
+    T.push({tipo:'ext', n:'Extrato bancário '+compTxt(cp), cp:cp, venc:pz, feito:!!e, vencido:(!e && hoje>pz), r:e, meu:!!(e && e.origemFicha && !e.arquivoUrl && !e.arquivoData)});
+    return T;
+  }
+  /* ---- financeiro: so dinheiro ---- */
+  function financeiro(c){
+    var nome=c.nome, hoje=hojeISO(), F=[];
     de('obrigacoes',nome).forEach(function(g){
-      var v=String(g.vencimento||'').slice(0,10); if(guiaPaga(g)||!v) return;
-      if(v<hoje) P.push({st:'ba', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia venceu em '+dataBR(v)+' e está sem baixa', aba:'guias'});
-      else if(v<=lim) P.push({st:'wa', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia vence em '+dataBR(v), aba:'guias'});
+      var v=String(g.vencimento||'').slice(0,10); if(guiaPaga(g)||!v||v>=hoje) return;
+      F.push({st:'ba', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia venceu em '+dataBR(v)+' e está sem baixa'+(num(g.valor)?(' · '+moeda(num(g.valor))):''), aba:'guias'});
     });
     de('honorarios',nome).forEach(function(h){
-      var v=String(h.vencimento||'').slice(0,10); if(honPago(h)||!v) return;
-      if(v<hoje) P.push({st:'ba', t:'Honorário '+String(h.referencia||''), s:'Venceu em '+dataBR(v)+' · '+moeda(num(h.valor)), aba:'hon'});
+      var v=String(h.vencimento||'').slice(0,10); if(honPago(h)||!v||v>=hoje) return;
+      F.push({st:'ba', t:'Honorário '+String(h.referencia||''), s:'Venceu em '+dataBR(v)+' · '+moeda(num(h.valor)), aba:'hon'});
     });
-    if(cp>=String(p.inicio||INICIO_PADRAO) && !extratoDe(nome,cp)){
-      var pz=vencDia(cp,10,false);
-      if(hoje>pz) P.push({st:'ba', t:'Extrato '+compTxt(cp), s:'Não entregue · o prazo era '+dataBR(pz), aba:'extratos'});
-      else P.push({st:'wa', t:'Extrato '+compTxt(cp), s:'Ainda não entregue · prazo '+dataBR(pz), aba:'extratos'});
-    }
-    obrsMensais(p).forEach(function(o){
-      var x=sitObrig(nome,p,o,cp);
-      if(x.st==='at') P.push({st:'ba', t:o.n+' '+compTxt(cp), s:'Não marcado como feito · o prazo era '+dataBR(x.venc), aba:'obrig'});
-      else if(x.st==='pd' && x.venc<=lim) P.push({st:'wa', t:o.n+' '+compTxt(cp), s:'A fazer · prazo '+dataBR(x.venc), aba:'obrig'});
+    return F;
+  }
+  /* ---- avisos: nem dinheiro vencido nem tarefa do mes ---- */
+  function avisos(c){
+    var nome=c.nome, hoje=hojeISO(), lim=maisDias(5), p=perfilDe(c), A=[];
+    de('obrigacoes',nome).forEach(function(g){
+      var v=String(g.vencimento||'').slice(0,10); if(guiaPaga(g)||!v) return;
+      if(v>=hoje && v<=lim) A.push({st:'wa', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia do cliente vence em '+dataBR(v), aba:'guias'});
     });
     de('solicitacoes',nome).filter(solicAberta).forEach(function(s){
-      P.push({st:'wa', t:'Solicitação em aberto', s:String(s.servico||s.mensagem||'').slice(0,90), aba:'solic'});
+      A.push({st:'wa', t:'Solicitação em aberto', s:String(s.servico||s.mensagem||'').slice(0,90), aba:'solic'});
     });
     de('notas',nome).filter(pedidoNF).forEach(function(n){
-      P.push({st:'wa', t:'Pedido de nota fiscal', s:String(n.descricao||'').slice(0,90)+(n.valor?(' · '+moeda(num(n.valor))):''), aba:'notas'});
+      A.push({st:'wa', t:'Pedido de nota fiscal', s:String(n.descricao||'').slice(0,90)+(n.valor?(' · '+moeda(num(n.valor))):''), aba:'notas'});
     });
     declPendente(nome).forEach(function(d){
-      P.push({st:'wa', t:'Cliente avisou que pagou', s:'Conferir o pagamento declarado'+(d.declaradoEmBR?(' em '+d.declaradoEmBR):''), aba:(String(d.refColecao||'')==='honorarios'?'hon':'guias')});
+      A.push({st:'wa', t:'Cliente avisou que pagou', s:'Conferir o pagamento declarado'+(d.declaradoEmBR?(' em '+d.declaradoEmBR):''), aba:(String(d.refColecao||'')==='honorarios'?'hon':'guias')});
     });
     [['certValidade','Certificado digital'],['alvaraValidade','Alvará']].forEach(function(par){
       var v=String(p[par[0]]||'').slice(0,10); if(!v) return; var n=diasAte(v); if(n===null) return;
-      if(n<0) P.push({st:'ba', t:par[1], s:'Venceu em '+dataBR(v), aba:'obrig'});
-      else if(n<=60) P.push({st:'wa', t:par[1], s:'Vence em '+n+' dia'+(n===1?'':'s')+' ('+dataBR(v)+')', aba:'obrig'});
+      if(n<0) A.push({st:'wa', t:par[1], s:'Venceu em '+dataBR(v), aba:'obrig'});
+      else if(n<=60) A.push({st:'wa', t:par[1], s:'Vence em '+n+' dia'+(n===1?'':'s')+' ('+dataBR(v)+')', aba:'obrig'});
     });
-    P.sort(function(a,b){ return (a.st==='ba'?0:1)-(b.st==='ba'?0:1); });
-    return P;
+    return A;
   }
+  /* compatibilidade com a v2: tudo junto */
+  function pendencias(c){ return financeiro(c).concat(avisos(c)); }
 
   function montarLista(){
     lista=(D.clientes||[]).filter(function(c){ var n=String(c.nome||'').trim(); return n && n!=='Todos os Clientes' && ativo(c); })
       .map(function(c){
-        var P=pendencias(c), st=P.length ? P[0].st : 'ok', p=perfilDe(c);
-        var nb=P.filter(function(x){ return x.st==='ba'; }).length;
-        var motivo = !P.length ? 'Tudo em dia' : (P[0].t+(P.length>1?(' · mais '+(P.length-1)):''));
-        return {c:c, nome:String(c.nome).trim(), st:st, P:P, nb:nb, motivo:motivo, tipo:(p.regime==='MEI'?'MEI':'ME'), p:p};
+        var F=financeiro(c), T=trabalhoDoMes(c), A=avisos(c), p=perfilDe(c);
+        var falta=T.filter(function(t){ return !t.feito; });
+        var st = F.length ? 'ba' : ((falta.length||A.length) ? 'wa' : 'ok');
+        return {c:c, nome:String(c.nome).trim(), st:st, F:F, T:T, A:A, P:F.concat(A), falta:falta.length, tipo:(p.regime==='MEI'?'MEI':'ME'), p:p};
       });
-    var ord={ba:0,wa:1,ok:2};
-    lista.sort(function(a,b){ return ord[a.st]-ord[b.st] || b.nb-a.nb || a.nome.localeCompare(b.nome); });
+    lista.sort(function(a,b){ return (b.F.length?1:0)-(a.F.length?1:0) || b.falta-a.falta || b.A.length-a.A.length || a.nome.localeCompare(b.nome); });
     pintarPonto();
   }
+  /* a bolinha do menu e so um ponto (sem texto, para nao grudar no nome do quadradinho do Inicio):
+     acende quando algum cliente tem dinheiro vencido */
   function pintarPonto(){
     var d=el('dot-fichas'); if(!d) return;
-    var n=lista.filter(function(x){ return x.st==='ba'; }).length;
-    d.style.display = n ? '' : 'none'; d.textContent = n ? String(n) : '';
+    var n=lista.filter(function(x){ return x.F.length>0; }).length;
+    d.textContent=''; d.style.display = n ? 'inline-block' : 'none';
+    d.title = n ? (n+' cliente(s) com honorário ou guia vencida') : '';
+  }
+
+  /* ================= gravacoes da v3 (Feito / Realizado / Desfazer) ================= */
+  function agoraBR(){ return new Date().toLocaleString('pt-BR'); }
+  function trocaLocal(col, id, dados){
+    var v=D[col]||(D[col]=[]), i=-1;
+    for(var k=0;k<v.length;k++){ if(v[k].id===id){ i=k; break; } }
+    if(dados===null){ if(i>=0) v.splice(i,1); return; }
+    dados.id=id; if(i>=0){ for(var f in dados) v[i][f]=dados[f]; } else v.push(dados);
+  }
+  function depoisDeGravar(){
+    montarLista(); render(); aplicarFoco(true);
+    try{ var b=el('ex-recarrega'); var pe=el('pp-extratos'); if(b && pe && pe.classList.contains('active')) b.click(); }catch(e){}
+  }
+  async function marcarObrig(nome, cp, sigla){
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return false; }
+    var id=limpo(nome)+'__'+cp+'__'+sigla;
+    var dados={cliente:nome, competencia:cp, sigla:sigla, status:'ok', origem:ORIGEM, responsavel:'Daniel', entregaEm:hojeISO(), atualizadoEm:new Date().toISOString()};
+    try{ await d.collection('obrigCnpj').doc(id).set(dados,{merge:true}); trocaLocal('obrigCnpj',id,dados); return true; }
+    catch(e){ aviso('Não consegui gravar: '+(e&&e.message?e.message:e),'warn'); return false; }
+  }
+  async function desfazerObrig(nome, cp, sigla){
+    var d=db(); if(!d) return false; var id=limpo(nome)+'__'+cp+'__'+sigla, r=regObrig(nome,cp,sigla);
+    if(!r || r.origem!==ORIGEM){ aviso('Essa marcação foi feita em outra tela. Desfaça por lá.','info'); return false; }
+    try{ await d.collection('obrigCnpj').doc(id).delete(); trocaLocal('obrigCnpj',id,null); return true; }
+    catch(e){ aviso('Não consegui desfazer: '+(e&&e.message?e.message:e),'warn'); return false; }
+  }
+  async function marcarExtrato(nome, cp, como){
+    var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return false; }
+    if(extratoDe(nome,cp)) return true;                      /* nunca passa por cima de um extrato ja registrado */
+    var id=limpo(nome)+'__'+cp, semMov=/sem movimento/i.test(String(como||''));
+    var dados = semMov
+      ? {cliente:nome, competencia:cp, semMovimento:true, situacao:'sm', origem:'escritorio', enviadoEm:agoraBR(), ts:Date.now(), realizado:true, origemFicha:true}
+      : {cliente:nome, competencia:cp, semMovimento:false, situacao:'ok', arquivoNome:'Realizado — '+String(como||'recebido fora do app'), arquivoUrl:'', arquivoData:'', arquivoPath:'',
+         origem:'escritorio', enviadoEm:agoraBR(), ts:Date.now(), realizado:true, origemFicha:true, recebidoPor:String(como||'')};
+    try{ await d.collection('extratos').doc(id).set(dados,{merge:true}); trocaLocal('extratos',id,dados); return true; }
+    catch(e){ aviso('Não consegui gravar o extrato: '+(e&&e.message?e.message:e),'warn'); return false; }
+  }
+  async function desfazerExtrato(nome, cp){
+    var d=db(); if(!d) return false; var r=extratoDe(nome,cp);
+    if(!r || !r.origemFicha || r.arquivoUrl || r.arquivoData){ aviso('Esse extrato tem arquivo ou foi registrado em outra tela. Use a aba Extratos.','info'); return false; }
+    try{ await d.collection('extratos').doc(limpo(nome)+'__'+cp).delete(); trocaLocal('extratos',r.id,null); return true; }
+    catch(e){ aviso('Não consegui desfazer: '+(e&&e.message?e.message:e),'warn'); return false; }
+  }
+  function semExtrato(cp){
+    return lista.filter(function(x){ return cp>=String(x.p.inicio||INICIO_PADRAO) && !extratoDe(x.nome,cp); });
+  }
+  async function marcarTodosExtratos(cp, como){
+    var alvo=semExtrato(cp), ok=0;
+    for(var i=0;i<alvo.length;i++){ if(await marcarExtrato(alvo[i].nome, cp, como)) ok++; }
+    aviso('\u{2705} '+ok+' extrato(s) de '+compTxt(cp)+' marcados como realizados.','ok');
+    depoisDeGravar();
   }
 
   /* ================= estilo ================= */
@@ -304,6 +384,33 @@
       +'body.ap-esc-claro #fc-topo .fc-cont,body.ap-esc-claro #fc-topo .fc-fav,body.ap-esc-claro #pp-fichas .fc-foco-txt{color:#00806f}'
       +'#fc-topo .fc-chip.ok{background:rgba(14,159,110,.16);color:#2fd29b}#fc-topo .fc-chip.wa{background:rgba(226,160,63,.17);color:#e2a03f}#fc-topo .fc-chip.ba{background:rgba(217,45,32,.16);color:#ff6b60}'
       +'body.ap-esc-claro #fc-topo .fc-chip.ok{color:#0e9f6e}body.ap-esc-claro #fc-topo .fc-chip.wa{color:#b45309}body.ap-esc-claro #fc-topo .fc-chip.ba{color:#d92d20}'
+      +'#pp-fichas .fc-bol.lar{background:#ff8a00}'
+      +'#pp-fichas .fc-cli.v3{flex-direction:column;gap:10px;align-items:stretch}#pp-fichas .fc-cli.v3.din{border-left:4px solid #ff5a4f}'
+      +'#pp-fichas .fc-l1{display:flex;gap:11px;align-items:flex-start}'
+      +'#pp-fichas .fc-duo{display:grid;grid-template-columns:1fr 1fr;gap:8px}'
+      +'#pp-fichas .fc-ind{border-radius:12px;padding:7px 10px;font-size:11px;line-height:1.3;background:rgba(127,140,170,.10);color:var(--cinza);border:1.5px solid transparent;min-width:0}'
+      +'#pp-fichas .fc-ind b{display:block;font-size:12.5px;font-weight:800;color:inherit;word-break:break-word}'
+      +'#pp-fichas .fc-ind.verm{background:rgba(217,45,32,.14);color:#ff6b60}#pp-fichas .fc-ind.verde{background:rgba(14,159,110,.14);color:#2fd29b}'
+      +'#pp-fichas .fc-ind.fazer{background:rgba(255,138,0,.12);border-color:#ff8a00;color:#ff9d2e;animation:fcPisca 1.5s ease-in-out infinite}'
+      +'body.ap-esc-claro #pp-fichas .fc-ind.verm{color:#d92d20}body.ap-esc-claro #pp-fichas .fc-ind.verde{color:#0e9f6e}body.ap-esc-claro #pp-fichas .fc-ind.fazer{color:#c25e00}'
+      +'@keyframes fcPisca{0%,100%{box-shadow:0 0 0 0 rgba(255,138,0,.55)}50%{box-shadow:0 0 14px 1px rgba(255,138,0,.6)}}'
+      +'#pp-fichas .fc-lin.fc-fazer{border:1.5px solid #ff8a00;border-radius:14px;padding:11px 12px;margin:8px 0;background:rgba(255,138,0,.10);animation:fcPisca 1.5s ease-in-out infinite}'
+      +'#pp-fichas .fc-lin.fc-feito{opacity:.8}'
+      +'@media (prefers-reduced-motion:reduce){#pp-fichas .fc-ind.fazer,#pp-fichas .fc-lin.fc-fazer{animation:none}}'
+      +'#pp-fichas .fc-bt.ok{background:#0e9f6e;border-color:#0e9f6e;color:#fff}#pp-fichas .fc-bt.lar{border-color:#ff8a00;color:#ff9d2e}'
+      +'#pp-fichas .fc-bt:disabled{opacity:.55;cursor:wait}'
+      +'body.ap-esc-claro #pp-fichas .fc-bt.lar{color:#c25e00}'
+      +'#pp-fichas .fc-chip.lar,#fc-topo .fc-chip.lar{background:rgba(255,138,0,.13);color:#ff9d2e;border:1px solid #ff8a00}'
+      +'body.ap-esc-claro #pp-fichas .fc-chip.lar,body.ap-esc-claro #fc-topo .fc-chip.lar{color:#c25e00}'
+      +'#pp-fichas .fc-por{font:inherit;font-size:12px;padding:7px 8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:inherit;max-width:100%}'
+      +'#fc-ex-bar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:0 0 10px}#fc-ex-bar:empty{display:none}'
+      +'#fc-ex-bar .fc-xb{font:inherit;font-size:12.5px;font-weight:700;padding:9px 14px;border-radius:11px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer}'
+      +'#fc-ex-bar .fc-xb.lar{border-color:#ff8a00;color:#ff9d2e}#fc-ex-bar .fc-xb.ok{background:#0e9f6e;border-color:#0e9f6e;color:#fff}'
+      +'body.ap-esc-claro #fc-ex-bar .fc-xb.lar{color:#c25e00}'
+      +'#fc-ex-bar .fc-xs{font-size:11.5px;color:var(--cinza)}'
+      +'#fc-ex-bar .fc-conf{flex:1;border:2px solid #ff8a00;border-radius:16px;padding:13px 14px;background:var(--card)}'
+      +'#fc-ex-bar .fc-conf b{display:block;font-size:13.5px;margin-bottom:3px}#fc-ex-bar .fc-conf span{font-size:12px;color:var(--cinza)}'
+      +'#fc-ex-bar .fc-conf div{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}'
       +'.fc-oculto{display:none!important}'
       +'#view-painel tr.fc-aceso>td{background:rgba(0,194,168,.12)!important;box-shadow:inset 0 1px 0 #00c2a8,inset 0 -1px 0 #00c2a8}'
       +'#view-painel tr.fc-aceso>td:first-child{box-shadow:inset 3px 0 0 #00c2a8,inset 0 1px 0 #00c2a8,inset 0 -1px 0 #00c2a8}'
@@ -474,7 +581,8 @@
       }
     }
     /* 2. a faixa do alto */
-    var assinatura=[foco||'', id, ant?(ant.id+'|'+(ant.sel||'')):'', cont, (id==='pp-fichas'&&sel)?'f':''].join('~');
+    var xf=null; for(var q=0;q<lista.length;q++){ if(foco && mesmo(lista[q].nome,foco)){ xf=lista[q]; break; } }
+    var assinatura=[foco||'', id, ant?(ant.id+'|'+(ant.sel||'')):'', cont, (id==='pp-fichas'&&sel)?'f':'', xf?(xf.F.length+'/'+xf.falta):''].join('~');
     if(!redesenhar && assinatura===contagem){ grudar(); return; }
     contagem=assinatura;
     var h='';
@@ -483,7 +591,8 @@
       var x=null; for(var i=0;i<lista.length;i++){ if(mesmo(lista[i].nome,foco)){ x=lista[i]; break; } }
       h+='<div class="fc-faixa"><div class="fc-fav">'+esc(iniciais(foco))+'</div><div class="fc-finf"><small>Trabalhando em</small><b>'+esc(foco)+'</b></div>'
         +(cont?'<span class="fc-cont">'+esc(cont)+'</span>':'')
-        +(x?'<span class="fc-chip '+x.st+'" style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px">'+ROT[x.st]+'</span>':'')
+        +((x&&x.F.length)?'<span class="fc-chip ba" style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px">dinheiro vencido</span>':'')
+        +((x&&x.falta)?'<span class="fc-chip lar" style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px">'+x.falta+' a fazer</span>':'')
         +((id==='pp-fichas'&&sel)?'':'<button class="fc-fb" id="fc-abre">\u{1F4C7} Ficha</button>')
         +'<button class="fc-fb" id="fc-solta">\u{2716} Ver todos os clientes</button></div>';
     }
@@ -525,21 +634,30 @@
   function renderLista(box){
     var q=busca.toLowerCase().trim(), qd=soDig(q);
     var v=lista.filter(function(x){
-      if(filtro!=='todos' && x.st!==filtro && x.tipo!==filtro) return false;
+      if(filtro==='din' && !x.F.length) return false;
+      if(filtro==='fazer' && !x.falta) return false;
+      if(filtro==='ok' && (x.F.length || x.falta)) return false;
+      if((filtro==='ME'||filtro==='MEI') && x.tipo!==filtro) return false;
       if(!q) return true;
       return x.nome.toLowerCase().indexOf(q)>=0 || (qd.length>=3 && soDig(x.c.cnpj).indexOf(qd)>=0);
     });
-    var n={ok:0,wa:0,ba:0}; lista.forEach(function(x){ n[x.st]++; });
-    var h='<div class="fc-h">\u{1F4C7} Fichas dos Clientes</div><div class="fc-sub">Clique em um cliente para ver tudo dele em um lugar só. Quem precisa de atenção aparece primeiro.</div>';
+    var nD=lista.filter(function(x){ return x.F.length; }).length, nF=lista.filter(function(x){ return x.falta; }).length,
+        nO=lista.filter(function(x){ return !x.F.length && !x.falta; }).length;
+    var h='<div class="fc-h">\u{1F4C7} Fichas dos Clientes</div><div class="fc-sub">Cada cliente tem dois sinais: o <b>dinheiro</b> e o <b>trabalho do mês</b> ('+esc(compTxt(compAnterior()))+'). Clique para abrir a ficha.</div>';
     if(!tCarga){ box.innerHTML=h+'<div class="fc-vazio">Carregando os clientes...</div>'; return; }
-    h+='<div class="fc-leg"><span><i class="fc-bol ba"></i>'+n.ba+' atrasado'+(n.ba===1?'':'s')+'</span><span><i class="fc-bol wa"></i>'+n.wa+' com atenção</span><span><i class="fc-bol ok"></i>'+n.ok+' em dia</span></div>';
+    h+='<div class="fc-leg"><span><i class="fc-bol ba"></i>'+nD+' com dinheiro vencido</span><span><i class="fc-bol lar"></i>'+nF+' com trabalho do mês a fazer</span><span><i class="fc-bol ok"></i>'+nO+' em dia</span></div>';
     h+='<div class="fc-barra"><input id="fc-q" placeholder="Buscar por nome ou CNPJ" autocomplete="off" value="'+esc(busca)+'">';
-    [['todos','Todos'],['ba','Atrasados'],['wa','Atenção'],['ok','Em dia'],['ME','Só ME'],['MEI','Só MEI']].forEach(function(f){ h+='<button class="fc-f'+(filtro===f[0]?' on':'')+'" data-fc-f="'+f[0]+'">'+f[1]+'</button>'; });
+    [['todos','Todos'],['din','Dinheiro vencido'],['fazer','A fazer no mês'],['ok','Em dia'],['ME','Só ME'],['MEI','Só MEI']].forEach(function(f){ h+='<button class="fc-f'+(filtro===f[0]?' on':'')+'" data-fc-f="'+f[0]+'">'+f[1]+'</button>'; });
     h+='<button class="fc-f" id="fc-atu" title="Ler os dados de novo">\u{1F504} Atualizar</button></div><div class="fc-grade">';
     v.forEach(function(x){
       var ac=foco && mesmo(x.nome,foco);
-      h+='<div class="fc-cli '+x.st+(ac?' aceso':'')+'" data-fc-cli="'+esc(x.nome)+'"><div class="fc-av">'+esc(iniciais(x.nome))+'</div><div style="flex:1;min-width:0"><b>'+esc(x.nome)+'</b>'
-        +'<small>'+x.tipo+' · '+esc(cnpjFmt(x.c.cnpj))+'</small><div class="fc-mot"><span class="fc-chip '+x.st+'">'+ROT[x.st]+'</span> '+esc(x.motivo)+(ac?' · <span class="fc-foco-txt">em foco</span>':'')+'</div></div></div>';
+      var fin = x.F.length ? ('<div class="fc-ind verm">\u{1F4B0} Financeiro<b>'+esc(x.F.length===1 ? x.F[0].t : (x.F.length+' vencidos'))+'</b></div>')
+                           : '<div class="fc-ind verde">\u{1F4B0} Financeiro<b>Em dia</b></div>';
+      var tra = x.falta ? ('<div class="fc-ind fazer">\u{1F4CB} Trabalho do mês<b>'+x.falta+' a fazer</b></div>')
+                        : (x.T.length ? '<div class="fc-ind verde">\u{1F4CB} Trabalho do mês<b>Tudo feito</b></div>' : '<div class="fc-ind">\u{1F4CB} Trabalho do mês<b>—</b></div>');
+      h+='<div class="fc-cli v3'+(x.F.length?' din':'')+(ac?' aceso':'')+'" data-fc-cli="'+esc(x.nome)+'"><div class="fc-l1"><div class="fc-av">'+esc(iniciais(x.nome))+'</div><div style="flex:1;min-width:0"><b>'+esc(x.nome)+'</b>'
+        +'<small>'+x.tipo+' · '+esc(cnpjFmt(x.c.cnpj))+(x.A.length?(' · '+x.A.length+' aviso'+(x.A.length>1?'s':'')):'')+(ac?' · <span class="fc-foco-txt">em foco</span>':'')+'</small></div></div>'
+        +'<div class="fc-duo">'+fin+tra+'</div></div>';
     });
     if(!v.length) h+='<div class="fc-vazio" style="grid-column:1/-1">Nenhum cliente encontrado com esse filtro.</div>';
     box.innerHTML=h+'</div>';
@@ -553,30 +671,49 @@
     var x=null; for(var i=0;i<lista.length;i++){ if(mesmo(lista[i].nome,sel)){ x=lista[i]; break; } }
     if(!x){ box.innerHTML='<div class="fc-card"><div class="fc-vazio">'+(tCarga?'Cliente não encontrado entre os ativos.':'Carregando a ficha...')+'</div></div>'; return; }
     var c=x.c, p=x.p, nome=x.nome, cp=compAnterior(), hoje=hojeISO();
-    var gAb=de('obrigacoes',nome).filter(function(g){ return !guiaPaga(g); });
-    var gVe=gAb.filter(function(g){ var v=String(g.vencimento||'').slice(0,10); return v && v<hoje; }).length;
     var hAb=de('honorarios',nome).filter(function(o){ return !honPago(o); }), hTot=0; hAb.forEach(function(o){ hTot+=num(o.valor); });
-    var hVe=hAb.filter(function(o){ var v=String(o.vencimento||'').slice(0,10); return v && v<hoje; }).length;
-    var ex=extratoDe(nome,cp), exCabe=cp>=String(p.inicio||INICIO_PADRAO), exAtr=!ex && hoje>vencDia(cp,10,false);
-    var ped=de('solicitacoes',nome).filter(solicAberta).length+de('notas',nome).filter(pedidoNF).length;
+    var gAb=de('obrigacoes',nome).filter(function(g){ return !guiaPaga(g); });
     var tel=soDig(c.whatsapp||c.telefone||c.celular||''), txt='Olá! Aqui é a APARAT Contabilidade.';
     var wa=tel ? ('https://wa.me/55'+tel+'?text='+encodeURIComponent(txt)) : ('https://wa.me/?text='+encodeURIComponent(txt));
     var conta={}; x.P.forEach(function(k){ var o=conta[k.aba]||(conta[k.aba]={n:0,ba:0}); o.n++; if(k.st==='ba') o.ba++; });
 
     var h='<div class="fc-card"><div class="fc-cab"><div class="fc-av">'+esc(iniciais(nome))+'</div><div class="fc-inf"><b>'+esc(nome)+'</b>'
       +'<span>'+x.tipo+' · '+esc(String(c.regime||p.regime||'regime não informado'))+(p.anexo?(' · anexo '+esc(p.anexo)):'')+'</span><span>'+esc(cnpjFmt(c.cnpj))+'</span></div>'
-      +'<span class="fc-chip '+x.st+'">'+ROT[x.st]+'</span>'
       +'<a class="fc-bt" href="'+esc(wa)+'" target="_blank" rel="noopener">\u{1F4F2} WhatsApp</a>'
       +'<button class="fc-bt az" id="fc-lg">\u{2795} Lançar guia</button></div>';
-    h+='<div class="fc-nums">'
-      +'<div class="fc-num"><small>Guias em aberto</small><b class="'+(gVe?'c-ba':(gAb.length?'c-wa':'c-ok'))+'">'+gAb.length+(gVe?(' · '+gVe+' vencida'+(gVe>1?'s':'')):'')+'</b></div>'
-      +'<div class="fc-num"><small>Honorários em aberto</small><b class="'+(hVe?'c-ba':(hAb.length?'c-wa':'c-ok'))+'">'+(hAb.length?(hAb.length+' · '+moeda(hTot)):'Nenhum')+'</b></div>'
-      +'<div class="fc-num"><small>Extrato '+esc(compTxt(cp))+'</small><b class="'+(!exCabe?'':(ex?'c-ok':(exAtr?'c-ba':'c-wa')))+'">'+(!exCabe?'—':(ex?(ex.semMovimento?'Sem movimento':'Entregue'):(exAtr?'Não entregue':'Aguardando')))+'</b></div>'
-      +'<div class="fc-num"><small>Pedidos do cliente em aberto</small><b class="'+(ped?'c-wa':'c-ok')+'">'+ped+'</b></div></div>';
 
-    h+='<div class="fc-sec">O que precisa de atenção</div>';
-    if(!x.P.length) h+=linha('Tudo em dia','Nenhuma pendência encontrada para este cliente.','ok','Em dia');
-    x.P.forEach(function(k){ h+='<div class="fc-lin clic" data-fc-vai="'+k.aba+'"><div class="fc-t"><b>'+esc(k.t)+'</b><small>'+esc(k.s)+'</small></div><span class="fc-chip '+k.st+'">'+ROT[k.st]+'</span></div>'; });
+    /* 1. trabalho do mes */
+    h+='<div class="fc-sec">\u{1F4CB} Trabalho do mês — competência '+esc(compTxt(cp))+' '+(x.falta?('<span class="fc-chip lar">'+x.falta+' a fazer</span>'):(x.T.length?'<span class="fc-chip ok">tudo feito</span>':''))+'</div>';
+    if(!x.T.length) h+=vazio('O controle mensal deste cliente ainda não começou nesta competência.');
+    x.T.forEach(function(t,i){
+      if(t.feito){
+        var r=t.r||{}, det = t.tipo==='ext'
+            ? (r.semMovimento ? 'Sem movimento no mês' : (r.realizado ? String(r.arquivoNome||'Realizado') : ('Entregue'+(r.arquivoNome?(' · '+r.arquivoNome):''))))+(r.enviadoEm?(' · '+r.enviadoEm):'')
+            : (t.porGuia ? 'Guia já lançada na aba Guias' : ('Feito'+(r.entregaEm?(' em '+dataBR(r.entregaEm)):'')+(r.origem?(' · '+r.origem):'')));
+        h+='<div class="fc-lin fc-feito"><div class="fc-t"><b>\u{2714} '+esc(t.n)+'</b><small>'+esc(det)+'</small></div>'
+          +(t.meu?'<button class="fc-bt mini" data-fc-des="'+i+'">\u{21A9}\u{FE0F} Desfazer</button>':'')+'<span class="fc-chip ok">Feito</span></div>';
+      }else{
+        h+='<div class="fc-lin fc-fazer"><div class="fc-t"><b>'+esc(t.n)+'</b><small>'+(t.vencido?('Prazo era '+dataBR(t.venc)+' · ainda não marcado'):('A fazer · prazo '+dataBR(t.venc)))+(t.andamento?' · em andamento':'')+'</small></div>'
+          +(t.tipo==='ext'
+             ? '<select class="fc-por" id="fc-por'+i+'"><option>recebido por WhatsApp</option><option>recebido por e-mail</option><option>já lançado no Domínio</option><option>sem movimento no mês</option></select>'
+               +'<button class="fc-bt ok" data-fc-ok="'+i+'">\u{2714} Realizado</button><button class="fc-bt lar" data-fc-vai="extratos">\u{1F4CE} Anexar arquivo</button>'
+             : '<button class="fc-bt ok" data-fc-ok="'+i+'">\u{2714} Feito</button>')+'</div>';
+      }
+    });
+
+    /* 2. financeiro */
+    h+='<div class="fc-sec">\u{1F4B0} Financeiro</div>';
+    h+='<div class="fc-lin clic" data-fc-vai="hon"><div class="fc-t"><b>Honorários</b><small>'+(hAb.length?(hAb.length+' em aberto · '+moeda(hTot)):'Nenhum em aberto')+'</small></div>'
+      +'<span class="fc-chip '+(x.F.some(function(k){ return k.aba==='hon'; })?'ba':'ok')+'">'+(x.F.some(function(k){ return k.aba==='hon'; })?'Em atraso':'Em dia')+'</span></div>';
+    h+='<div class="fc-lin clic" data-fc-vai="guias"><div class="fc-t"><b>Guias do cliente</b><small>'+(gAb.length?(gAb.length+' em aberto'):'Nenhuma em aberto')+'</small></div>'
+      +'<span class="fc-chip '+(x.F.some(function(k){ return k.aba==='guias'; })?'ba':'ok')+'">'+(x.F.some(function(k){ return k.aba==='guias'; })?'Vencida':'Em dia')+'</span></div>';
+    x.F.forEach(function(k){ h+='<div class="fc-lin clic" data-fc-vai="'+k.aba+'"><div class="fc-t"><b>'+esc(k.t)+'</b><small>'+esc(k.s)+'</small></div><span class="fc-chip ba">Vencido</span></div>'; });
+
+    /* 3. avisos */
+    if(x.A.length){
+      h+='<div class="fc-sec">\u{1F514} Avisos</div>';
+      x.A.forEach(function(k){ h+='<div class="fc-lin clic" data-fc-vai="'+k.aba+'"><div class="fc-t"><b>'+esc(k.t)+'</b><small>'+esc(k.s)+'</small></div><span class="fc-chip wa">Atenção</span></div>'; });
+    }
 
     h+='<div class="fc-sec">Abrir deste cliente</div><div class="fc-atalhos">';
     ATALHOS.forEach(function(a){
@@ -591,6 +728,17 @@
       else irMenu(/Guias/);
     };
     [].forEach.call(box.querySelectorAll('[data-fc-vai]'),function(b){ b.onclick=function(){ irPara(b.getAttribute('data-fc-vai')); }; });
+    [].forEach.call(box.querySelectorAll('[data-fc-ok]'),function(b){ b.onclick=async function(){
+      var t=x.T[Number(b.getAttribute('data-fc-ok'))]; if(!t || b.disabled) return; b.disabled=true; b.textContent='Gravando...';
+      var ok = t.tipo==='ext' ? await marcarExtrato(nome, t.cp, (el('fc-por'+b.getAttribute('data-fc-ok'))||{}).value) : await marcarObrig(nome, t.cp, t.sigla);
+      if(ok) aviso('\u{2705} '+t.n+' marcado como feito.','ok');
+      depoisDeGravar();
+    }; });
+    [].forEach.call(box.querySelectorAll('[data-fc-des]'),function(b){ b.onclick=async function(){
+      var t=x.T[Number(b.getAttribute('data-fc-des'))]; if(!t || b.disabled) return; b.disabled=true;
+      if(t.tipo==='ext') await desfazerExtrato(nome, t.cp); else await desfazerObrig(nome, t.cp, t.sigla);
+      depoisDeGravar();
+    }; });
   }
   /* atalhos da ficha -> abas de verdade (o foco ja esta ligado, entao elas abrem filtradas) */
   var ATALHOS=[
@@ -612,6 +760,37 @@
       try{ window.scrollTo(0,0); var m=document.querySelector('#view-painel .main, #view-painel .content'); if(m) m.scrollTop=0; }catch(e){}
       return;
     } }
+  }
+
+  /* aba Extratos: barra "marcar todos" e botao "Realizado" dentro da janela da celula pendente */
+  var confirmaTodos=false;
+  function extrasExtratos(){
+    var pg=el('pp-extratos'); if(!pg || !pg.classList.contains('active') || !tCarga) return;
+    var cp=compAnterior(), falta=semExtrato(cp).length, bar=el('fc-ex-bar');
+    if(!bar){
+      var ref=pg.querySelector('.ex-rol')||pg.querySelector('#ex-tab'); if(!ref || !ref.parentNode) return;
+      bar=document.createElement('div'); bar.id='fc-ex-bar'; ref.parentNode.insertBefore(bar, ref);
+    }
+    var ass=cp+'|'+falta+'|'+(confirmaTodos?1:0); if(bar.getAttribute('data-a')===ass) return; bar.setAttribute('data-a',ass);
+    if(!falta){ bar.innerHTML=''; confirmaTodos=false; return; }
+    bar.innerHTML = confirmaTodos
+      ? '<div class="fc-conf"><b>Marcar os '+falta+' extratos de '+esc(compTxt(cp))+' como realizados?</b><span>Só os clientes que ainda estão sem registro nesse mês. O cliente passa a ver o extrato como entregue. Cada um pode ser desfeito na ficha.</span>'
+        +'<div><button class="fc-xb ok" id="fc-ex-sim">\u{2714} Sim, marcar todos</button><button class="fc-xb" id="fc-ex-nao">Cancelar</button></div></div>'
+      : '<button class="fc-xb lar" id="fc-ex-todos">\u{2714} Marcar todos de '+esc(compTxt(cp))+' como realizados ('+falta+')</button><span class="fc-xs">para quando os extratos chegaram por fora do app</span>';
+    var t=el('fc-ex-todos'); if(t) t.onclick=function(){ confirmaTodos=true; extrasExtratos(); };
+    var n=el('fc-ex-nao'); if(n) n.onclick=function(){ confirmaTodos=false; extrasExtratos(); };
+    var s=el('fc-ex-sim'); if(s) s.onclick=async function(){ s.disabled=true; s.textContent='Gravando...'; confirmaTodos=false; await marcarTodosExtratos(cp,'recebido fora do app'); bar.removeAttribute('data-a'); };
+  }
+  function extrasJanelaExtrato(){
+    var m=el('ap-ext-modal'); if(!m || m.getAttribute('data-fc')) return;
+    var cob=m.querySelector('[data-ex-cob]'), bts=m.querySelector('.bts'), h3=m.querySelector('h3'); if(!cob || !bts || !h3) return;   /* so celula SEM registro */
+    m.setAttribute('data-fc','1');
+    var nome=(h3.textContent||'').replace(/^[^A-Za-zÀ-ÿ0-9]+/,'').trim(), cp=null;
+    [].forEach.call(m.querySelectorAll('.ln'),function(l){ var sp=l.querySelector('span'), b=l.querySelector('b'); if(sp && b && /Compet/i.test(sp.textContent||'')) cp=compISO((b.textContent||'').trim()); });
+    if(!nome || !cp) return;
+    var bt=document.createElement('button'); bt.className='bt az'; bt.textContent='\u{2714} Realizado (sem arquivo)';
+    bt.onclick=async function(){ bt.disabled=true; bt.textContent='Gravando...'; var ok=await marcarExtrato(nome, cp, 'recebido fora do app'); var x=el('ex-mx'); if(x) x.click(); if(ok) aviso('\u{2705} Extrato de '+nome+' marcado como realizado.','ok'); depoisDeGravar(); };
+    bts.insertBefore(bt, bts.firstChild);
   }
 
   /* botao "Abrir ficha completa" na janela rapida da busca do Inicio */
@@ -643,7 +822,7 @@
   function rapido(){
     try{
       if(!noPainel()){ var t=el('fc-topo'); if(t) t.classList.remove('on'); return; }
-      ponteInicio(); vigiar(); aplicarFoco(false);
+      ponteInicio(); vigiar(); aplicarFoco(false); extrasExtratos(); extrasJanelaExtrato();
     }catch(e){}
   }
   [1800,4200,9000].forEach(function(t){ setTimeout(tick,t); });
@@ -652,6 +831,6 @@
 
   window.apAbrirFicha=abrirFicha;
   window.apFocarCliente=function(n){ if(n) focar(n); else desfocar(); };
-  window.__FICHA__={carregar:carregar, render:render, pendencias:pendencias, abrirFicha:abrirFicha, abrir:abrir, focar:focar, desfocar:desfocar, voltar:voltar,
+  window.__FICHA__={trabalhoDoMes:trabalhoDoMes, financeiro:financeiro, marcarExtrato:marcarExtrato, marcarObrig:marcarObrig, carregar:carregar, render:render, pendencias:pendencias, abrirFicha:abrirFicha, abrir:abrir, focar:focar, desfocar:desfocar, voltar:voltar,
                     estado:function(){ return {lista:lista, sel:sel, foco:foco, hist:hist, D:D}; }, vencDia:vencDia};
 })();
