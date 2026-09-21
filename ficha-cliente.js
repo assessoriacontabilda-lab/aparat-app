@@ -1,4 +1,4 @@
-/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v3, 20/09/2026) - uso exclusivo do escritorio
+/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v4, 20/09/2026) - uso exclusivo do escritorio
    - item de menu "Fichas dos Clientes" (#ap-nav-fichas) e pagina #pp-fichas
    - lista dos clientes ativos com sinal (atrasado / atencao / em dia) e o motivo
    - CLIENTE EM FOCO: abrir um cliente acende a faixa neon #fc-topo no alto do painel, em
@@ -22,6 +22,13 @@
        . aba Extratos ganha "Marcar todos de MM/AAAA como realizados" (com confirmacao) e o
          botao "Realizado" dentro da janela de cada celula pendente
      Desfazer so apaga o que a propria ficha gravou. Nao cria colecao nova.
+   - v4: CALENDARIO do escritorio (menu "Calendario", pagina #pp-calend): as tarefas de TODOS
+     os clientes no dia em que vencem, com dia util ja ajustado; clicando no dia sai a lista de
+     clientes com o botao Feito. E SELETOR DE COMPETENCIA (compSel) na lista, na ficha e no
+     calendario, para olhar meses fechados sem mudar nada.
+   - v4: VIRADA DO MES no dia 1o. Nao apaga NADA: a competencia corrente ja e compAnterior(),
+     entao no dia 1o o checklist zera sozinho; o modulo so mostra a faixa "competencia X aberta"
+     uma vez por mes (localStorage apFichaVirada) com o resumo do mes que fechou.
    - o filtro do cliente em foco so esconde elementos na tela (classe fc-oculto)
    - window.apAbrirFicha(nome) abre a ficha; window.apFocarCliente(nome|null) liga/desliga o foco */
 ;(function(){
@@ -34,6 +41,7 @@
 
   var D={}, tCarga=0, carregando=false, lista=[], sel=null, filtro='todos', busca='';
   var foco=null, hist=[], pagAtual='', selAtual=null, voltando=false, preenchido='', rolado='', contagem='';
+  var compSel=null, diaSel=null, calContagem='';
 
   /* abas de lista: o que esconder e qual campo "Cliente" preencher */
   var LISTAS={
@@ -71,6 +79,9 @@
   function compAnterior(){ var h=new Date(); var d=new Date(h.getFullYear(), h.getMonth()-1, 1); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
   function compMais(c,n){ var p=c.split('-'); var d=new Date(Number(p[0]), Number(p[1])-1+n, 1); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
   function compTxt(c){ var p=String(c).split('-'); return p.length===2 ? p[1]+'/'+p[0] : String(c); }
+  /* competencia que as telas estao mostrando (a corrente e sempre o mes anterior) */
+  function compAtiva(){ return compSel || compAnterior(); }
+  function compNome(c){ var p=String(c).split('-'); return (MESES[Number(p[1])-1]||'')+' de '+p[0]; }
   function ehAdmin(){
     try{ var u=firebase.auth().currentUser; if(!u) return false;
       if(typeof ADMIN_EMAIL!=='undefined' && ADMIN_EMAIL) return u.email===ADMIN_EMAIL; return true; }catch(e){ return false; }
@@ -174,7 +185,7 @@
 
   /* ---- trabalho do mes (competencia anterior): checklist do escritorio ---- */
   function trabalhoDoMes(c){
-    var nome=c.nome, p=perfilDe(c), cp=compAnterior(), hoje=hojeISO(), T=[];
+    var nome=c.nome, p=perfilDe(c), cp=compAtiva(), hoje=hojeISO(), T=[];
     if(cp < String(p.inicio||INICIO_PADRAO)) return T;
     var obrs=obrsMensais(p).slice();
     if(p.regime==='Simples') obrs.unshift({s:'PGDAS', n:'PGDAS-D', dia:20});
@@ -411,6 +422,46 @@
       +'#fc-ex-bar .fc-conf{flex:1;border:2px solid #ff8a00;border-radius:16px;padding:13px 14px;background:var(--card)}'
       +'#fc-ex-bar .fc-conf b{display:block;font-size:13.5px;margin-bottom:3px}#fc-ex-bar .fc-conf span{font-size:12px;color:var(--cinza)}'
       +'#fc-ex-bar .fc-conf div{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}'
+      +'#pp-fichas .fc-comp,#pp-calend .fc-comp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}'
+      +'.fc-cb{font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:inherit;cursor:pointer}'
+      +'.fc-cb:hover:not(:disabled){border-color:var(--azul);color:var(--azul-light)}.fc-cb:disabled{opacity:.4;cursor:not-allowed}'
+      +'#pp-fichas .fc-comp b,#pp-calend .fc-comp b{font-size:13.5px;font-weight:800;min-width:170px;text-align:center}'
+      +'.fc-cs{font-size:11.5px;color:var(--cinza)}'
+      +'.fc-virada{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(14,159,110,.10);border:2px solid #0e9f6e;border-radius:16px;padding:12px 14px;margin:0 0 14px}'
+      +'.fc-virada b{display:block;font-size:14px;margin-bottom:2px}.fc-virada span{display:block;font-size:12.5px;color:var(--cinza)}'
+      +'.fc-virada>div{flex:1;min-width:240px}'
+      +'#pp-calend .cal-tit{font-size:15px;font-weight:800;margin-bottom:10px}#pp-calend .cal-tit span{font-size:11.5px;font-weight:400;color:var(--cinza);margin-left:6px}'
+      +'#pp-calend .cal-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}'
+      +'#pp-calend .cal-h{font-size:10.5px;color:var(--cinza);text-align:center;font-weight:800;padding:3px 0;text-transform:uppercase;letter-spacing:.06em}'
+      +'#pp-calend .cal-d{min-width:0;min-height:72px;border:1px solid var(--border);background:var(--card);border-radius:12px;padding:5px;display:flex;flex-direction:column;gap:2px;position:relative}'
+      +'#pp-calend .cal-d .n{font-size:12px;font-weight:800;color:var(--cinza)}'
+      +'#pp-calend .cal-d.fds{opacity:.55}'
+      +'#pp-calend .cal-d.hoje{border:2px solid var(--azul)}#pp-calend .cal-d.hoje .n{color:var(--azul-light)}'
+      +'#pp-calend .cal-d.tem{cursor:pointer}#pp-calend .cal-d.tem:hover{border-color:var(--azul)}'
+      +'#pp-calend .cal-d.sel{border:2px solid var(--azul);box-shadow:0 0 0 3px rgba(51,85,255,.2)}'
+      +'#pp-calend .cal-d .hj{position:absolute;top:4px;right:5px;font-size:9px;color:var(--azul-light);font-weight:800}'
+      +'#pp-calend .cal-p{display:block;font-size:10px;border-radius:6px;padding:1px 4px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+      +'#pp-calend .cal-p.a{background:rgba(255,138,0,.13);color:#ff9d2e;border:1px solid #ff8a00}'
+      +'#pp-calend .cal-p.b{background:rgba(217,45,32,.14);color:#ff6b60}'
+      +'#pp-calend .cal-p.v{background:rgba(14,159,110,.14);color:#2fd29b}'
+      +'body.ap-esc-claro #pp-calend .cal-p.a{color:#c25e00}body.ap-esc-claro #pp-calend .cal-p.b{color:#d92d20}body.ap-esc-claro #pp-calend .cal-p.v{color:#0e9f6e}'
+      +'#pp-calend .cal-gr{font-size:12px;font-weight:800;margin:12px 0 2px}#pp-calend .cal-gr span{font-weight:400;color:var(--cinza);font-size:11.5px}'
+      +'#pp-calend .fc-lin.fc-fazer,#pp-calend .fc-lin.fc-feito,#pp-calend .fc-lin{display:flex;gap:10px;align-items:center;padding:11px 2px;flex-wrap:wrap}'
+      +'#pp-calend .fc-lin.fc-fazer{border:1.5px solid #ff8a00;border-radius:14px;padding:11px 12px;margin:6px 0;background:rgba(255,138,0,.10)}'
+      +'#pp-calend .fc-lin.fc-feito{opacity:.8;border-bottom:1px dashed var(--border)}'
+      +'#pp-calend .fc-t{flex:1;min-width:180px}#pp-calend .fc-t b{display:block;font-size:13.5px;font-weight:700}#pp-calend .fc-t small{font-size:12px;color:var(--cinza)}'
+      +'#pp-calend .fc-bt{font:inherit;font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:11px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer}'
+      +'#pp-calend .fc-bt.ok{background:#0e9f6e;border-color:#0e9f6e;color:#fff}#pp-calend .fc-bt:disabled{opacity:.55;cursor:wait}'
+      +'#pp-calend .fc-chip{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px}'
+      +'#pp-calend .fc-chip.ok{background:rgba(14,159,110,.16);color:#2fd29b}body.ap-esc-claro #pp-calend .fc-chip.ok{color:#0e9f6e}'
+      +'#pp-calend .fc-h{font-size:19px;font-weight:800;margin-bottom:2px}#pp-calend .fc-sub{font-size:12.5px;color:var(--cinza);margin-bottom:12px}'
+      +'#pp-calend .fc-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:16px}'
+      +'#pp-calend .fc-sec{font-size:10.5px;color:var(--cinza);text-transform:uppercase;letter-spacing:1px;font-weight:800;margin:16px 0 4px}'
+      +'#pp-calend .fc-leg{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--cinza)}'
+      +'#pp-calend .fc-bol{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}'
+      +'#pp-calend .fc-bol.ba{background:#ff5a4f}#pp-calend .fc-bol.lar{background:#ff8a00}#pp-calend .fc-bol.ok{background:#0e9f6e}'
+      +'#pp-calend .fc-vazio{padding:18px 4px;font-size:13px;color:var(--cinza)}'
+      +'@media(max-width:700px){#pp-calend .cal-g{gap:3px}#pp-calend .cal-d{min-height:56px;padding:3px}#pp-calend .cal-p{font-size:8.5px;padding:1px 3px}#pp-calend .cal-h{font-size:9px}}'
       +'.fc-oculto{display:none!important}'
       +'#view-painel tr.fc-aceso>td{background:rgba(0,194,168,.12)!important;box-shadow:inset 0 1px 0 #00c2a8,inset 0 -1px 0 #00c2a8}'
       +'#view-painel tr.fc-aceso>td:first-child{box-shadow:inset 3px 0 0 #00c2a8,inset 0 1px 0 #00c2a8,inset 0 -1px 0 #00c2a8}'
@@ -471,7 +522,7 @@
   }
   function itemDoMenu(id){
     var chave=String(id||'').replace(/^pp-/,''), its=[].slice.call(document.querySelectorAll('#view-painel .sidebar .nav .nav-item'));
-    var porId={inicio:'ap-nav-inicio', fichas:'ap-nav-fichas', pedidos:'ap-nav-ped', extratos:'ap-nav-ext', obcnpj:'ap-nav-obc', pseg:'ap-nav-pseg'}[chave];
+    var porId={inicio:'ap-nav-inicio', fichas:'ap-nav-fichas', calend:'ap-nav-calend', pedidos:'ap-nav-ped', extratos:'ap-nav-ext', obcnpj:'ap-nav-obc', pseg:'ap-nav-pseg'}[chave];
     if(porId) return el(porId);
     for(var i=0;i<its.length;i++){ if((its[i].getAttribute('onclick')||'').indexOf("'"+chave+"'")>=0) return its[i]; }
     return null;
@@ -643,7 +694,7 @@
     });
     var nD=lista.filter(function(x){ return x.F.length; }).length, nF=lista.filter(function(x){ return x.falta; }).length,
         nO=lista.filter(function(x){ return !x.F.length && !x.falta; }).length;
-    var h='<div class="fc-h">\u{1F4C7} Fichas dos Clientes</div><div class="fc-sub">Cada cliente tem dois sinais: o <b>dinheiro</b> e o <b>trabalho do mês</b> ('+esc(compTxt(compAnterior()))+'). Clique para abrir a ficha.</div>';
+    var h='<div class="fc-h">\u{1F4C7} Fichas dos Clientes</div><div class="fc-sub">Cada cliente tem dois sinais: o <b>dinheiro</b> e o <b>trabalho do mês</b>. Clique para abrir a ficha.</div>'+barraComp()+faixaVirada();
     if(!tCarga){ box.innerHTML=h+'<div class="fc-vazio">Carregando os clientes...</div>'; return; }
     h+='<div class="fc-leg"><span><i class="fc-bol ba"></i>'+nD+' com dinheiro vencido</span><span><i class="fc-bol lar"></i>'+nF+' com trabalho do mês a fazer</span><span><i class="fc-bol ok"></i>'+nO+' em dia</span></div>';
     h+='<div class="fc-barra"><input id="fc-q" placeholder="Buscar por nome ou CNPJ" autocomplete="off" value="'+esc(busca)+'">';
@@ -666,18 +717,19 @@
     [].forEach.call(box.querySelectorAll('[data-fc-f]'),function(b){ b.onclick=function(){ filtro=b.getAttribute('data-fc-f'); renderLista(box); }; });
     [].forEach.call(box.querySelectorAll('[data-fc-cli]'),function(b){ b.onclick=function(){ abrirFicha(b.getAttribute('data-fc-cli')); }; });
     var at=el('fc-atu'); if(at) at.onclick=async function(){ at.disabled=true; at.textContent='Atualizando...'; await carregar(true); render(); };
+    ligarComp(box);
   }
   function renderFicha(box){
     var x=null; for(var i=0;i<lista.length;i++){ if(mesmo(lista[i].nome,sel)){ x=lista[i]; break; } }
     if(!x){ box.innerHTML='<div class="fc-card"><div class="fc-vazio">'+(tCarga?'Cliente não encontrado entre os ativos.':'Carregando a ficha...')+'</div></div>'; return; }
-    var c=x.c, p=x.p, nome=x.nome, cp=compAnterior(), hoje=hojeISO();
+    var c=x.c, p=x.p, nome=x.nome, cp=compAtiva(), hoje=hojeISO();
     var hAb=de('honorarios',nome).filter(function(o){ return !honPago(o); }), hTot=0; hAb.forEach(function(o){ hTot+=num(o.valor); });
     var gAb=de('obrigacoes',nome).filter(function(g){ return !guiaPaga(g); });
     var tel=soDig(c.whatsapp||c.telefone||c.celular||''), txt='Olá! Aqui é a APARAT Contabilidade.';
     var wa=tel ? ('https://wa.me/55'+tel+'?text='+encodeURIComponent(txt)) : ('https://wa.me/?text='+encodeURIComponent(txt));
     var conta={}; x.P.forEach(function(k){ var o=conta[k.aba]||(conta[k.aba]={n:0,ba:0}); o.n++; if(k.st==='ba') o.ba++; });
 
-    var h='<div class="fc-card"><div class="fc-cab"><div class="fc-av">'+esc(iniciais(nome))+'</div><div class="fc-inf"><b>'+esc(nome)+'</b>'
+    var h=barraComp()+'<div class="fc-card"><div class="fc-cab"><div class="fc-av">'+esc(iniciais(nome))+'</div><div class="fc-inf"><b>'+esc(nome)+'</b>'
       +'<span>'+x.tipo+' · '+esc(String(c.regime||p.regime||'regime não informado'))+(p.anexo?(' · anexo '+esc(p.anexo)):'')+'</span><span>'+esc(cnpjFmt(c.cnpj))+'</span></div>'
       +'<a class="fc-bt" href="'+esc(wa)+'" target="_blank" rel="noopener">\u{1F4F2} WhatsApp</a>'
       +'<button class="fc-bt az" id="fc-lg">\u{2795} Lançar guia</button></div>';
@@ -727,6 +779,7 @@
       if(typeof window.apLancarGuia==='function') window.apLancarGuia(nome, x.tipo==='MEI'?'':'DAS Simples Nacional', '', '\u{1F4CB} Lançando guia para '+nome+'.');
       else irMenu(/Guias/);
     };
+    ligarComp(box);
     [].forEach.call(box.querySelectorAll('[data-fc-vai]'),function(b){ b.onclick=function(){ irPara(b.getAttribute('data-fc-vai')); }; });
     [].forEach.call(box.querySelectorAll('[data-fc-ok]'),function(b){ b.onclick=async function(){
       var t=x.T[Number(b.getAttribute('data-fc-ok'))]; if(!t || b.disabled) return; b.disabled=true; b.textContent='Gravando...';
@@ -762,11 +815,142 @@
     } }
   }
 
+  /* ================= competencia, virada do mes e calendario ================= */
+  function barraComp(){
+    var cp=compAtiva(), atual=compAnterior();
+    return '<div class="fc-comp"><button class="fc-cb" data-fc-comp="-1" title="Mês anterior">\u{25C0}</button>'
+      +'<b>Competência '+esc(compTxt(cp))+'</b>'
+      +'<button class="fc-cb" data-fc-comp="1" title="Próximo mês"'+(cp>=atual?' disabled':'')+'>\u{25B6}</button>'
+      +(cp!==atual ? '<button class="fc-cb hoje" data-fc-comp="0">\u{21BA} Voltar para '+esc(compTxt(atual))+'</button>'
+                   : '<span class="fc-cs">mês corrente do controle</span>')+'</div>';
+  }
+  /* faixa "competencia X aberta" — aparece uma vez por mes, nao apaga nada */
+  function faixaVirada(){
+    var cp=compAnterior(), dia=new Date().getDate(); if(dia>5) return '';
+    var visto=''; try{ visto=localStorage.getItem('apFichaVirada')||''; }catch(e){}
+    if(visto===cp) return '';
+    var ant=compMais(cp,-1), falta=0, cli=0;
+    var guarda=compSel; compSel=ant;
+    lista.forEach(function(x){ var T=trabalhoDoMes(x.c), f=T.filter(function(t){ return !t.feito; }).length; if(f){ falta+=f; cli++; } });
+    compSel=guarda;
+    return '<div class="fc-virada" id="fc-virada"><div><b>\u{1F504} Competência '+esc(compTxt(cp))+' aberta</b>'
+      +'<span>O checklist do mês novo começou. '+(falta ? ('De '+esc(compTxt(ant))+' ficaram '+falta+' tarefa(s) em '+cli+' cliente(s) — nada foi apagado, é só voltar a competência para ver.') : ('O mês '+esc(compTxt(ant))+' fechou com tudo feito.'))+'</span></div>'
+      +(falta?'<button class="fc-cb" data-fc-comp="ant">Ver '+esc(compTxt(ant))+'</button>':'')
+      +'<button class="fc-cb" id="fc-virada-x">\u{2716} Entendi</button></div>';
+  }
+  function trocaComp(v){
+    var atual=compAnterior();
+    if(v==='ant') compSel=compMais(atual,-1);
+    else if(Number(v)===0) compSel=null;
+    else { var n=compMais(compAtiva(), Number(v)); if(n>atual) n=atual; compSel=(n===atual?null:n); }
+    diaSel=null; montarLista(); render(); calendario(true); aplicarFoco(true);
+  }
+
+  /* ---- calendario: menu, pagina e desenho ---- */
+  function menuCal(){
+    var nv=document.querySelector('#view-painel .sidebar .nav'); if(!nv || el('ap-nav-calend')) return;
+    var it=document.createElement('div');
+    it.className='nav-item'; it.id='ap-nav-calend';
+    it.innerHTML='<span class="ni">\u{1F4C5}</span>Calendário<span class="nav-dot" id="dot-calend" style="display:none"></span>';
+    it.onclick=function(){ abrirCal(); };
+    var f=el('ap-nav-fichas');
+    if(f && f.parentNode===nv) nv.insertBefore(it, f.nextSibling); else nv.appendChild(it);
+  }
+  function paginaCal(){
+    if(el('pp-calend')) return;
+    var base=el('pp-fichas'); if(!base || !base.parentNode) return;
+    var p=document.createElement('div'); p.className='ppage'; p.id='pp-calend';
+    p.innerHTML='<div id="cal-corpo"></div>';
+    base.parentNode.insertBefore(p, base.nextSibling);
+    try{ if(window.ABA_NOMES) window.ABA_NOMES.calend='Calendário'; }catch(e){}
+  }
+  async function abrirCal(){
+    menuCal(); paginaCal();
+    try{ if(typeof pPage==='function') pPage('calend', el('ap-nav-calend')); }catch(e){}
+    var p=el('pp-calend'); if(p) p.classList.add('active');
+    calendario(true); await carregar(false); calendario(true);
+  }
+  /* mapa dia -> tarefas, a partir do trabalhoDoMes de todos os clientes */
+  function tarefasPorDia(){
+    var M={};
+    lista.forEach(function(x){
+      trabalhoDoMes(x.c).forEach(function(t){
+        if(!t.venc) return;
+        var d=M[t.venc]||(M[t.venc]={});
+        var nome=t.tipo==='ext' ? 'Extrato bancário' : t.n.replace(/\s+\d{2}\/\d{4}\s*$/,'');
+        var g=d[nome]||(d[nome]={n:0, feitos:0, itens:[]});
+        g.n++; if(t.feito) g.feitos++;
+        g.itens.push({cli:x.nome, t:t, x:x});
+      });
+    });
+    return M;
+  }
+  function calendario(forcar){
+    var box=el('cal-corpo'); if(!box) return;
+    var cp=compAtiva(), M=tarefasPorDia(), hoje=hojeISO();
+    var dias=Object.keys(M).sort(), base=dias.length?dias[0].slice(0,7):compMais(cp,1);
+    var pa=base.split('-'), ano=Number(pa[0]), mi=Number(pa[1])-1;
+    var prim=new Date(ano,mi,1), nd=new Date(ano,mi+1,0).getDate(), off=prim.getDay();
+    var tot=0, feitos=0;
+    dias.forEach(function(k){ for(var n in M[k]){ tot+=M[k][n].n; feitos+=M[k][n].feitos; } });
+    var ass=[cp, diaSel||'', tot, feitos, lista.length, tCarga].join('~');
+    if(!forcar && ass===calContagem) return; calContagem=ass;
+
+    var h='<div class="fc-h">\u{1F4C5} Calendário do escritório</div>'
+      +'<div class="fc-sub">As tarefas de todos os clientes no dia em que vencem, com o dia útil já ajustado. Clique num dia para ver a lista.</div>'
+      +barraComp();
+    if(!tCarga){ box.innerHTML=h+'<div class="fc-vazio">Carregando...</div>'; return; }
+    h+='<div class="fc-card"><div class="cal-tit">'+esc(compNome(base))+' <span>prazos da competência '+esc(compTxt(cp))+' · '+feitos+' de '+tot+' feitos</span></div>';
+    h+='<div class="cal-g">'+['dom','seg','ter','qua','qui','sex','sáb'].map(function(d){ return '<div class="cal-h">'+d+'</div>'; }).join('');
+    for(var i=0;i<off;i++) h+='<div></div>';
+    for(var d=1;d<=nd;d++){
+      var iso=ano+'-'+pad(mi+1)+'-'+pad(d), dw=new Date(ano,mi,d).getDay(), t=M[iso];
+      h+='<div class="cal-d'+((dw===0||dw===6)?' fds':'')+(iso===hoje?' hoje':'')+(t?' tem':'')+(diaSel===iso?' sel':'')+'"'+(t?' data-cal-d="'+iso+'"':'')+'>'
+        +'<span class="n">'+d+'</span>'+(iso===hoje?'<span class="hj">hoje</span>':'');
+      if(t) for(var nome in t){
+        var g=t[nome], ok=(g.feitos>=g.n), atras=(!ok && hoje>iso);
+        h+='<span class="cal-p '+(ok?'v':(atras?'b':'a'))+'">'+(ok?'\u{2714} ':(g.n-g.feitos)+' ')+esc(nome)+'</span>';
+      }
+      h+='</div>';
+    }
+    h+='</div><div class="fc-leg" style="margin-top:10px"><span><i class="fc-bol ba"></i>prazo já passou</span><span><i class="fc-bol lar"></i>a fazer</span><span><i class="fc-bol ok"></i>feito</span></div>';
+
+    if(diaSel && M[diaSel]){
+      h+='<div class="fc-sec">Dia '+esc(dataBR(diaSel))+'</div>';
+      for(var nm in M[diaSel]){
+        var gg=M[diaSel][nm];
+        h+='<div class="cal-gr">'+esc(nm)+' <span>'+gg.feitos+' de '+gg.n+' feitos</span></div>';
+        gg.itens.slice().sort(function(a,b){ return (a.t.feito?1:0)-(b.t.feito?1:0) || a.cli.localeCompare(b.cli); }).forEach(function(it,i){
+          if(it.t.feito) h+='<div class="fc-lin fc-feito"><div class="fc-t"><b>\u{2714} '+esc(it.cli)+'</b><small>'+esc(it.t.n)+'</small></div><span class="fc-chip ok">Feito</span></div>';
+          else h+='<div class="fc-lin fc-fazer"><div class="fc-t"><b>'+esc(it.cli)+'</b><small>'+esc(it.t.n)+' · prazo '+dataBR(it.t.venc)+'</small></div>'
+            +'<button class="fc-bt ok" data-cal-ok="'+esc(it.cli)+'|'+esc(it.t.tipo)+'|'+esc(it.t.sigla||'')+'|'+esc(it.t.cp)+'">\u{2714} '+(it.t.tipo==='ext'?'Realizado':'Feito')+'</button>'
+            +'<button class="fc-bt" data-cal-fi="'+esc(it.cli)+'">\u{1F4C7} Ficha</button></div>';
+        });
+      }
+    } else if(diaSel) h+='<div class="fc-vazio">Nada marcado para esse dia.</div>';
+    h+='</div>';
+    box.innerHTML=h;
+    ligarComp(box);
+    [].forEach.call(box.querySelectorAll('[data-cal-d]'),function(b){ b.onclick=function(){ var v=b.getAttribute('data-cal-d'); diaSel=(diaSel===v?null:v); calendario(true); }; });
+    [].forEach.call(box.querySelectorAll('[data-cal-fi]'),function(b){ b.onclick=function(){ abrirFicha(b.getAttribute('data-cal-fi')); }; });
+    [].forEach.call(box.querySelectorAll('[data-cal-ok]'),function(b){ b.onclick=async function(){
+      if(b.disabled) return; b.disabled=true; b.textContent='Gravando...';
+      var p=b.getAttribute('data-cal-ok').split('|');
+      var ok = p[1]==='ext' ? await marcarExtrato(p[0], p[3], 'recebido fora do app') : await marcarObrig(p[0], p[3], p[2]);
+      if(ok) aviso('\u{2705} '+p[0]+': marcado como feito.','ok');
+      montarLista(); calendario(true); render();
+    }; });
+  }
+  function ligarComp(box){
+    [].forEach.call(box.querySelectorAll('[data-fc-comp]'),function(b){ b.onclick=function(){ trocaComp(b.getAttribute('data-fc-comp')); }; });
+    var x=el('fc-virada-x'); if(x) x.onclick=function(){ try{ localStorage.setItem('apFichaVirada', compAnterior()); }catch(e){} var v=el('fc-virada'); if(v) v.remove(); };
+  }
+
   /* aba Extratos: barra "marcar todos" e botao "Realizado" dentro da janela da celula pendente */
   var confirmaTodos=false;
   function extrasExtratos(){
     var pg=el('pp-extratos'); if(!pg || !pg.classList.contains('active') || !tCarga) return;
-    var cp=compAnterior(), falta=semExtrato(cp).length, bar=el('fc-ex-bar');
+    var cp=compAtiva(), falta=semExtrato(cp).length, bar=el('fc-ex-bar');
     if(!bar){
       var ref=pg.querySelector('.ex-rol')||pg.querySelector('#ex-tab'); if(!ref || !ref.parentNode) return;
       bar=document.createElement('div'); bar.id='fc-ex-bar'; ref.parentNode.insertBefore(bar, ref);
@@ -810,10 +994,10 @@
     if(ocupado) return; ocupado=true; voltas++;
     try{
       if(noPainel()){
-        css(); menu(); pagina();
+        css(); menu(); pagina(); menuCal(); paginaCal();
         var pg=el('pp-fichas'), naTela=pg && pg.classList.contains('active');
         var digitando=!!(document.activeElement && document.activeElement.id==='fc-q');
-        if(voltas===2 || voltas%43===0){ await carregar(240000); if(naTela && !digitando) render(); aplicarFoco(true); }
+        if(voltas===2 || voltas%43===0){ await carregar(240000); if(naTela && !digitando) render(); calendario(true); aplicarFoco(true); }
       }
     }catch(e){}
     ocupado=false;
@@ -823,6 +1007,7 @@
     try{
       if(!noPainel()){ var t=el('fc-topo'); if(t) t.classList.remove('on'); return; }
       ponteInicio(); vigiar(); aplicarFoco(false); extrasExtratos(); extrasJanelaExtrato();
+      if(el('pp-calend') && el('pp-calend').classList.contains('active')) calendario(false);
     }catch(e){}
   }
   [1800,4200,9000].forEach(function(t){ setTimeout(tick,t); });
@@ -831,6 +1016,7 @@
 
   window.apAbrirFicha=abrirFicha;
   window.apFocarCliente=function(n){ if(n) focar(n); else desfocar(); };
-  window.__FICHA__={trabalhoDoMes:trabalhoDoMes, financeiro:financeiro, marcarExtrato:marcarExtrato, marcarObrig:marcarObrig, carregar:carregar, render:render, pendencias:pendencias, abrirFicha:abrirFicha, abrir:abrir, focar:focar, desfocar:desfocar, voltar:voltar,
+  window.apCalendario=abrirCal;
+  window.__FICHA__={trabalhoDoMes:trabalhoDoMes, calendario:calendario, tarefasPorDia:tarefasPorDia, trocaComp:trocaComp, compAtiva:compAtiva, financeiro:financeiro, marcarExtrato:marcarExtrato, marcarObrig:marcarObrig, carregar:carregar, render:render, pendencias:pendencias, abrirFicha:abrirFicha, abrir:abrir, focar:focar, desfocar:desfocar, voltar:voltar,
                     estado:function(){ return {lista:lista, sel:sel, foco:foco, hist:hist, D:D}; }, vencDia:vencDia};
 })();
