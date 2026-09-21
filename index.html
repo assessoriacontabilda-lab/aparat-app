@@ -1272,10 +1272,18 @@ async function dbAdd(store,data){
 }
 async function dbGetAll(store){
   if(fdb){
-    let snap;
-    try{ snap=await fdb.collection(store).orderBy('criadoEm','asc').get(); }
-    catch(e){ snap=await fdb.collection(store).get(); }
-    return snap.docs.map(d=>({id:d.id,...d.data()}));
+    /* NUNCA usar orderBy('criadoEm') aqui: o Firestore ESCONDE todo documento que nao tem o campo
+       usado no orderBy, e NAO da erro — entao o catch nunca disparava e a lista voltava vazia.
+       Isso sumia com 47 extratos, 43 obrigCnpj (o "Feito" do DAS/PGDAS), 24 usuarios e 33 urgencias.
+       Lemos tudo e ordenamos aqui mesmo; quem nao tem criadoEm vai para o comeco. */
+    const snap=await fdb.collection(store).get();
+    const v=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const ms=x=>{ const c=x&&x.criadoEm; if(!c) return 0;
+      if(typeof c.toMillis==='function') return c.toMillis();
+      if(c.seconds) return c.seconds*1000;
+      const t=Date.parse(c); return isNaN(t)?0:t; };
+    v.sort((a,b)=>ms(a)-ms(b));
+    return v;
   }
   return new Promise((res,rej)=>{const tx=db.transaction(store,'readonly');const r=tx.objectStore(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=e=>rej(e);});
 }
@@ -3252,7 +3260,7 @@ _dcObs.observe(document.body,{childList:true,subtree:true});</script>
 </div>
 <script defer src="aparat-fix.js?v=71"></script>
 <script defer src="nav-snippet.js?v=6"></script>
-<script defer src="client-pages.js?v=4"></script><script defer src="pseg-module.js?v=1"></script><script defer src="drive-module.js?v=1"></script><script defer src="guia-anexo.js?v=1"></script><script defer src="pseg-lanca.js?v=1"></script><script defer src="baixar-anexo.js?v=1"></script><script defer src="cli-ver-guia.js?v=1"></script><script defer src="ficha-cliente.js?v=4"></script><script defer src="notas-concluir.js?v=2"></script>
+<script defer src="client-pages.js?v=4"></script><script defer src="pseg-module.js?v=1"></script><script defer src="drive-module.js?v=1"></script><script defer src="guia-anexo.js?v=1"></script><script defer src="pseg-lanca.js?v=1"></script><script defer src="baixar-anexo.js?v=1"></script><script defer src="cli-ver-guia.js?v=1"></script><script defer src="ficha-cliente.js?v=5"></script><script defer src="notas-concluir.js?v=3"></script>
 <script>/*__APARAT_NAV_INLINE__*/
 ;(function(){
   if(window.__APARAT_NAV_FIX__) return; window.__APARAT_NAV_FIX__=1;
