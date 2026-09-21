@@ -1,4 +1,4 @@
-/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v2, 20/09/2026)
+/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v3, 20/09/2026)
    CORRECAO DA v1: a v1 lia a colecao 'notas', que no Firebase do Daniel esta VAZIA (0 documentos).
    As notas emitidas pelo escritorio moram na colecao 'solicitacoes', com servico 'Emitir nota fiscal':
      o cliente pede (status 'Nova', campos valor/tomador/mensagem);
@@ -16,7 +16,7 @@
       "Meus pedidos de emissao".
    Nada e apagado e nenhuma colecao nova e criada. */
 ;(function(){
-  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=2;
+  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=3;
 
   var ORIGEM='Ficha do Cliente';
   var cache=[], tCache=0, ocupado=false, assPainel='', assCli='';
@@ -82,6 +82,21 @@
                    quando:o.emitidaEm||'', status:o.status||'Aberta' });
         });
       }catch(e){}
+      /* 3a fonte: o Daniel tambem lanca a NF pela aba Guias, com tipo "NF-e Emitida" e
+         status "Emitida pelo Escritorio", com o PDF anexado e ja espelhado no Drive.
+         Essas ja nascem emitidas e concluidas - so precisam ficar disponiveis para baixar. */
+      try{
+        var o2=await d.collection('obrigacoes').get();
+        o2.forEach(function(x){
+          var o=x.data()||{};
+          if(!/nf-?e|nota\s*fiscal/i.test(String(o.tipo||'')) && !/emitid/i.test(String(o.status||''))) return;
+          v.push({ fonte:'obr', id:x.id, cliente:o.cliente||'', valor:o.valor||'', tomador:'',
+                   pedidoEm:'', comp:o.competencia||'', descricao:o.tipo||'NF-e emitida', numero:'',
+                   arqNome:o.arquivoNome||('nota_'+x.id+'.pdf'),
+                   arqData:o.arquivoData||o.arquivoUrl||'', driveUrl:o.driveUrl||'',
+                   emitida:true, concluida:true, quando:'', status:o.status||'Emitida' });
+        });
+      }catch(e){}
     }
     v.sort(function(a,b){ return (a.concluida?1:0)-(b.concluida?1:0); });
     cache=v; tCache=Date.now(); return cache;
@@ -90,6 +105,7 @@
 
   async function concluir(it){
     var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return false; }
+    if(it.fonte==='obr') return true; /* NF-e lancada na aba Guias ja nasce concluida */
     try{
       if(it.fonte==='sol'){
         await d.collection('solicitacoes').doc(String(it.id)).update({status:'Concluída', concluidoEm:agoraBR()});
@@ -105,6 +121,7 @@
   }
   async function reabrir(it){
     var d=db(); if(!d) return false;
+    if(it.fonte==='obr') return true;
     try{
       if(it.fonte==='sol'){
         await d.collection('solicitacoes').doc(String(it.id)).update({status: it.emitida?'Respondida':'Nova', concluidoEm:''});
@@ -183,6 +200,7 @@
       var det=[]; if(n.cliente) det.push(esc(n.cliente));
       if(num(n.valor)) det.push(moeda(num(n.valor)));
       if(n.tomador) det.push('tomador: '+esc(n.tomador));
+      if(n.comp) det.push('competência '+esc(n.comp));
       if(n.pedidoEm) det.push('pedido em '+esc(curto(n.pedidoEm)));
       if(n.concluida && n.quando) det.push('concluída em '+esc(curto(n.quando)));
       var titulo = n.emitida ? ('Nota fiscal emitida'+(n.numero?(' nº '+esc(n.numero)):''))
@@ -228,6 +246,7 @@
       var i=cache.indexOf(n), det=[];
       if(num(n.valor)) det.push(moeda(num(n.valor)));
       if(n.tomador) det.push(esc(n.tomador));
+      if(n.comp) det.push('competência '+esc(n.comp));
       if(n.pedidoEm) det.push(esc(curto(n.pedidoEm)));
       h+='<div class="lcard"><div class="lcico lc-pu">\u{1F9FE}</div><div class="lcinfo"><strong>Nota fiscal</strong>'
         +'<span>'+det.join(' · ')+'</span></div>'
