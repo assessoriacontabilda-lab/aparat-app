@@ -1,4 +1,4 @@
-/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v4, 20/09/2026) - uso exclusivo do escritorio
+/* APARAT - FICHA DO CLIENTE + CLIENTE EM FOCO (v5, 20/09/2026) - uso exclusivo do escritorio
    - item de menu "Fichas dos Clientes" (#ap-nav-fichas) e pagina #pp-fichas
    - lista dos clientes ativos com sinal (atrasado / atencao / em dia) e o motivo
    - CLIENTE EM FOCO: abrir um cliente acende a faixa neon #fc-topo no alto do painel, em
@@ -136,6 +136,10 @@
     return base;
   }
   function guiaPaga(g){ return /pago|entreg|conclu/i.test(String(g.status||'')); }
+  /* "NF-e Emitida" lancada na aba Guias NAO e conta a pagar: e a nota que o escritorio emitiu,
+     com o PDF anexado. O vencimento que vem junto e so a data da competencia, nao uma cobranca.
+     Sem isto, 7 notas emitidas apareciam como "guia vencida sem baixa" e nao havia baixa a dar. */
+  function notaEmitida(g){ return /nf-?e|nota\s*fiscal/i.test(String(g.tipo||'')) || /emitid/i.test(String(g.status||'')); }
   function honPago(h){ return /pago/i.test(String(h.status||'')); }
   function solicAberta(s){ return !/resolv|conclu|atendid/i.test(String(s.status||'')); }
   function pedidoNF(n){ return String(n.origem||'')==='cliente' && String(n.tipo||'')==='Pedido' && !/emitida/i.test(String(n.status||'')); }
@@ -204,7 +208,7 @@
   function financeiro(c){
     var nome=c.nome, hoje=hojeISO(), F=[];
     de('obrigacoes',nome).forEach(function(g){
-      var v=String(g.vencimento||'').slice(0,10); if(guiaPaga(g)||!v||v>=hoje) return;
+      var v=String(g.vencimento||'').slice(0,10); if(notaEmitida(g)||guiaPaga(g)||!v||v>=hoje) return;
       F.push({st:'ba', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia venceu em '+dataBR(v)+' e está sem baixa'+(num(g.valor)?(' · '+moeda(num(g.valor))):''), aba:'guias'});
     });
     de('honorarios',nome).forEach(function(h){
@@ -217,7 +221,7 @@
   function avisos(c){
     var nome=c.nome, hoje=hojeISO(), lim=maisDias(5), p=perfilDe(c), A=[];
     de('obrigacoes',nome).forEach(function(g){
-      var v=String(g.vencimento||'').slice(0,10); if(guiaPaga(g)||!v) return;
+      var v=String(g.vencimento||'').slice(0,10); if(notaEmitida(g)||guiaPaga(g)||!v) return;
       if(v>=hoje && v<=lim) A.push({st:'wa', t:String(g.tipo||'Guia')+(g.competencia?(' '+g.competencia):''), s:'Guia do cliente vence em '+dataBR(v), aba:'guias'});
     });
     de('solicitacoes',nome).filter(solicAberta).forEach(function(s){
