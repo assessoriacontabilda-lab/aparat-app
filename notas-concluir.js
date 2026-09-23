@@ -1,4 +1,5 @@
-/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v3, 20/09/2026)
+/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v4, 22/09/2026)
+   v4: ignora as notas com direcao 'entrada' ou 'honorario' (sub-abas do nf-entrada.js).
    CORRECAO DA v1: a v1 lia a colecao 'notas', que no Firebase do Daniel esta VAZIA (0 documentos).
    As notas emitidas pelo escritorio moram na colecao 'solicitacoes', com servico 'Emitir nota fiscal':
      o cliente pede (status 'Nova', campos valor/tomador/mensagem);
@@ -16,7 +17,7 @@
       "Meus pedidos de emissao".
    Nada e apagado e nenhuma colecao nova e criada. */
 ;(function(){
-  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=3;
+  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=4;
 
   var ORIGEM='Ficha do Cliente';
   var cache=[], tCache=0, ocupado=false, assPainel='', assCli='';
@@ -73,6 +74,7 @@
         var n=await d.collection('notas').get();
         n.forEach(function(x){
           var o=x.data()||{};
+          if(o.direcao==='entrada' || o.direcao==='honorario') return; /* sub-abas do nf-entrada.js */
           if(String(o.origem||'')==='cliente' || String(o.tipo||'')==='Recebimento' || String(o.tipo||'')==='Pedido') return;
           v.push({ fonte:'nota', id:x.id, cliente:o.cliente||'', valor:o.valor||'', tomador:'',
                    pedidoEm:o.data||'', descricao:o.descricao||'', numero:o.numero||'',
