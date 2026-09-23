@@ -85,6 +85,8 @@ function tituloDe(coll, d) {
         + (d.descricao ? ". " + d.descricao : "")
     };
   }
+  if (coll === "notas" && String(d.direcao || "") === "entrada") return { t: "Nota de compra enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.fornecedor || "fornecedor") + (d.numero ? " - NF " + d.numero : "") + (d.valor ? " - R$ " + d.valor : "") };
+  if (coll === "notas" && String(d.direcao || "") === "honorario") return { t: "Nota fiscal dos honorarios", b: "A NFS-e dos honorarios " + (d.referencia || "") + " da APARAT esta no app. Abra em Nota Fiscal > Nota da APARAT." };
   if (coll === "notas" && String(d.origem || "") === "cliente") return { t: "Nota fiscal enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.numero ? "NF " + d.numero : (d.descricao || "nova nota")) };
   if (coll === "notas") return { t: "Sua nota fiscal esta no app", b: (d.numero ? "NF " + d.numero : "Nota fiscal") + (d.valor ? " - R$ " + d.valor : "") + (d.descricao ? " - " + d.descricao : "") + ". Abra o app em Nota Fiscal para ver." };
   if (coll === "recebidos") return { t: "Novo arquivo/mensagem recebido", b: (d.cliente ? d.cliente + ": " : "") + (d.msg || d.mensagem || d.arquivoNome || "Voce recebeu algo novo.") };
@@ -176,6 +178,8 @@ async function main() {
         const doCliente = String(d.origem || "") === "cliente";
         if (alvo === "admin" && !doCliente) { continue; }
         if (alvo === "cliente" && doCliente) { continue; }
+        // nota de compra lancada pelo escritorio nao precisa avisar o cliente
+        if (alvo === "cliente" && String(d.direcao || "") === "entrada") { continue; }
       }
       const info = tituloDe(coll, d);
       if (alvo === "admin") {
