@@ -98,7 +98,7 @@
   function prefixo(col,x){
     if(col==='obrigacoes') return limpoArq(x.tipo||'Guia',30);
     if(col==='honorarios') return 'Honorario';
-    if(col==='notas'){ var p=(x.origem==='cliente')?'NF-recebida':'NF'; if(x.numero) p+='-'+limpoArq(x.numero,12); return p; }
+    if(col==='notas'){ if(x.direcao==='entrada') return 'NF-entrada'+(x.numero?('-'+limpoArq(x.numero,12)):''); if(x.direcao==='honorario') return 'NFSe-honorarios'+(x.numero?('-'+limpoArq(x.numero,12)):''); var p=(x.origem==='cliente')?'NF-recebida':'NF'; if(x.numero) p+='-'+limpoArq(x.numero,12); return p; }
     if(col==='docs') return limpoArq(x.tipo||'Documento',30);
     return 'Arquivo';
   }
