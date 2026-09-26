@@ -85,6 +85,7 @@ function tituloDe(coll, d) {
         + (d.descricao ? ". " + d.descricao : "")
     };
   }
+  if (coll === "notas" && String(d.direcao || "") === "entrada" && String(d.especie || "") === "NFS-e") return { t: "Nota de servico recebido enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.fornecedor || "prestador") + (d.parceiro ? " (parceiro)" : "") + (d.numero ? " - NFS-e " + d.numero : "") + (d.valor ? " - R$ " + d.valor : "") };
   if (coll === "notas" && String(d.direcao || "") === "entrada") return { t: "Nota de compra enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.fornecedor || "fornecedor") + (d.numero ? " - NF " + d.numero : "") + (d.valor ? " - R$ " + d.valor : "") };
   if (coll === "notas" && String(d.direcao || "") === "honorario") return { t: "Nota fiscal dos honorarios", b: "A NFS-e dos honorarios " + (d.referencia || "") + " da APARAT esta no app. Abra em Nota Fiscal > Nota da APARAT." };
   if (coll === "notas" && String(d.origem || "") === "cliente") return { t: "Nota fiscal enviada pelo cliente", b: (d.cliente ? d.cliente + ": " : "") + (d.numero ? "NF " + d.numero : (d.descricao || "nova nota")) };
