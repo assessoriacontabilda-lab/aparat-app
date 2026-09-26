@@ -9,7 +9,10 @@
    - So roda logado como ADMIN. Observa as colecoes em tempo real; quem ja foi para o Drive
      recebe driveId/driveUrl/driveCaminho/driveEm no proprio documento (nao repete).
    - Falha no Drive NAO trava nada: fica na fila e tenta de novo a cada 10 minutos.
-   - Config: window.__DRIVE__ (teste), localStorage.aparat_drive_url (sobrescreve a URL).   */
+   - Config: window.__DRIVE__ (teste), localStorage.aparat_drive_url (sobrescreve a URL).
+   - v3 (26/09/2026): nota com PDF anexado (pdfData) manda o PDF tambem, na mesma pasta, e marca
+     pdfDriveId/pdfDriveUrl/pdfDriveCaminho/pdfDriveNome. NFS-e recebida ganha nome com o prestador:
+     NFSe-recebida-<numero>-<prestador>_MM-AAAA_Cliente.xml/.pdf   */
 ;(function(){
   if(window.__APARAT_DRIVE__) return; window.__APARAT_DRIVE__=1;
 
@@ -98,12 +101,13 @@
   function prefixo(col,x){
     if(col==='obrigacoes') return limpoArq(x.tipo||'Guia',30);
     if(col==='honorarios') return 'Honorario';
-    if(col==='notas'){ if(x.direcao==='entrada') return 'NF-entrada'+(x.numero?('-'+limpoArq(x.numero,12)):''); if(x.direcao==='honorario') return 'NFSe-honorarios'+(x.numero?('-'+limpoArq(x.numero,12)):''); var p=(x.origem==='cliente')?'NF-recebida':'NF'; if(x.numero) p+='-'+limpoArq(x.numero,12); return p; }
+    if(col==='notas'){ if(x.direcao==='entrada' && x.especie==='NFS-e') return 'NFSe-recebida'+(x.numero?('-'+limpoArq(x.numero,12)):'')+(x.fornecedor?('-'+limpoArq(String(x.fornecedor).replace(/\s*\d{11}\s*$/,'').replace(/^[\d.]+\s+/,''),28)):''); if(x.direcao==='entrada') return 'NF-entrada'+(x.numero?('-'+limpoArq(x.numero,12)):''); if(x.direcao==='honorario') return 'NFSe-honorarios'+(x.numero?('-'+limpoArq(x.numero,12)):''); var p=(x.origem==='cliente')?'NF-recebida':'NF'; if(x.numero) p+='-'+limpoArq(x.numero,12); return p; }
     if(col==='docs') return limpoArq(x.tipo||'Documento',30);
     return 'Arquivo';
   }
-  function nomeArquivo(col,x,c){
-    return prefixo(col,x)+'_'+c.mes+'_'+limpoArq(x.cliente||'cliente',40)+ext(x);
+  function nomeArquivo(col,x,c,varia){
+    var e=ext(x); if(varia==='pdf'){ var m=String(x.pdfNome||'').match(/\.([a-z0-9]{2,5})$/i); e=m?('.'+m[1].toLowerCase()):'.pdf'; }
+    return prefixo(col,x)+'_'+c.mes+'_'+limpoArq(x.cliente||'cliente',40)+e;
   }
   function descricao(col,x){
     var p=[COLS[col].rotulo, x.tipo, x.numero?('nº '+x.numero):'', x.valor?('R$ '+x.valor):'', x.vencimento?('venc. '+x.vencimento):'', x.descricao||''];
@@ -111,7 +115,8 @@
   }
 
   /* ===================== leitura do arquivo ===================== */
-  function base64De(x){
+  function base64De(x,varia){
+    if(varia==='pdf') return x.pdfData ? Promise.resolve({data:x.pdfData, mime:''}) : Promise.reject(new Error('sem pdf'));
     if(x.arquivoData && /^data:/.test(x.arquivoData)) return Promise.resolve({data:x.arquivoData, mime:''});
     if(x.arquivoData) return Promise.resolve({data:x.arquivoData, mime:x.arquivoMime||'application/pdf'});
     if(x.arquivoUrl){
@@ -128,24 +133,28 @@
       .then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ throw new Error('resposta inválida do Apps Script'); } if(!j.ok) throw new Error(j.erro||'erro no Drive'); return j; });
   }
 
-  function montar(col,x){
+  function montar(col,x,varia){
     var c=comp(x), p=pastaDe(x.cliente);
     return { token:DRIVE_TOKEN, pasta:p.pasta, cliente:String(x.cliente||'Sem cliente').trim(), ano:c.ano, mes:c.mes,
-             nome:nomeArquivo(col,x,c), descricao:descricao(col,x), regime:p.regime, conhecido:p.conhecido };
+             nome:nomeArquivo(col,x,c,varia), descricao:descricao(col,x)+(varia==='pdf'?' · PDF':''), regime:p.regime, conhecido:p.conhecido };
   }
 
-  function chave(col,id){ return col+'/'+id; }
+  function chave(col,id,varia){ return col+'/'+id+(varia?('#'+varia):''); }
+  function jaFoi(x,varia){ return varia==='pdf' ? !!x.pdfDriveId : !!x.driveId; }
+  function aceitaV(col,x,varia){ return varia==='pdf' ? (col==='notas' && !!x.pdfData) : COLS[col].aceita(x); }
 
-  function processar(col,id,x){
-    var k=chave(col,id), d=db(); if(!d) return Promise.resolve(false);
-    var pl=montar(col,x);
-    return base64De(x).then(function(a){
+  function processar(col,id,x,varia){
+    var k=chave(col,id,varia), d=db(); if(!d) return Promise.resolve(false);
+    var pl=montar(col,x,varia);
+    return base64De(x,varia).then(function(a){
       pl.base64=a.data; pl.mime=a.mime;
       /* confere de novo: outro aparelho pode ter salvo enquanto isso */
-      return d.collection(col).doc(String(id)).get().then(function(s){ var y=s.exists?s.data():null; if(!y) throw new Error('documento apagado'); if(y.driveId) return null; return enviar(pl); });
+      return d.collection(col).doc(String(id)).get().then(function(s){ var y=s.exists?s.data():null; if(!y) throw new Error('documento apagado'); if(jaFoi(y,varia)) return null; return enviar(pl); });
     }).then(function(r){
       if(r===null){ delete pendentesConhecidos[k]; render(); return true; }
-      var upd={ driveId:r.id, driveUrl:r.url, driveCaminho:r.caminho, driveNome:r.nome, drivePasta:pl.pasta, driveEm:firebase.firestore.FieldValue.serverTimestamp() };
+      var upd= varia==='pdf'
+        ? { pdfDriveId:r.id, pdfDriveUrl:r.url, pdfDriveCaminho:r.caminho, pdfDriveNome:r.nome, pdfDriveEm:firebase.firestore.FieldValue.serverTimestamp() }
+        : { driveId:r.id, driveUrl:r.url, driveCaminho:r.caminho, driveNome:r.nome, drivePasta:pl.pasta, driveEm:firebase.firestore.FieldValue.serverTimestamp() };
       return d.collection(col).doc(String(id)).set(upd,{merge:true}).then(function(){
         stats.ok++; stats.ultimo=r.caminho; delete tent[k]; delete ultTent[k]; delete pendentesConhecidos[k];
         aviso('☁️ Salvo no Drive: '+r.caminho,'info'); render(); return true;
@@ -158,20 +167,20 @@
     });
   }
 
-  function enfileirar(col,id,x,forcar){
-    if(!COLS[col].aceita(x) || x.driveId) return;
-    var k=chave(col,id);
+  function enfileirar(col,id,x,forcar,varia){
+    if(!aceitaV(col,x,varia) || jaFoi(x,varia)) return;
+    var k=chave(col,id,varia);
     if(fila.some(function(f){ return f.k===k; })) return;
     if(!forcar && tent[k]>=MAX_TENT) return;
     if(!forcar && ultTent[k] && (Date.now()-ultTent[k])<RETRY_MIN*60000) return;
-    fila.push({k:k,col:col,id:id,x:x}); stats.pend=fila.length; render();
+    fila.push({k:k,col:col,id:id,x:x,varia:varia||''}); stats.pend=fila.length; render();
     rodar();
   }
   function rodar(){
     if(emAndamento || !fila.length) return;
     if(!configurada()){ render(); return; }
     emAndamento=true; var it=fila.shift(); stats.pend=fila.length;
-    processar(it.col,it.id,it.x).then(function(){ emAndamento=false; setTimeout(rodar,400); });
+    processar(it.col,it.id,it.x,it.varia).then(function(){ emAndamento=false; setTimeout(rodar,400); });
   }
 
   /* ===================== observadores ===================== */
@@ -186,10 +195,13 @@
       try{
         unsub.push(d.collection(col).onSnapshot(function(s){
           s.docChanges().forEach(function(ch){
-            var x=ch.doc.data()||{}, k=chave(col,ch.doc.id);
-            if(ch.type==='removed' || x.driveId || !COLS[col].aceita(x)){ delete pendentesConhecidos[k]; return; }
-            pendentesConhecidos[k]={col:col,id:ch.doc.id,x:x};
-            enfileirar(col,ch.doc.id,x,false);
+            var x=ch.doc.data()||{};
+            (col==='notas'?['','pdf']:['']).forEach(function(varia){
+              var k=chave(col,ch.doc.id,varia);
+              if(ch.type==='removed' || jaFoi(x,varia) || !aceitaV(col,x,varia)){ delete pendentesConhecidos[k]; return; }
+              pendentesConhecidos[k]={col:col,id:ch.doc.id,x:x,varia:varia};
+              enfileirar(col,ch.doc.id,x,false,varia);
+            });
           });
           render();
         }, function(e){ try{ console.warn('[DRIVE] sem acesso a',col,e&&e.message); }catch(z){} }));
@@ -198,7 +210,7 @@
     setInterval(revisar, RETRY_MIN*60000);
   }
   function revisar(forcar){
-    Object.keys(pendentesConhecidos).forEach(function(k){ var p=pendentesConhecidos[k]; enfileirar(p.col,p.id,p.x,!!forcar); });
+    Object.keys(pendentesConhecidos).forEach(function(k){ var p=pendentesConhecidos[k]; enfileirar(p.col,p.id,p.x,!!forcar,p.varia); });
   }
   function desligar(){ unsub.forEach(function(u){ try{ u(); }catch(e){} }); unsub=[]; ativo=false; }
 
