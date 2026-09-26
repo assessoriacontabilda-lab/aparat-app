@@ -291,10 +291,13 @@
   async function marcarExtrato(nome, cp, como){
     var d=db(); if(!d){ aviso('Sem conexão com a nuvem.','warn'); return false; }
     if(extratoDe(nome,cp)) return true;                      /* nunca passa por cima de um extrato ja registrado */
+    /* v6 (26/09/2026): confere no Firestore tambem - o cache podia estar velho e o Realizado apagava o arquivo anexado */
+    try{ var jaTem=await d.collection('extratos').doc(limpo(nome)+'__'+cp).get();
+      if(jaTem.exists){ var jd=jaTem.data()||{}; if(jd.arquivoUrl||jd.arquivoData||jd.arquivoPath||jd.semMovimento||jd.realizado){ aviso('Esse extrato já está registrado'+(jd.arquivoNome?(' ('+jd.arquivoNome+')'):'')+'. Nada foi alterado.','info'); jd.id=jaTem.id; trocaLocal('extratos',jaTem.id,jd); return true; } } }catch(e){}
     var id=limpo(nome)+'__'+cp, semMov=/sem movimento/i.test(String(como||''));
     var dados = semMov
       ? {cliente:nome, competencia:cp, semMovimento:true, situacao:'sm', origem:'escritorio', enviadoEm:agoraBR(), ts:Date.now(), realizado:true, origemFicha:true}
-      : {cliente:nome, competencia:cp, semMovimento:false, situacao:'ok', arquivoNome:'Realizado — '+String(como||'recebido fora do app'), arquivoUrl:'', arquivoData:'', arquivoPath:'',
+      : {cliente:nome, competencia:cp, semMovimento:false, situacao:'ok', arquivoNome:'Realizado — '+String(como||'recebido fora do app'),
          origem:'escritorio', enviadoEm:agoraBR(), ts:Date.now(), realizado:true, origemFicha:true, recebidoPor:String(como||'')};
     try{ await d.collection('extratos').doc(id).set(dados,{merge:true}); trocaLocal('extratos',id,dados); return true; }
     catch(e){ aviso('Não consegui gravar o extrato: '+(e&&e.message?e.message:e),'warn'); return false; }
