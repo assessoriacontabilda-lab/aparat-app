@@ -22,7 +22,12 @@
    documento do cliente (clientes/<id>.parceiros[]) - o escritorio grava, o cliente so le. Campos do parceiro:
    nome, cpf, cnpj, funcao, cota (% do profissional), homologado Sim/Nao + data + orgao, telefone, situacao.
    Buscador de CNPJ: preenche sozinho (BrasilAPI; reserva publica.cnpj.ws); no MEI tira o CPF do nome empresarial.
-   Nota de CNPJ cadastrado ja entra com o tipo certo; alerta parceiro desligado / contrato nao homologado. */
+   Nota de CNPJ cadastrado ja entra com o tipo certo; alerta parceiro desligado / contrato nao homologado.
+   v3 (26/09/2026) - Daniel: "seria bom a nota em pdf" + receita do PGDAS. (1) botao "Anexar PDF" em cada nota
+   do painel (grava pdfNome/pdfData na mesma nota; o Drive leva o PDF para a mesma pasta); (2) aviso claro de que
+   o XML e salvo sozinho; (3) quadro "Receita bruta do salao para o PGDAS" por cliente e mes: total recebido
+   dos clientes (digitado, gravado em clientes/<id>.receitaSalao['AAAA-MM']) menos os repasses a parceiros
+   com NFS-e (Res. CGSN 140/2018, art. 2, par. 5, VI - parceiro com CNPJ). */
 ;(function(){
   if(window.__APARAT_NFE__) return; window.__APARAT_NFE__=1;
 
@@ -198,7 +203,7 @@
         s2.forEach(function(x){ var o=x.data()||{}; h.push({id:x.id, cliente:o.cliente||'', referencia:o.referencia||'', valor:o.valor||'', vencimento:o.vencimento||'', status:o.status||''}); }); }catch(e){}
       try{ var s3=await d.collection('clientes').get();
         s3.forEach(function(x){ var o=x.data()||{}; var nm=String(o.nome||'').trim();
-          if(nm && nm!=='Todos os Clientes' && !/inativ|desativ|encerr|baix|cancel|suspens/i.test(String(o.status||''))) c.push({id:x.id, nome:nm, cnpj:o.cnpj||'', parceiros:Array.isArray(o.parceiros)?o.parceiros:[]}); }); }catch(e){}
+          if(nm && nm!=='Todos os Clientes' && !/inativ|desativ|encerr|baix|cancel|suspens/i.test(String(o.status||''))) c.push({id:x.id, nome:nm, cnpj:o.cnpj||'', parceiros:Array.isArray(o.parceiros)?o.parceiros:[], receitaSalao:o.receitaSalao||{}}); }); }catch(e){}
       c.sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
       D={notas:n, hon:h, cli:c}; tD=Date.now();
     }finally{ carregando=false; }
@@ -357,6 +362,7 @@
         msgs.push('\u{2705} NF '+esc(x.numero)+' · '+esc(x.fornecedor)+' · '+moeda(x.valor)+' → Entradas (compras)'+(x.ufEmit&&x.ufDest&&x.ufEmit!==x.ufDest?(' · '+esc(x.ufEmit)+' → '+esc(x.ufDest)+' (outro estado)'):'')+(m.doc.alerta?(' · \u{26A0}\u{FE0F} '+esc(m.doc.alerta)):''));
       }catch(e){ msgs.push('\u{26D4} '+esc(f.name)+': '+esc(e&&e.message?e.message:e)); }
     }
+    if(ok) msgs.unshift('<b>\u{1F4BE} '+ok+' nota'+(ok>1?'s':'')+' salva'+(ok>1?'s':'')+' automaticamente</b> — não precisa apertar "salvar". Já está na lista abaixo e vai sozinha para o Google Drive. Para guardar o PDF junto, use "\u{1F4CE} Anexar PDF" na nota.');
     return {ok:ok, html:msgs.join('<br>')};
   }
   async function enviarManual(pre, cliente, lista, origem){
@@ -395,6 +401,29 @@
       cadastrado:!!ac.cad, descricao:(par?'Cota-parte do profissional-parceiro — ':'Serviço de ')+forn, alerta:['sem XML (só o PDF)'].concat(ac.alertas).join(' · '),
       arquivo:'', arquivoData:'', pdfNome:f.name, pdfData:dataUrl, status:'Nova', enviadoEm:agoraBR()};
     doc.id=await gravar(Object.assign({},doc)); lista.push(doc); return doc;
+  }
+  var pdfAlvo=null, pdfDepois=null;
+  function inputPdf(){
+    var i=el('nfe-pdf-up'); if(i) return i;
+    i=document.createElement('input'); i.type='file'; i.id='nfe-pdf-up'; i.accept='.pdf,.png,.jpg,.jpeg,application/pdf,image/*'; i.style.display='none';
+    document.body.appendChild(i);
+    i.onchange=async function(){
+      var f=this.files&&this.files[0]; this.value=''; var n=pdfAlvo, dep=pdfDepois; pdfAlvo=null; if(!f||!n) return;
+      try{ await anexarPdf(n, f); aviso('\u{2705} PDF anexado na nota '+(n.numero||'')+' de '+(n.fornecedor||'')+'. Vai para o Drive junto do XML.','success'); }
+      catch(e){ aviso('Não consegui anexar: '+(e&&e.message?e.message:e),'warn'); }
+      if(dep) dep();
+    };
+    return i;
+  }
+  async function anexarPdf(n, f){
+    if(f.size>MAX) throw new Error('arquivo maior que 900 KB');
+    if(!/pdf|image/i.test(f.type||'') && !/\.(pdf|png|jpe?g)$/i.test(f.name)) throw new Error('mande um PDF ou uma foto da nota');
+    var dataUrl=await lerArquivo(f,false);
+    var dd={pdfNome:f.name, pdfData:dataUrl, pdfEm:agoraBR(), pdfDriveId:'', pdfDriveUrl:''};
+    await db().collection('notas').doc(String(n.id)).set(dd,{merge:true}); Object.assign(n,dd);
+  }
+  function ligarPdf(box, lista, depois){
+    [].forEach.call(box.querySelectorAll('[data-nfe-apdf]'),function(b){ b.onclick=function(){ var n=lista[+b.getAttribute('data-nfe-apdf')]; if(!n) return; pdfAlvo=n; pdfDepois=depois; inputPdf().click(); }; });
   }
   async function marcarParceiro(n, sim){
     var dd={parceiro:!!sim, descricao:(sim?'Cota-parte do profissional-parceiro — ':'Serviço de ')+(n.fornecedor||'')};
@@ -469,7 +498,13 @@
       +'.nfe-cadf input,.nfe-cadf select{width:100%;font:inherit;font-size:13px;padding:9px 11px;border-radius:11px;border:1px solid var(--border);background:var(--card);color:inherit;outline:none}'
       +'.nfe-cadf>div{min-width:0}.nfe-cadf.prest .so-parc{display:none}'
       +'.nfe-rf{font-size:12px;line-height:1.5;border-radius:11px;padding:8px 11px;margin:6px 0;background:rgba(51,85,255,.10);border:1px solid rgba(51,85,255,.35);display:none}.nfe-rf.on{display:block}'
-      +'.nfe-busca{display:flex;gap:6px}.nfe-busca input{flex:1}';
+      +'.nfe-busca{display:flex;gap:6px}.nfe-busca input{flex:1}'
+      +'.nfe-pgd{border:1.5px solid rgba(51,85,255,.5);border-radius:16px;padding:13px 14px;margin-bottom:12px;background:rgba(51,85,255,.06)}'
+      +'.nfe-pgd>b{display:block;font-size:14px;margin-bottom:3px}.nfe-pgd>small{display:block;font-size:11.5px;color:var(--cinza);margin-bottom:8px;line-height:1.45}'
+      +'.nfe-pgl{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 0;border-top:1px dashed var(--border);font-size:13px}'
+      +'.nfe-pgl b{font-size:15px}.nfe-pgl.tot b{font-size:19px;color:#2fe0c8}body.ap-esc-claro .nfe-pgl.tot b{color:#0a8f80}'
+      +'.nfe-pgin{display:flex;gap:6px}.nfe-pgin input{font:inherit;font-size:14px;width:150px;padding:8px 10px;border-radius:11px;border:1px solid var(--border);background:var(--card);color:inherit;text-align:right}'
+      +'.nfe-pga{font-size:12px;line-height:1.55;border-radius:11px;padding:8px 11px;margin-top:8px;background:rgba(255,138,0,.10);border:1px solid rgba(255,138,0,.45)}';
     document.head.appendChild(s);
   }
 
@@ -607,13 +642,13 @@
     return '<div class="nfe-l '+(n.status==='Conferida'?'ok':'nova')+'"><div class="nfe-i"><b>'+esc(n.fornecedor||'Fornecedor')+' — '+moeda(num(n.valor))+'</b>'
       +'<small>'+det.join(' · ')+'</small>'+(n.chave?('<code>Chave: '+esc(fmtChave(n.chave))+'</code>'):'')+'<div>'+tagsEnt(n)+'</div></div>'
       +'<div class="nfe-acts">'+(n.arquivoData?'<button class="nfe-b" data-nfe-x="'+i+'">\u{2B07}\u{FE0F} XML</button>':'')
-      +(n.pdfData?'<button class="nfe-b" data-nfe-p="'+i+'">\u{2B07}\u{FE0F} PDF</button>':'')
+      +(n.pdfData?'<button class="nfe-b" data-nfe-p="'+i+'">\u{2B07}\u{FE0F} PDF</button>':'<button class="nfe-b" data-nfe-apdf="'+i+'">\u{1F4CE} Anexar PDF</button>')
       +(n.status==='Conferida'?'<button class="nfe-b" data-nfe-r="'+i+'">\u{21A9}\u{FE0F} Reabrir</button>':'<button class="nfe-b ok" data-nfe-ok="'+i+'">\u{2714} Conferir</button>')
       +'<button class="nfe-b ba" data-nfe-del="'+i+'">\u{1F5D1}\u{FE0F}</button></div></div>';
   }
   function listaEnt(){
     var box=el('nfe-lista'); if(!box) return;
-    var v=filtrarEnt(), ass=F.cli+'|'+F.comp+'|'+F.q+'|'+v.map(function(n){ return n.id+(n.status||''); }).join(',');
+    var v=filtrarEnt(), ass=F.cli+'|'+F.comp+'|'+F.q+'|'+v.map(function(n){ return n.id+(n.status||'')+(n.pdfData?'f':''); }).join(',');
     if(ass===assEnt) return; assEnt=ass;
     var tot=0, fo={}, inter=0, nv=0;
     v.forEach(function(n){ tot+=num(n.valor); fo[soDig(n.fornecedorCnpj)||n.fornecedor]=1; if(n.ufEmit&&n.ufDest&&n.ufEmit!==n.ufDest) inter++; if(n.status!=='Conferida') nv++; });
@@ -631,7 +666,7 @@
       h+=linhaEnt(n, D.notas.indexOf(n), !F.cli);
     });
     box.innerHTML=h;
-    ligarAcoes(box, D.notas, function(){ assEnt=''; entPainel(el('pp-notas')); });
+    ligarAcoes(box, D.notas, function(){ assEnt=''; entPainel(el('pp-notas')); }); ligarPdf(box, D.notas, function(){ assEnt=''; entPainel(el('pp-notas')); });
   }
   function ligarAcoes(box, lista, depois){
     [].forEach.call(box.querySelectorAll('[data-nfe-x]'),function(b){ b.onclick=function(){ var n=lista[+b.getAttribute('data-nfe-x')]; baixar(n.arquivoData, nomeXml(n)); }; });
@@ -846,9 +881,9 @@
       +'<div class="nfe-fil"><select id="nfe-s-f-cli"></select><select id="nfe-s-f-comp"></select>'
       +'<select id="nfe-s-f-par"><option value="">Todos os tipos</option><option value="sim">Só parceiros</option><option value="nao">Só outros prestadores</option></select>'
       +'<input id="nfe-s-f-q" placeholder="Buscar prestador, CPF/CNPJ ou número..."></div>'
-      +'<div id="nfe-s-kpi" class="nfe-kpis"></div>'
+      +'<div id="nfe-s-kpi" class="nfe-kpis"></div><div id="nfe-pg"></div>'
       +'<div class="nfe-drop" id="nfe-s-drop"><b>\u{1F4CE} Arraste aqui o XML da NFS-e recebida</b>'
-      +'<small>Prestador, CPF/CNPJ, número, data, competência, valor e tomador saem do próprio XML. Pode mandar vários de uma vez.</small>'
+      +'<small>Prestador, CPF/CNPJ, número, data, competência, valor e tomador saem do próprio XML. Pode mandar vários de uma vez. <span style="font-weight:800">Ao escolher o XML a nota já fica salva</span> — depois é só anexar o PDF nela, se quiser.</small>'
       +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><select id="nfe-s-up-cli" class="nfe-b" style="font-weight:600"></select>'+selTipo('nfe-s-tipo','sim')
       +'<button class="nfe-b az" id="nfe-s-up-bt">\u{1F4C2} Escolher XML</button><button class="nfe-b" id="nfe-s-man-bt">\u{1F4C4} Só tenho o PDF</button><button class="nfe-b" id="nfe-s-cad-bt">\u{1F465} Parceiros e prestadores</button></div>'
       +'<input type="file" id="nfe-s-up" accept=".xml,text/xml,application/xml" multiple style="display:none">'
@@ -894,6 +929,7 @@
     var t=n.status==='Conferida' ? '<span class="nfe-c ok">\u{2714} Conferida</span>' : '<span class="nfe-c lar">\u{25CF} Nova — conferir</span>';
     t+= n.parceiro ? '<span class="nfe-c ve">\u{1F91D} Profissional-parceiro · fora da receita bruta do salão</span>' : '<span class="nfe-c az">\u{1F9F0} Outro prestador</span>';
     t+= n.origem==='cliente' ? '<span class="nfe-c rx">\u{1F4F1} Enviada pelo cliente</span>' : '<span class="nfe-c az">\u{1F3E2} Lançada pelo escritório</span>';
+    t+= n.pdfData ? '<span class="nfe-c ok">\u{1F4C4} PDF anexado</span>' : '<span class="nfe-c lar">\u{1F4C4} Sem PDF</span>';
     var cd=acharCad(n.cliente, n.fornecedorCnpj, n.fornecedor);
     t+= cd ? '<span class="nfe-c ok">\u{1F4C7} No cadastro'+(cd.funcao?(' · '+esc(cd.funcao)):'')+(cd.cota?(' · '+esc(cd.cota)+'%'):'')+'</span>' : '<span class="nfe-c lar">\u{1F4C7} Fora do cadastro</span>';
     if(n.alerta) t+='<span class="nfe-c ba">\u{26A0}\u{FE0F} '+esc(n.alerta)+'</span>';
@@ -906,7 +942,7 @@
     return '<div class="nfe-l '+(n.status==='Conferida'?'ok':'nova')+'"><div class="nfe-i"><b>'+esc(n.fornecedor||'Prestador')+' — '+moeda(num(n.valor))+'</b>'
       +'<small>'+det.join(' · ')+'</small>'+(n.chaveNfse?('<code>Chave NFS-e: '+esc(fmtChave(n.chaveNfse))+'</code>'):(n.codVerif?('<code>Cód. verificação: '+esc(n.codVerif)+'</code>'):''))+'<div>'+tagsSrv(n)+'</div></div>'
       +'<div class="nfe-acts">'+(n.arquivoData?'<button class="nfe-b" data-nfe-x="'+i+'">\u{2B07}\u{FE0F} XML</button>':'')
-      +(n.pdfData?'<button class="nfe-b" data-nfe-p="'+i+'">\u{2B07}\u{FE0F} PDF</button>':'')
+      +(n.pdfData?'<button class="nfe-b" data-nfe-p="'+i+'">\u{2B07}\u{FE0F} PDF</button><button class="nfe-b" data-nfe-apdf="'+i+'" title="Trocar o PDF">\u{1F501} PDF</button>':'<button class="nfe-b az" data-nfe-apdf="'+i+'">\u{1F4CE} Anexar PDF</button>')
       +(acharCad(n.cliente, n.fornecedorCnpj, n.fornecedor)?'':'<button class="nfe-b" data-nfe-cad="'+i+'">\u{2795} Cadastrar</button>')
       +'<button class="nfe-b" data-nfe-par="'+i+'">'+(n.parceiro?'\u{1F9F0} Não é parceiro':'\u{1F91D} É parceiro')+'</button>'
       +(n.status==='Conferida'?'<button class="nfe-b" data-nfe-r="'+i+'">\u{21A9}\u{FE0F} Reabrir</button>':'<button class="nfe-b ok" data-nfe-ok="'+i+'">\u{2714} Conferir</button>')
@@ -931,8 +967,9 @@
   }
   function listaSrv(){
     var box=el('nfe-s-lista'); if(!box) return;
-    var v=filtrarSrv(), ass=S.cli+'|'+S.comp+'|'+S.q+'|'+S.par+'|'+D.cli.map(function(c){ return (c.parceiros||[]).length; }).join('.')+'|'+v.map(function(n){ return n.id+(n.status||'')+(n.parceiro?'p':''); }).join(',');
+    var v=filtrarSrv(), ass=S.cli+'|'+S.comp+'|'+S.q+'|'+S.par+'|'+D.cli.map(function(c){ return (c.parceiros||[]).length; }).join('.')+'|'+v.map(function(n){ return n.id+(n.status||'')+(n.parceiro?'p':'')+(n.pdfData?'f':''); }).join(',')+'|'+pgdasAss();
     if(ass===assSrv) return; assSrv=ass;
+    quadroPgdas();
     var k=el('nfe-s-kpi'); if(k) k.innerHTML=kpiSrv(v, S.comp?(' em '+esc(S.comp)):' (todos os meses)');
     if(!v.length){ box.innerHTML='<div class="nfe-v">Nenhuma NFS-e recebida'+(S.cli?(' de '+esc(S.cli)):'')+(S.comp?(' em '+esc(S.comp)):'')+' ainda.</div>'; return; }
     var h='', grupo='';
@@ -944,8 +981,51 @@
     });
     box.innerHTML=h;
     var dep=function(){ assSrv=''; srvPainel(el('pp-notas')); };
-    ligarAcoes(box, D.notas, dep); ligarParceiro(box, D.notas, dep);
+    ligarAcoes(box, D.notas, dep); ligarParceiro(box, D.notas, dep); ligarPdf(box, D.notas, dep);
     [].forEach.call(box.querySelectorAll('[data-nfe-cad]'),function(b){ b.onclick=function(){ var n=D.notas[+b.getAttribute('data-nfe-cad')]; if(n) abrirCad(n.cliente, n); }; });
+  }
+  /* ---------- quadro: receita bruta do salao para o PGDAS ---------- */
+  function compIso(c){ var p=String(c||'').split('/'); return p.length===2 ? p[1]+'-'+p[0] : ''; }
+  function pgComp(){ return S.comp || compFicha(); }
+  function recebidoDe(cli, comp){ var c=cliObj(cli); var m=(c && c.receitaSalao) || {}; var v=m[compIso(comp)]; return (v===undefined||v===null||v==='')?null:num(v); }
+  function pgdasAss(){ if(!S.cli) return '-'; var r=recebidoDe(S.cli, pgComp()); return S.cli+'#'+pgComp()+'#'+(r===null?'x':r); }
+  function calcPgdas(cli, comp){
+    var sv=servicos(D.notas).filter(function(n){ return mesmo(n.cliente,cli) && n.competencia===comp && n.parceiro && !n.cancelada; });
+    var rep=0, aviso2=[];
+    sv.forEach(function(n){ rep+=num(n.valor); var cd=acharCad(cli, n.fornecedorCnpj, n.fornecedor);
+      if(soDig(n.fornecedorCnpj).length!==14) aviso2.push('NFS-e '+n.numero+' de '+n.fornecedor+': parceiro sem CNPJ na nota — a Res. CGSN 140 exige CNPJ para tirar da receita');
+      else if(!cd) aviso2.push(n.fornecedor+' não está no cadastro de parceiros');
+      else if(cd.homologado!=='Sim') aviso2.push(cd.nome+': contrato de parceria sem homologação');
+      if(n.status!=='Conferida') aviso2.push('NFS-e '+n.numero+' de '+n.fornecedor+' ainda não foi conferida'); });
+    var semNota=cadDe(cli).filter(function(p){ return p.tipo!=='prestador' && !/deslig/i.test(p.situacao||'') && !sv.some(function(n){ return (soDig(p.cnpj) && soDig(n.fornecedorCnpj)===soDig(p.cnpj)) || mesmo(n.fornecedor,p.nome); }); });
+    semNota.forEach(function(p){ aviso2.push(p.nome+' é parceiro ativo e ainda não mandou a NFS-e de '+comp); });
+    var rec=recebidoDe(cli, comp);
+    return {notas:sv, repasses:rep, recebido:rec, receita:(rec===null?null:rec-rep), avisos:aviso2};
+  }
+  function quadroPgdas(){
+    var box=el('nfe-pg'); if(!box) return;
+    if(!S.cli){ box.innerHTML='<div class="nfe-pgd"><b>\u{1F9EE} Receita bruta do salão para o PGDAS</b><small>Escolha o cliente no filtro acima para montar o cálculo do mês.</small></div>'; return; }
+    var comp=pgComp(), r=calcPgdas(S.cli, comp);
+    var h='<div class="nfe-pgd"><b>\u{1F9EE} Receita bruta do salão para o PGDAS — '+esc(S.cli)+' · '+esc(comp)+'</b>'
+      +'<small>A cota-parte do profissional-parceiro não entra na receita bruta do salão (Lei 12.592/2012, art. 1º-A, § 5º; Res. CGSN 140/2018, art. 2º, § 5º, VI — parceiro com CNPJ).'+(S.comp?'':' Mês da ficha; troque no filtro de meses.')+'</small>'
+      +'<div class="nfe-pgl"><span>Total recebido dos clientes no mês (serviços + produtos do salão)</span><span class="nfe-pgin"><input id="nfe-pg-rec" inputmode="decimal" placeholder="Ex: 30.000,00" value="'+(r.recebido===null?'':String(r.recebido.toFixed(2)).replace('.',','))+'"><button class="nfe-b ok" id="nfe-pg-sal">\u{1F4BE} Salvar</button></span></div>'
+      +'<div class="nfe-pgl"><span>(−) Repasses aos profissionais-parceiros com NFS-e ('+r.notas.length+' nota'+(r.notas.length===1?'':'s')+')</span><b>'+moeda(r.repasses)+'</b></div>'
+      +'<div class="nfe-pgl tot"><span>= Receita bruta do salão para o PGDAS</span><b>'+(r.receita===null?'— digite o total recebido':moeda(r.receita))+'</b>'
+      +(r.receita!==null?'<button class="nfe-b" id="nfe-pg-cp">\u{1F4CB} Copiar</button>':'')+'</div>';
+    if(r.receita!==null && r.receita<0) h+='<div class="nfe-pga">\u{26D4} Os repasses passam do total recebido. Confira o total digitado ou as notas.</div>';
+    if(r.avisos.length) h+='<div class="nfe-pga">\u{26A0}\u{FE0F} '+r.avisos.map(esc).join('<br>\u{26A0}\u{FE0F} ')+'</div>';
+    h+='</div>';
+    box.innerHTML=h;
+    el('nfe-pg-sal').onclick=async function(){
+      var v=String(el('nfe-pg-rec').value||'').trim(), c=cliObj(S.cli); if(!c || !c.id) return;
+      var n=v?num(v):null; if(v && !(n>0)){ aviso('Digite um valor válido.','warn'); return; }
+      var m=Object.assign({}, c.receitaSalao||{}); if(n===null) delete m[compIso(comp)]; else m[compIso(comp)]=n.toFixed(2);
+      this.disabled=true;
+      try{ await db().collection('clientes').doc(String(c.id)).set({receitaSalao:m},{merge:true}); c.receitaSalao=m; aviso('\u{2705} Total recebido de '+comp+' salvo.','success'); }
+      catch(e){ aviso('Não consegui gravar: '+(e&&e.message?e.message:e),'warn'); }
+      this.disabled=false; assSrv=''; listaSrv();
+    };
+    var cp=el('nfe-pg-cp'); if(cp) cp.onclick=function(){ var t=r.receita.toFixed(2).replace('.',','); try{ navigator.clipboard.writeText(t); aviso('\u{1F4CB} Copiado: '+t,'info'); }catch(e){ prompt('Copie o valor:', t); } };
   }
   function srvPainel(pg){
     if(!pg) return; montaSrv(pg);
@@ -1075,8 +1155,8 @@
     var hAt=hs[0]||null, nfs=hAt?nfsDoHon(hAt):null, r=realiz[k];
     var sv=servicos(D.notas).filter(function(n){ return mesmo(n.cliente,cli) && n.competencia===comp; }), svTot=0, svNv=0;
     sv.forEach(function(n){ if(!n.cancelada) svTot+=num(n.valor); if(n.status!=='Conferida') svNv++; });
-    var svPar=totParc(sv);
-    var ass=cli+'|'+comp+'|'+ent.length+'|'+nv+'|'+(r?1:0)+'|'+(hAt?hAt.id:'')+'|'+(nfs?nfs.id:'')+'|'+sv.length+'|'+svNv+'|'+svPar;
+    var svPar=totParc(sv), pgR=calcPgdas(cli, comp);
+    var ass=cli+'|'+comp+'|'+ent.length+'|'+nv+'|'+(r?1:0)+'|'+(hAt?hAt.id:'')+'|'+(nfs?nfs.id:'')+'|'+sv.length+'|'+svNv+'|'+svPar+'|'+pgR.receita;
     var box=el('nfe-ficha');
     if(box && box.getAttribute('data-a')===ass && card.contains(box)) return;
     if(!box || !card.contains(box)){
@@ -1091,7 +1171,8 @@
           : '<div class="fc-lin fc-fazer"><div class="fc-t"><b>Notas de entrada (compras)</b><small>'+ent.length+' nota'+(ent.length===1?'':'s')+' · '+moeda(tot)+(nv?(' · '+nv+' a conferir'):'')+' · a fazer no mês</small></div>'
               +'<button class="fc-bt" id="nfe-f-ver">\u{1F4E5} Ver entradas</button><button class="fc-bt ok" id="nfe-f-ok">\u{2714} Realizado</button></div>';
     if(sv.length) h+='<div class="fc-lin clic" id="nfe-f-srv"><div class="fc-t"><b>\u{1F488} Serviços recebidos (NFS-e)</b><small>'+sv.length+' nota'+(sv.length===1?'':'s')+' · '+moeda(svTot)
-      +(svPar?(' · cota-parte dos parceiros '+moeda(svPar)+' (fora da receita bruta)'):'')+(svNv?(' · '+svNv+' a conferir'):'')+'</small></div>'
+      +(svPar?(' · cota-parte dos parceiros '+moeda(svPar)+' (fora da receita bruta)'):'')+(svNv?(' · '+svNv+' a conferir'):'')
+      +(pgR.receita!==null?(' · <b>receita p/ PGDAS '+moeda(pgR.receita)+'</b>'):' · falta o total recebido p/ o PGDAS')+'</small></div>'
       +'<span class="fc-chip '+(svNv?'lar':'ok')+'">'+(svNv?'Conferir':'Conferidas')+'</span></div>';
     if(hAt) h+='<div class="fc-lin clic" id="nfe-f-hon"><div class="fc-t"><b>NFS-e dos honorários '+esc(compDe(hAt.referencia))+'</b><small>'+moeda(num(hAt.valor))+(nfs?(' · anexada'+(nfs.numero?(' nº '+esc(nfs.numero)):'')+' · o cliente já vê no app'):' · ainda não anexada')+'</small></div>'
       +'<span class="fc-chip '+(nfs?'ok':'lar')+'">'+(nfs?'Anexada':'Falta anexar')+'</span></div>';
