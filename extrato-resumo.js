@@ -12,7 +12,9 @@
    v2 (26/09/2026): o Itau (e outros bancos) poe no OFX linhas de SALDO e as aplicacoes/resgates automaticos como
       se fossem lancamentos - a v1 somava tudo (Castro 08/2026 deu R$ 180.542,06 em vez de R$ 22.918,65).
       Agora: ignora saldos, aplicacao/resgate automatico e rendimentos; separa as saidas em repasses a parceiros
-      (cadastro do salao), PIX para pessoa fisica (CPF), pagamentos a empresas (CNPJ) e contas/tarifas.
+      (cadastro do salao), retiradas do socio (nome em Dados Cadastrais), PIX a outras pessoas fisicas,
+      pagamentos a empresas e contas/tarifas. Despesa = saidas reais - retiradas do socio (como o Daniel faz a mao);
+      PIX/TED recebido do proprio socio (aporte) nao entra no faturamento.
    4. Extrato ja enviado sem resumo: botao "Ler o arquivo" que pede o mesmo arquivo de novo (o navegador nao
       consegue baixar do Storage pela regra de CORS). */
 ;(function(){
@@ -56,9 +58,9 @@
       if(isNaN(v)) continue; trns.push({tipo:g('TRNTYPE',b), data:dataBR(g('DTPOSTED',b)), valor:v, memo:(g('MEMO',b)||g('NAME',b)||'').slice(0,90), id:g('FITID',b)}); }
     if(!trns.length) throw new Error('não achei lançamentos (<STMTTRN>) no OFX');
     var ign={saldo:0, aplicEnt:0, aplicSai:0, rend:0, estornoEnt:0, estornoSai:0, emprest:0, n:0};
-    var cred=0, deb=0, nc=0, nd=0, saidas=[];
+    var cred=0, deb=0, nc=0, nd=0, saidas=[], transf=[];
     trns.forEach(function(t){ var c=classe(t.memo, t.valor), v=t.valor;
-      if(c==='receita'){ cred+=v; nc++; }
+      if(c==='receita'){ cred+=v; nc++; if(!/QR ?CODE|REDE|CIELO|STONE|GETNET|SIPAG|PAGSEGURO|MERCADO ?PAGO|SUMUP|SAFRAPAY|TON |VERO/i.test(t.memo) && /PIX|TED|DOC|TRANSF|DEP/i.test(t.memo)) transf.push({d:t.data, v:Number(v.toFixed(2)), m:t.memo}); }
       else if(c==='saida'){ deb+=-v; nd++; var dc=docDe(t.memo); saidas.push({d:t.data, v:Number((-v).toFixed(2)), m:t.memo, doc:dc?dc.n:'', dt:dc?dc.tipo:''}); }
       else { ign.n++; if(c==='saldo') ign.saldo++; else if(c==='aplic'){ if(v>0) ign.aplicEnt+=v; else ign.aplicSai+=-v; } else if(c==='rend') ign.rend+=v;
         else if(c==='estorno'){ if(v>0) ign.estornoEnt+=v; else ign.estornoSai+=-v; } else if(c==='emprest') ign.emprest+=v; } });
@@ -67,18 +69,34 @@
     if(/^0?341$/.test(banco)) banco='Itaú'; else if(/^0?237$/.test(banco)) banco='Bradesco'; else if(/^0?001$/.test(banco)) banco='Banco do Brasil'; else if(/^0?104$/.test(banco)) banco='Caixa'; else if(/^0?033$/.test(banco)) banco='Santander'; else if(/^0?077$/.test(banco)) banco='Inter'; else if(/^0?260$/.test(banco)) banco='Nubank'; else if(/^0?756$/.test(banco)) banco='Sicoob'; else if(/^0?748$/.test(banco)) banco='Sicredi';
     var maiores=trns.filter(function(t){ return t.valor>0 && classe(t.memo,t.valor)==='receita'; }).sort(function(a,b){ return b.valor-a.valor; }).slice(0,5).map(function(t){ return {data:t.data, valor:Number(t.valor.toFixed(2)), memo:t.memo}; });
     return { v:2, fonte:'OFX', banco:banco, inicio:ini, fim:fim, entradas:Number(cred.toFixed(2)), saidas:Number(deb.toFixed(2)), qtdEntradas:nc, qtdSaidas:nd, qtd:trns.length,
-             ignorados:ign, saidasLista:saidas.slice(0,400), saldoFinal:saldo?Number(String(saldo).replace(',','.')):null, maioresEntradas:maiores, lidoEm:agoraBR() };
+             ignorados:ign, saidasLista:saidas.slice(0,400), creditosTransf:transf.slice(0,300), saldoFinal:saldo?Number(String(saldo).replace(',','.')):null, maioresEntradas:maiores, lidoEm:agoraBR() };
+  }
+  /* socio(s) do cliente, pelo campo "Socio / Responsavel" de Dados Cadastrais */
+  function normNome(x){ return String(x||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function ehSocio(memo, cliente){
+    var ns=socios[String(cliente||'').trim().toLowerCase()]||[]; if(!ns.length) return false; var m=' '+normNome(memo).replace(/[^A-Z ]/g,' ')+' ';
+    return ns.some(function(n){ var tk=normNome(n).replace(/[^A-Z ]/g,' ').split(/\s+/).filter(function(w){ return w.length>=3 && !/^(DAS|DOS|DEL|LTDA|EIRELI)$/.test(w); });
+      return tk.length>=2 && tk.every(function(w){ return m.indexOf(' '+w+' ')>-1; }); });
+  }
+  /* os numeros que valem: faturamento sem aporte do socio, despesa sem retirada do socio */
+  function contas(r, cliente){
+    var G=gruposSaida(r, cliente)||{parc:0,pf:0,pj:0,outras:0,socio:0,nomesParc:{}}, aporte=0;
+    (r.creditosTransf||[]).forEach(function(x){ if(ehSocio(x.m, cliente)) aporte+=x.v; });
+    aporte=Number(aporte.toFixed(2));
+    return {G:G, aporte:aporte, receita:Number((r.entradas-aporte).toFixed(2)), despesa:Number((r.saidas-(G.socio||0)).toFixed(2))};
   }
   /* separa as saidas: repasse a parceiro do cadastro, pessoa fisica, empresa, contas/tarifas */
   function gruposSaida(r, cliente){
-    var G={parc:0, pf:0, pj:0, outras:0, nParc:0, nPf:0, nPj:0, nOut:0, nomesParc:{}}; if(!r || !r.saidasLista) return null;
+    var G={parc:0, pf:0, pj:0, outras:0, socio:0, nParc:0, nPf:0, nPj:0, nOut:0, nSocio:0, nomesParc:{}}; if(!r || !r.saidasLista) return null;
     var cad=parcs[String(cliente||'').trim().toLowerCase()]||[];
     r.saidasLista.forEach(function(x){
       var p=x.doc ? cad.filter(function(c){ return c.cnpj && String(c.cnpj).replace(/\D/g,'')===x.doc || (c.cpf && String(c.cpf).replace(/\D/g,'')===x.doc); })[0] : null;
       if(p){ G.parc+=x.v; G.nParc++; G.nomesParc[p.nome||x.doc]=1; }
+      else if(ehSocio(x.m, cliente)){ G.socio+=x.v; G.nSocio++; }
       else if(x.dt==='cpf'){ G.pf+=x.v; G.nPf++; }
       else if(x.dt==='cnpj'){ G.pj+=x.v; G.nPj++; }
       else { G.outras+=x.v; G.nOut++; } });
+    ['parc','pf','pj','outras','socio'].forEach(function(k){ G[k]=Number(G[k].toFixed(2)); });
     return G;
   }
   function lerArquivo(f){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){ res(fr.result); }; fr.onerror=function(){ rej(new Error('não consegui ler o arquivo')); }; fr.readAsArrayBuffer(f); }); }
@@ -123,12 +141,13 @@
   }
 
   /* ---------------- dados ---------------- */
-  var cache={}, tCache=0, fat={}, tFat=0, regimes={}, parcs={};
+  var cache={}, tCache=0, fat={}, tFat=0, regimes={}, parcs={}, socios={};
   async function carregar(forcar){
     var d=db(); if(!d) return; if(!forcar && tCache && Date.now()-tCache<20000) return; tCache=Date.now();
     try{ var q=ehAdmin()? d.collection('extratos') : d.collection('extratos').where('cliente','==',clienteAtual()); var s=await q.get(); var c={}; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; c[x.id]=o; }); cache=c; }catch(e){}
     if(ehAdmin()){ try{ var s2=await d.collection('faturamento').get(); var f={}; s2.forEach(function(x){ var o=x.data()||{}; o.id=x.id; f[String(o.cliente||'').trim().toLowerCase()+'|'+o.mesRef]=o; }); fat=f; }catch(e){}
-      try{ var s3=await d.collection('clientes').get(); s3.forEach(function(x){ var o=x.data()||{}; if(o.nome){ regimes[String(o.nome).trim().toLowerCase()]=o.regime||''; parcs[String(o.nome).trim().toLowerCase()]=Array.isArray(o.parceiros)?o.parceiros:[]; } }); }catch(e){} }
+      try{ var s3=await d.collection('clientes').get(); s3.forEach(function(x){ var o=x.data()||{}; if(o.nome){ regimes[String(o.nome).trim().toLowerCase()]=o.regime||''; parcs[String(o.nome).trim().toLowerCase()]=Array.isArray(o.parceiros)?o.parceiros:[]; } }); }catch(e){}
+      try{ var s4=await d.collection('dados').get(); var so={}; s4.forEach(function(x){ var o=x.data()||{}; if(o.cliente && o.socio){ var k=String(o.cliente).trim().toLowerCase(); so[k]=(so[k]||[]).concat(String(o.socio).split(/\s+e\s+|,|;|\//i).map(function(z){ return z.trim(); }).filter(Boolean)); } }); socios=so; }catch(e){} }
   }
   function extratoDe(cli, cp){ var ks=Object.keys(cache); for(var i=0;i<ks.length;i++){ var o=cache[ks[i]]; if(mesmo(o.cliente,cli) && o.competencia===cp) return o; } return null; }
   function fatDe(cli, cp){ return fat[String(cli||'').trim().toLowerCase()+'|'+cp]||null; }
@@ -138,11 +157,11 @@
     var d=db(), r=o.resumo; if(!d||!r) return;
     var cp=o.competencia, ja=fatDe(o.cliente,cp);
     if(!r.v){ aviso('Esse resumo foi feito pela versão antiga (somava as linhas de saldo). Clique em "Ler o arquivo OFX" e escolha o arquivo de novo.','warn'); return; }
-    var G=gruposSaida(r,o.cliente)||{};
-    var msg='Lançar no Controle de Faturamento de '+o.cliente+' — '+compLabel(cp)+':\n\nFaturamento (recebimentos reais): '+moeda(r.entradas)+'\nDespesas (saídas reais): '+moeda(r.saidas)+(G.parc?('\n   · repasses aos parceiros: '+moeda(G.parc)):'')+(G.pf?('\n   · PIX/transferências a pessoas físicas: '+moeda(G.pf)):'')+(G.pj?('\n   · pagamentos a empresas: '+moeda(G.pj)):'')+(G.outras?('\n   · contas, tarifas e outros: '+moeda(G.outras)):'')+'\n\nFora da conta: linhas de saldo, aplicação/resgate automático e rendimentos'+(r.ignorados&&r.ignorados.emprest?(', empréstimos '+moeda(r.ignorados.emprest)):'')+'.\nConfira antes de usar no PGDAS.'+(ja?('\n\nJá existe um lançamento desse mês (fat. '+moeda(ja.faturamento)+'). Ele será SUBSTITUÍDO.'):'');
+    var C=contas(r,o.cliente), G=C.G;
+    var msg='Lançar no Controle de Faturamento de '+o.cliente+' — '+compLabel(cp)+':\n\nFaturamento (recebimentos reais): '+moeda(C.receita)+(C.aporte?('\n   (fora: PIX/TED do próprio sócio '+moeda(C.aporte)+')'):'')+'\nDespesas (saídas reais, sem retirada do sócio): '+moeda(C.despesa)+(G.parc?('\n   · repasses aos parceiros: '+moeda(G.parc)):'')+(G.pf?('\n   · PIX/transferências a pessoas físicas: '+moeda(G.pf)):'')+(G.pj?('\n   · pagamentos a empresas: '+moeda(G.pj)):'')+(G.outras?('\n   · contas, tarifas e outros: '+moeda(G.outras)):'')+(G.socio?('\n\nRetiradas do sócio (fora das despesas): '+moeda(G.socio)):'')+'\n\nFora da conta: linhas de saldo, aplicação/resgate automático e rendimentos'+(r.ignorados&&r.ignorados.emprest?(', empréstimos '+moeda(r.ignorados.emprest)):'')+'.\nConfira antes de usar no PGDAS.'+(ja?('\n\nJá existe um lançamento desse mês (fat. '+moeda(ja.faturamento)+'). Ele será SUBSTITUÍDO.'):'');
     if(!confirm(msg)) return;
     var tipo=/mei/i.test(regimes[String(o.cliente).trim().toLowerCase()]||'')?'MEI':'ME';
-    var dados={cliente:o.cliente, tipo:tipo, mesRef:cp, faturamento:r.entradas, despesa:r.saidas, obs:'Pelo extrato OFX ('+(r.banco||'banco')+', '+(r.inicio||'')+' a '+(r.fim||'')+'): recebimentos reais, sem saldos nem aplicações'+(G.parc?('; saídas incluem repasses a parceiros '+moeda(G.parc)):'')+(G.pf?('; PIX a pessoas físicas '+moeda(G.pf)):'')+'. Lançado em '+agoraBR()};
+    var dados={cliente:o.cliente, tipo:tipo, mesRef:cp, faturamento:C.receita, despesa:C.despesa, obs:'Pelo extrato OFX ('+(r.banco||'banco')+', '+(r.inicio||'')+' a '+(r.fim||'')+'): recebimentos reais, sem saldos nem aplicações'+(C.aporte?('; fora '+moeda(C.aporte)+' recebidos do sócio'):'')+(G.parc?('; despesas incluem repasses a parceiros '+moeda(G.parc)):'')+(G.socio?('; fora '+moeda(G.socio)+' de retirada do sócio'):'')+(G.pf?('; PIX a outras pessoas físicas '+moeda(G.pf)):'')+'. Lançado em '+agoraBR()};
     try{
       if(ja) await d.collection('faturamento').doc(String(ja.id)).set(dados,{merge:true}); else { var ref=await d.collection('faturamento').add(dados); dados.id=ref.id; }
       fat[String(o.cliente).trim().toLowerCase()+'|'+cp]=Object.assign(ja||{},dados);
@@ -165,19 +184,21 @@
         return h;
       }
       if(!r.v){ return h+'</div>'; }
-      var G=gruposSaida(r,o.cliente), ig=r.ignorados||{};
+      var C=contas(r,o.cliente), G=C.G, ig=r.ignorados||{}, adm=(modo==='admin');
       h+='<div class="exr-h">\u{1F4CA} Resumo do extrato'+(r.banco?(' · '+esc(r.banco)):'')+(r.inicio?(' · '+esc(r.inicio)+' a '+esc(r.fim)):'')+'</div>'
-        +'<div class="exr-g"><div class="exr-k ent"><b>'+moeda(r.entradas)+'</b><span>recebimentos reais · '+r.qtdEntradas+'</span></div>'
-        +'<div class="exr-k sai"><b>'+moeda(r.saidas)+'</b><span>saídas reais · '+r.qtdSaidas+'</span></div>'
-        +'<div class="exr-k"><b>'+moeda(r.entradas-r.saidas)+'</b><span>recebido − pago</span></div></div>';
-      if(modo==='admin' && G && r.saidas>0) h+='<div class="exr-sg">'
+        +'<div class="exr-g"><div class="exr-k ent"><b>'+moeda(adm?C.receita:r.entradas)+'</b><span>'+(adm?'faturamento real':'entradas da conta')+' · '+r.qtdEntradas+'</span></div>'
+        +'<div class="exr-k sai"><b>'+moeda(adm?C.despesa:r.saidas)+'</b><span>'+(adm?'despesas reais (sem retirada do sócio)':'saídas da conta')+'</span></div>'
+        +'<div class="exr-k"><b>'+moeda(adm?(C.receita-C.despesa):(r.entradas-r.saidas))+'</b><span>'+(adm?'resultado do mês':'entradas − saídas')+'</span></div></div>';
+      if(adm && r.saidas>0) h+='<div class="exr-sg">'
         +(G.parc?('<span>\u{1F488} Repasses aos parceiros: <b>'+moeda(G.parc)+'</b> <i>('+esc(Object.keys(G.nomesParc).join(', '))+')</i></span>'):'')
-        +(G.pf?('<span>\u{1F464} PIX a pessoas físicas (sócio, funcionário?): <b>'+moeda(G.pf)+'</b></span>'):'')
+        +(G.pf?('<span>\u{1F464} PIX a outras pessoas físicas (funcionário? confira): <b>'+moeda(G.pf)+'</b></span>'):'')
         +(G.pj?('<span>\u{1F3E2} Pagamentos a empresas: <b>'+moeda(G.pj)+'</b></span>'):'')
-        +(G.outras?('<span>\u{1F9FE} Contas, tarifas e outros: <b>'+moeda(G.outras)+'</b></span>'):'')+'</div>';
-      if(modo==='admin' && ig.n) h+='<small class="exr-s">Fora da conta: '+[ig.saldo?(ig.saldo+' linhas de saldo'):'', (ig.aplicEnt||ig.aplicSai)?('aplicação/resgate automático ('+moeda(ig.aplicSai)+' aplicados, '+moeda(ig.aplicEnt)+' resgatados)'):'', ig.rend?('rendimentos '+moeda(ig.rend)):'', (ig.estornoEnt||ig.estornoSai)?('estornos '+moeda(ig.estornoEnt+ig.estornoSai)):'', ig.emprest?('empréstimos '+moeda(ig.emprest)):''].filter(Boolean).join(' · ')+'.</small>';
+        +(G.outras?('<span>\u{1F9FE} Contas, tarifas e outros: <b>'+moeda(G.outras)+'</b></span>'):'')
+        +(G.socio?('<span class="fora">\u{1F6B6} Retiradas do sócio — fora das despesas: <b>'+moeda(G.socio)+'</b></span>'):'')
+        +(C.aporte?('<span class="fora">\u{1F4B5} Recebido do próprio sócio — fora do faturamento: <b>'+moeda(C.aporte)+'</b></span>'):'')+'</div>';
+      if(adm && ig.n) h+='<small class="exr-s">Fora da conta: '+[ig.saldo?(ig.saldo+' linhas de saldo'):'', (ig.aplicEnt||ig.aplicSai)?('aplicação/resgate automático ('+moeda(ig.aplicSai)+' aplicados, '+moeda(ig.aplicEnt)+' resgatados)'):'', ig.rend?('rendimentos '+moeda(ig.rend)):'', (ig.estornoEnt||ig.estornoSai)?('estornos '+moeda(ig.estornoEnt+ig.estornoSai)):'', ig.emprest?('empréstimos '+moeda(ig.emprest)):''].filter(Boolean).join(' · ')+'.</small>';
       if(modo==='admin'){
-        h+='<div class="exr-a">'+(ja?('<span class="exr-c ok">\u{1F4C8} No Controle de Faturamento: '+moeda(ja.faturamento)+(Math.abs(Number(ja.faturamento)-r.entradas)>0.009?' (diferente do extrato)':'')+'</span>'):'<span class="exr-c lar">Ainda não está no Controle de Faturamento</span>')
+        h+='<div class="exr-a">'+(ja?('<span class="exr-c ok">\u{1F4C8} No Controle de Faturamento: '+moeda(ja.faturamento)+(Math.abs(Number(ja.faturamento)-C.receita)>0.009?' (diferente do extrato)':'')+'</span>'):'<span class="exr-c lar">Ainda não está no Controle de Faturamento</span>')
           +'<button class="exr-b az" data-exr-fat="'+esc(o.id)+'">\u{1F4C8} '+(ja?'Atualizar no':'Lançar no')+' Controle de Faturamento</button>'
           +(r.maioresEntradas&&r.maioresEntradas.length?'<button class="exr-b" data-exr-top="'+id+'">\u{1F50D} Maiores entradas</button>':'')+'</div>'
           +'<div class="exr-top" style="display:none">'+(r.maioresEntradas||[]).map(function(t){ return '<div><span>'+esc(t.data)+'</span> '+moeda(t.valor)+' <i>'+esc(t.memo)+'</i></div>'; }).join('')+'</div>'
@@ -264,7 +285,7 @@
       +'.exr-c{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px}.exr-c.ok{background:rgba(14,159,110,.16);color:#2fd29b}.exr-c.lar{background:rgba(255,138,0,.14);color:#ff9d2e;border:1px solid #ff8a00}'
       +'body.ap-esc-claro .exr-c.ok{color:#0e9f6e}body.ap-esc-claro .exr-c.lar{color:#c25e00}'
       +'.exr-s{display:block;font-size:11px;color:var(--cinza);margin-top:6px;line-height:1.45}.exr-top{font-size:11.5px;margin-top:6px;font-family:ui-monospace,Consolas,monospace}.exr-top span{color:var(--cinza)}.exr-top i{color:var(--cinza);font-style:normal}'
-      +'.exr-sg{display:flex;flex-direction:column;gap:3px;font-size:12px;margin:4px 0 2px}.exr-sg i{color:var(--cinza);font-style:normal}'
+      +'.exr-sg{display:flex;flex-direction:column;gap:3px;font-size:12px;margin:4px 0 2px}.exr-sg i{color:var(--cinza);font-style:normal}.exr-sg .fora{color:var(--cinza)}'
       +'.exr-cli-l{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:8px 11px;margin-bottom:6px;font-size:12px}.exr-cli-l .ent{color:#2fd29b;font-weight:700}.exr-cli-l .sai{color:#ff7b70;font-weight:700}';
     document.head.appendChild(s);
   }
@@ -279,5 +300,5 @@
     ocupado=false;
   }
   [1500,3500,7000].forEach(function(t){ setTimeout(tick,t); }); setInterval(tick,2500);
-  window.__EXTRES__={lerOFX:lerOFX, resumoDoArquivo:resumoDoArquivo, carregar:carregar, tick:tick, estado:function(){ return {cache:cache, fat:fat, pend:pend}; }, lancarFat:lancarFat, gruposSaida:gruposSaida, classe:classe, parcs:function(){ return parcs; }};
+  window.__EXTRES__={lerOFX:lerOFX, resumoDoArquivo:resumoDoArquivo, carregar:carregar, tick:tick, estado:function(){ return {cache:cache, fat:fat, pend:pend}; }, lancarFat:lancarFat, gruposSaida:gruposSaida, classe:classe, parcs:function(){ return parcs; }, socios:function(){ return socios; }, contas:contas};
 })();
