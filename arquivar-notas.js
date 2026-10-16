@@ -1,4 +1,5 @@
-/* APARAT - ARQUIVAR NOTAS DO MES (v2, 15/10/2026)
+/* APARAT - ARQUIVAR NOTAS DO MES (v3, 15/10/2026)
+   v3: a janela espera a lista de notas carregar antes de mostrar o resumo (antes mostrava 0 se clicasse rapido).
    v2: so estilo - o CSS geral do app esticava a caixinha do modal e os campos da aba Arquivados.
    O que faz:
    1) PAINEL, aba Notas Fiscais: botao "Arquivar mes" no bloco "Notas emitidas pela APARAT".
@@ -215,7 +216,10 @@
       el('arq-ok').disabled=!c.ok.length;
       el('arq-ok').textContent=c.ok.length?('\u{1F4E6} Arquivar '+c.ok.length+' nota(s)'):'Nada para arquivar';
     }
-    el('arq-mes').onchange=resumo; el('arq-ant').onchange=resumo; resumo();
+    el('arq-mes').onchange=resumo; el('arq-ant').onchange=resumo;
+    (async function(){ var n=NOK();
+      if(n && !(n.estado()||[]).length){ el('arq-res').textContent='Carregando as notas...'; el('arq-ok').disabled=true; try{ await n.carregar(true); }catch(e){} }
+      if(el('arq-res')) resumo(); })();
     el('arq-canc').onclick=fechar; f.onclick=function(e){ if(e.target===f) fechar(); };
     el('arq-ok').onclick=async function(){
       var b=el('arq-ok'); if(b.disabled) return; b.disabled=true; b.textContent='Arquivando...';
