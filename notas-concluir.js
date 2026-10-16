@@ -1,4 +1,5 @@
-/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v4, 22/09/2026)
+/* APARAT - NOTAS FISCAIS DO ESCRITORIO: CONCLUIR + BAIXAR (v5, 15/10/2026)
+   v5: pula os documentos com arquivado=true (arquivar-notas.js) - eles so aparecem na aba Arquivados.
    v4: ignora as notas com direcao 'entrada' ou 'honorario' (sub-abas do nf-entrada.js).
    CORRECAO DA v1: a v1 lia a colecao 'notas', que no Firebase do Daniel esta VAZIA (0 documentos).
    As notas emitidas pelo escritorio moram na colecao 'solicitacoes', com servico 'Emitir nota fiscal':
@@ -17,7 +18,7 @@
       "Meus pedidos de emissao".
    Nada e apagado e nenhuma colecao nova e criada. */
 ;(function(){
-  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=4;
+  if(window.__APARAT_NOTAS_OK__) return; window.__APARAT_NOTAS_OK__=5;
 
   var ORIGEM='Ficha do Cliente';
   var cache=[], tCache=0, ocupado=false, assPainel='', assCli='';
@@ -62,7 +63,7 @@
       try{
         var s=await d.collection('solicitacoes').get();
         s.forEach(function(x){
-          var o=x.data()||{}; if(!ehPedidoNF(o)) return;
+          var o=x.data()||{}; if(!ehPedidoNF(o) || o.arquivado===true) return;
           v.push({ fonte:'sol', id:x.id, cliente:o.cliente||'', valor:o.valor||'', tomador:o.tomador||'',
                    pedidoEm:o.data||o.criadoEm||'', descricao:o.mensagem||'', numero:'',
                    arqNome:o.respostaArquivoNome||'', arqData:o.respostaArquivoData||'',
@@ -73,7 +74,7 @@
       try{
         var n=await d.collection('notas').get();
         n.forEach(function(x){
-          var o=x.data()||{};
+          var o=x.data()||{}; if(o.arquivado===true) return;
           if(o.direcao==='entrada' || o.direcao==='honorario') return; /* sub-abas do nf-entrada.js */
           if(String(o.origem||'')==='cliente' || String(o.tipo||'')==='Recebimento' || String(o.tipo||'')==='Pedido') return;
           v.push({ fonte:'nota', id:x.id, cliente:o.cliente||'', valor:o.valor||'', tomador:'',
@@ -90,7 +91,7 @@
       try{
         var o2=await d.collection('obrigacoes').get();
         o2.forEach(function(x){
-          var o=x.data()||{};
+          var o=x.data()||{}; if(o.arquivado===true) return;
           if(!/nf-?e|nota\s*fiscal/i.test(String(o.tipo||'')) && !/emitid/i.test(String(o.status||''))) return;
           v.push({ fonte:'obr', id:x.id, cliente:o.cliente||'', valor:o.valor||'', tomador:'',
                    pedidoEm:'', comp:o.competencia||'', descricao:o.tipo||'NF-e emitida', numero:'',
