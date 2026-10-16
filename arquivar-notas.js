@@ -1,4 +1,5 @@
-/* APARAT - ARQUIVAR NOTAS DO MES (v1, 15/10/2026)
+/* APARAT - ARQUIVAR NOTAS DO MES (v2, 15/10/2026)
+   v2: so estilo - o CSS geral do app esticava a caixinha do modal e os campos da aba Arquivados.
    O que faz:
    1) PAINEL, aba Notas Fiscais: botao "Arquivar mes" no bloco "Notas emitidas pela APARAT".
       Escolhe o mes (padrao: mes anterior), mostra o resumo (quantas notas, soma, quantas ficam
@@ -179,7 +180,11 @@
       +'#arq-cli{margin-top:10px;border:1px solid var(--border);border-radius:14px;background:var(--card)}'
       +'#arq-cli>summary{list-style:none;cursor:pointer;padding:11px 12px;font-size:12.5px;font-weight:800;display:flex;justify-content:space-between;align-items:center}'
       +'#arq-cli>summary::-webkit-details-marker{display:none}#arq-cli>summary small{color:var(--cinza);font-weight:500;font-size:11px}'
-      +'#arq-cli .lcard{margin:0 10px 8px}';
+      +'#arq-cli .lcard{margin:0 10px 8px}'
+      +'#arq-modal label{justify-content:flex-start!important;text-align:left!important;width:auto!important}'
+      +'#arq-modal input[type=checkbox]{width:16px!important;height:16px!important;min-width:0!important;flex:0 0 16px!important;margin:0!important;padding:0!important}'
+      +'#pp-arquivados .arq-top input{flex:1 1 220px!important;width:auto!important;min-width:160px!important;margin:0!important}'
+      +'#pp-arquivados .arq-top select,#pp-arquivados .arq-top .arq-bt{flex:0 0 auto!important;width:auto!important;margin:0!important}';
     document.head.appendChild(s);
   }
 
