@@ -91,6 +91,8 @@
 
   /* notas emitidas de um cliente, sem repetir a mesma nota que está nas duas fontes */
   function notasDe(cli){
+    /* v2 (24/10/2026): a contagem sem repeticao (PDF + XML, mesma nota em duas abas) vem do fat-auto.js */
+    try{ if(window.__FATAUTO__ && __FATAUTO__.pronto()) return __FATAUTO__.notasDe(cli); }catch(e){}
     var k=chave(cli), lista=[];
     NOTAS.forEach(function(n){ if(chave(n.cliente)!==k || n.direcao) return; if(/pedido/i.test(n.tipo||'')) return;
       var ym=ymDe(n.data)||ymDe(n.criadoEm); if(!ym) return; lista.push({fonte:'notas', id:n.id, numero:n.numero||'', valor:num(n.valor), ym:ym, data:n.data||''}); });
