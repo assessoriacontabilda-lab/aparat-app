@@ -623,7 +623,7 @@
     var gs=todosG.filter(function(g){ return g.ym===S.ym; }), tot=0, rep=0;
     var h='<div class="fa-top"><div class="fa-tit">\ud83e\uddfe Notas que formam o faturamento <span class="fa-sub2">MEI e ME \u00b7 cada nota conta uma vez</span></div>'
       +'<div class="fa-sel"><select id="fa-cli">'+clis.map(function(c){ return '<option'+(c===S.cli?' selected':'')+'>'+esc(c)+'</option>'; }).join('')+'</select>'
-      +'<select id="fa-ym">'+ymL.map(function(y){ return '<option value="'+y+'"'+(y===S.ym?' selected':'')+'>'+rotulo(y)+'</option>'; }).join('')+'</select></div></div>';
+      +'<select id="fa-ym">'+ymL.map(function(y){ return '<option value="m'+y+'"'+(y===S.ym?' selected':'')+'>'+rotulo(y).replace('/',' de ')+'</option>'; }).join('')+'</select></div></div>'; /* valor "m" + texto "Out de 2026": o aparat-fix nao enche este seletor com 48 meses */
     if(fila) h+='<div class="fa-box warn">\u23f3 Lendo '+fila+' arquivo'+(fila>1?'s':'')+' de nota que j\u00e1 estava'+(fila>1?'m':'')+' no app (uma vez s\u00f3)...</div>';
     dv.forEach(function(x){ h+='<div class="fa-box warn">\u26a0\ufe0f <b>'+esc(x.cli)+'</b> \u2014 '+rotulo(x.ym)+': lan\u00e7ado '+moeda(x.lancado)+', mas as notas somam '+moeda(x.notas)+'. <button class="fa-btn" data-usar="'+esc(x.cli)+'|'+x.ym+'">Usar o total das notas</button></div>'; });
     h+='<div class="fa-tw"><table class="fa-tab"><thead><tr><th>Nota</th><th>Emiss\u00e3o</th><th>Tomador</th><th>Arquivos</th><th>Entrou por</th><th class="r">Valor</th><th>Conta?</th></tr></thead><tbody>';
@@ -643,7 +643,7 @@
     h+='<div class="fa-mini">A nota conta para o cliente dono do CNPJ que a emitiu. Nota da APARAT (honor\u00e1rios) conta para a APARAT. Lan\u00e7amento feito \u00e0 m\u00e3o nunca \u00e9 trocado sozinho.</div>';
     box.innerHTML=h;
     el('fa-cli').onchange=function(){ S.cli=this.value; S.ym=''; ass=''; painel(); };
-    el('fa-ym').onchange=function(){ S.ym=this.value; ass=''; painel(); };
+    el('fa-ym').onchange=function(){ S.ym=String(this.value).replace(/^m/,''); ass=''; painel(); };
     [].forEach.call(box.querySelectorAll('[data-usar]'),function(b){ b.onclick=function(){ var p=b.getAttribute('data-usar').split('|'); usarNotas(p[0],p[1]); }; });
   }
   /* app do cliente: lista das notas do mes escolhido (vem de faturamento.notasLista) */
@@ -684,7 +684,7 @@
   var tSync=0, tLer=0;
   function tick(){
     try{ css(); ligarGravador(); ligarResposta(); ligarNotas(); ligarGuias(); montarNotas(); montarGuias(); ligar();
-      if(ehAdmin()){ if(pronto()){ if(Date.now()-tLer>2500 && filaLeitura().length){ tLer=Date.now(); lerPendentes(3); } else if(Date.now()-tSync>5000){ tSync=Date.now(); sincronizar(); } } painel(); }
+      if(ehAdmin()){ if(pronto()){ if(filaLeitura().length){ if(Date.now()-tLer>2500){ tLer=Date.now(); lerPendentes(3); } } else if(Date.now()-tSync>5000){ tSync=Date.now(); sincronizar(); } } painel(); } /* so lanca depois de ler todos os arquivos */
       else clienteApp();
     }catch(e){ console.warn('[fat-auto]', e); }
   }
