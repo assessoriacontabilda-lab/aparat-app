@@ -1,4 +1,6 @@
-/* APARAT - CONTROLE MEI v2 (mei-controle.js v1, 28/10/2026)
+/* APARAT - CONTROLE MEI v2 (mei-controle.js v2, 28/10/2026)
+   v2: os 5 quadros do topo viraram filtros clicaveis (ex.: "DAS vencidos sem baixa" mostra so os atrasados,
+       com os meses vencidos na linha; com um cliente so, a ficha dele abre sozinha). Nada foi removido.
    O QUE FAZ
    - Painel: item de menu "Controle MEI" (#ap-nav-meictl, logo depois de Faturamento) e pagina #pp-meictl.
      Lista os clientes com regime MEI: limite do ano (proporcional no ano de abertura), uso, situacao,
@@ -24,7 +26,7 @@
 (function(){
   if(window.__APARAT_MEI2__) return;
   window.__APARAT_MEI2__ = true;
-  var VER='1';
+  var VER='2';
   var LIM_MEI=81000, LIM_MES=6750, TOLER=1.2;
   var DAS_ANO={'2026':{inss:81.05}}; /* atualizar todo janeiro com o novo salario minimo */
   var FERIADOS={'2026-01-01':1,'2026-02-16':1,'2026-02-17':1,'2026-04-03':1,'2026-04-21':1,'2026-05-01':1,'2026-06-04':1,'2026-09-07':1,'2026-10-12':1,'2026-11-02':1,'2026-11-15':1,'2026-11-20':1,'2026-12-25':1,
@@ -203,11 +205,11 @@
     base.parentNode.insertBefore(p, base.nextSibling);
     try{ if(window.ABA_NOMES) window.ABA_NOMES.meictl='Controle MEI'; }catch(e){}
   }
-  var S={sel:'', ano:''}, ass='';
+  var S={sel:'', ano:'', filtro:''}, ass='';
   function painel(){
     var pg=el('pp-meictl'); if(!pg || !pg.classList.contains('active')) return;
     var corpo=el('m2-corpo'), ano=S.ano||String(hoje().getFullYear());
-    var a=ano+'|'+versao+'|'+S.sel; if(a===ass) return; ass=a;
+    var a=ano+'|'+versao+'|'+S.sel+'|'+S.filtro; if(a===ass) return; ass=a;
     var cs=ativos();
     if(!cs.length){ corpo.innerHTML='<div class="m2-tit">\u{1F7E2} Controle MEI</div><div class="m2-sub">'+(Object.keys(CLI).length?'Nenhum cliente com regime MEI e status ativo no cadastro.':'Carregando os clientes MEI...')+'</div>'; return; }
     var linhas=cs.map(function(c){ var L=limiteDe(c,ano), D=dasDe(c,ano); return {c:c, L:L, D:D, foco:dasFoco(D)}; });
@@ -222,26 +224,43 @@
     h+='<div class="m2-prox"><b>Próximo DAS-MEI: competência '+rot(compProx)+' vence em '+br(prox.d)+'</b> ('+(diasAte(prox.d)===0?'hoje':'faltam '+diasAte(prox.d)+' dia'+(diasAte(prox.d)===1?'':'s'))+')'
       +(prox.adiado?'<div class="m2-mini">O dia 20 ('+br(prox.orig)+') cai em fim de semana ou feriado, então o prazo vai para o próximo dia útil.</div>':'')
       +'<div class="m2-mini">'+(aVencer.length?aVencer.length+' cliente'+(aVencer.length>1?'s':'')+' ainda sem baixa nesta guia. Use o botão 📲 na linha para lembrar pelo WhatsApp.':'Todos os clientes já estão com a guia baixada.')+'</div></div>';
-    h+='<div class="m2-kpis">'+kpi(String(cs.length),'clientes MEI ativos')+kpi(String(nVenc),'DAS vencidos sem baixa',nVenc?'#e5484d':'#20b87a')+kpi(String(decl),'"já paguei" a conferir',decl?'#f5a524':'')+kpi(String(risco),'perto ou acima do limite',risco?'#ff8a00':'#20b87a')+kpi(String(dasnPend),'DASN-SIMEI '+(+ano-1)+' sem marcar')+'</div>';
+    h+='<div class="m2-kpis">'+kpi(String(cs.length),'clientes MEI ativos','','')+kpi(String(nVenc),'DAS vencidos sem baixa',nVenc?'#e5484d':'#20b87a','venc')+kpi(String(decl),'"já paguei" a conferir',decl?'#f5a524':'','decl')+kpi(String(risco),'perto ou acima do limite',risco?'#ff8a00':'#20b87a','risco')+kpi(String(dasnPend),'DASN-SIMEI '+(+ano-1)+' sem marcar','','dasn')+'</div>';
+    var FL={venc:'com DAS vencido sem baixa', decl:'com "já paguei" para conferir', risco:'perto ou acima do limite', dasn:'sem a DASN-SIMEI '+(+ano-1)+' marcada'};
+    var vis=linhas.filter(function(x){ return passaFiltro(x, S.filtro, ano); });
+    if(S.filtro){
+      if(vis.length===1 && !S.sel) S.sel=vis[0].c.nome;
+      h+='<div class="m2-filtro" id="m2-tabela">Mostrando <b>'+vis.length+' cliente'+(vis.length===1?'':'s')+'</b> '+FL[S.filtro]+'. <button class="m2-btn" id="m2-limpa">Mostrar todos</button>'+(S.filtro==='venc'&&vis.length?'<div class="m2-mini">Clique no cliente e depois no mês vermelho para dar baixa, ou use o 📲 para cobrar pelo WhatsApp.</div>':'')+'</div>';
+    } else h+='<div id="m2-tabela"></div>';
     h+='<div class="m2-tabwrap"><table class="m2-tab"><thead><tr><th>Cliente MEI</th><th>Limite '+ano+'</th><th>Faturado</th><th style="min-width:140px">Uso do limite</th><th>Situação</th><th>DAS em foco</th><th></th></tr></thead><tbody>';
-    linhas.forEach(function(x){
+    if(!vis.length) h+='<tr><td colspan="7" class="m2-mini" style="padding:14px">'+(S.filtro?'Nenhum cliente neste filtro. Tudo certo por aqui. ✔':'Nenhum cliente.')+'</td></tr>';
+    vis.forEach(function(x){
       var s=ST[x.L.status], f=x.foco, sel=chave(S.sel)===chave(x.c.nome);
       h+='<tr class="m2-lin'+(sel?' sel':'')+'" data-cli="'+esc(x.c.nome)+'"><td><b>'+esc(nomeCurto(x.c.nome))+'</b><div class="m2-mini">'+esc(fmtCnpj(x.c.cnpj)||'sem CNPJ')+(x.L.abertura&&x.L.abertura.slice(0,4)===ano?' · aberto em '+rot(x.L.abertura):'')+'</div></td>'
         +'<td>'+moeda(x.L.limite)+(x.L.limite!==LIM_MEI?'<div class="m2-mini">proporcional</div>':'')+'</td><td>'+moeda(x.L.total)+'</td>'
         +'<td>'+barra(x.L.pct,s[1])+'<div class="m2-mini">'+pctTxt(x.L.pct)+'</div></td><td>'+chip(s[0],s[1])+'</td>'
-        +'<td>'+(f?chipDas(f):'<span class="m2-mini">—</span>')+'</td>'
+        +'<td>'+((S.filtro==='venc'||S.filtro==='decl')?x.D.filter(function(d){ return d.st===S.filtro; }).map(chipDas).join(' '):(f?chipDas(f):'<span class="m2-mini">—</span>'))+'</td>'
         +'<td>'+(f && f.st!=='pago'?'<a class="m2-btn m2-wa" target="_blank" rel="noopener" href="'+waLink(x.c,f,valorDas(x.c.meiAtividade,ano))+'" data-stop="1">📲</a>':'')+'</td></tr>';
     });
     h+='</tbody></table></div><div class="m2-mini" style="margin-top:6px">Clique no cliente para ver os 12 DAS do ano, dar baixa, trocar o CNPJ e marcar a DASN-SIMEI. Guia lançada na aba Guias com status "Pago" já conta como paga aqui.</div>';
-    if(S.sel){ var x=linhas.filter(function(y){ return chave(y.c.nome)===chave(S.sel); })[0]; if(x) h+=detalhe(x, ano); }
+    if(S.sel){ var x=vis.filter(function(y){ return chave(y.c.nome)===chave(S.sel); })[0]; if(x) h+=detalhe(x, ano); }
     corpo.innerHTML=h;
     el('m2-ano').onchange=function(){ S.ano=this.value; ass=''; painel(); };
     el('m2-atu').onclick=function(){ tCli=0; tObr=0; ligar(); aviso('Atualizando...','info'); };
+    [].forEach.call(corpo.querySelectorAll('.m2-kpi[data-f]'),function(k){ k.onclick=function(){ var f=k.getAttribute('data-f'); S.filtro=(S.filtro===f||!f)?'':f; S.sel=''; ass=''; painel(); var t=el('m2-tabela'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }; });
+    var lp=el('m2-limpa'); if(lp) lp.onclick=function(){ S.filtro=''; S.sel=''; ass=''; painel(); };
     [].forEach.call(corpo.querySelectorAll('[data-stop]'),function(a){ a.onclick=function(ev){ ev.stopPropagation(); }; });
     [].forEach.call(corpo.querySelectorAll('.m2-lin'),function(tr){ tr.onclick=function(){ var n=tr.getAttribute('data-cli'); S.sel=chave(S.sel)===chave(n)?'':n; ass=''; painel(); if(S.sel) setTimeout(function(){ var d=el('m2-det'); if(d) d.scrollIntoView({behavior:'smooth',block:'start'}); },50); }; });
     ligarDetalhe(ano);
   }
-  function kpi(v,r,cor){ return '<div class="m2-kpi"><div class="v"'+(cor?' style="color:'+cor+'"':'')+'>'+v+'</div><div class="r">'+r+'</div></div>'; }
+  function kpi(v,r,cor,f){ var on=(f||'')===S.filtro && (f||S.filtro===''); return '<div class="m2-kpi'+(on?' on':'')+'" data-f="'+(f||'')+'" role="button" tabindex="0" title="'+(f?'Clique para mostrar só estes clientes':'Clique para mostrar todos')+'"><div class="v"'+(cor?' style="color:'+cor+'"':'')+'>'+v+'</div><div class="r">'+r+'</div></div>'; }
+  function passaFiltro(x, f, ano){
+    if(!f) return true;
+    if(f==='venc') return x.D.some(function(d){ return d.st==='venc'; });
+    if(f==='decl') return x.D.some(function(d){ return d.st==='decl'; });
+    if(f==='risco') return /alerta|excedeu|desenq/.test(x.L.status);
+    if(f==='dasn') return !((x.c.meiDasn||{})[String(+ano-1)]);
+    return true;
+  }
   function chip(t,cor){ return '<span class="m2-chip" style="color:'+cor+';border-color:'+cor+'">'+esc(t)+'</span>'; }
   function chipDas(f){
     if(f.st==='pago') return chip(NM[+f.ym.slice(5)-1]+': pago','#20b87a');
@@ -325,7 +344,7 @@
       +'#m2-ano,#m2-ativ,#m2-cnpj,#m2-cnpj-ab{width:auto!important;max-width:100%;padding:6px 8px;border-radius:8px;border:1px solid rgba(128,128,160,.45);background:transparent;color:inherit}#m2-ativ option{color:#111}'
       +'.m2-btn{display:inline-block;padding:6px 12px;border-radius:8px;border:1px solid rgba(59,130,246,.7);background:rgba(59,130,246,.12);color:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;width:auto!important}.m2-btn:hover{background:rgba(59,130,246,.25)}.m2-wa{padding:4px 8px}'
       +'.m2-prox{border-left:5px solid #3b82f6;background:rgba(59,130,246,.08);border-radius:10px;padding:10px 12px;margin-bottom:12px}'
-      +'.m2-sub,.m2-mini{font-size:12px;opacity:.78}.m2-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}.m2-kpi{border:1px solid rgba(128,128,160,.3);border-radius:10px;padding:8px 10px}.m2-kpi .v{font-size:20px;font-weight:800}.m2-kpi .r{font-size:11.5px;opacity:.75}'
+      +'.m2-sub,.m2-mini{font-size:12px;opacity:.78}.m2-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}.m2-kpi{border:1px solid rgba(128,128,160,.3);border-radius:10px;padding:8px 10px;cursor:pointer;transition:border-color .15s,background .15s}.m2-kpi:hover{border-color:#3b82f6;background:rgba(59,130,246,.07)}.m2-kpi.on{border:2px solid #3b82f6;background:rgba(59,130,246,.13)}.m2-filtro{border-left:5px solid #e5484d;background:rgba(229,72,77,.07);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:13px}.m2-kpi .v{font-size:20px;font-weight:800}.m2-kpi .r{font-size:11.5px;opacity:.75}'
       +'.m2-tabwrap{overflow-x:auto;border:1px solid rgba(128,128,160,.3);border-radius:10px}.m2-tab{width:100%;border-collapse:collapse;min-width:720px}.m2-tab th,.m2-tab td{padding:8px 10px;border-bottom:1px solid rgba(128,128,160,.2);text-align:left;font-size:13px;vertical-align:top}.m2-tab th{font-size:11.5px;opacity:.7}.m2-lin{cursor:pointer}.m2-lin:hover td{background:rgba(59,130,246,.07)}.m2-lin.sel td{background:rgba(59,130,246,.14)}'
       +'.m2-chip{display:inline-block;border:1px solid;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:700;white-space:normal}'
       +'.m2-barra{position:relative;background:rgba(128,128,160,.25);border-radius:6px;min-width:110px}.m2-barra i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}.m2-barra span{position:absolute;left:80%;top:-3px;bottom:-3px;width:2px;background:currentColor;opacity:.4}'
