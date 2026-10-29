@@ -1,4 +1,6 @@
-/* APARAT - CONTROLE MEI v2 (mei-controle.js v2, 28/10/2026)
+/* APARAT - CONTROLE MEI v2 (mei-controle.js v3, 28/10/2026)
+   v3: a troca de CNPJ tambem atualiza a aba Dados Cadastrais (colecao dados) e redesenha na hora
+       a aba Clientes, a Ficha do Cliente e os seletores (carregarClientes/carregarDados/__FICHA__).
    v2: os 5 quadros do topo viraram filtros clicaveis (ex.: "DAS vencidos sem baixa" mostra so os atrasados,
        com os meses vencidos na linha; com um cliente so, a ficha dele abre sozinha). Nada foi removido.
    O QUE FAZ
@@ -26,7 +28,7 @@
 (function(){
   if(window.__APARAT_MEI2__) return;
   window.__APARAT_MEI2__ = true;
-  var VER='2';
+  var VER='3';
   var LIM_MEI=81000, LIM_MES=6750, TOLER=1.2;
   var DAS_ANO={'2026':{inss:81.05}}; /* atualizar todo janeiro com o novo salario minimo */
   var FERIADOS={'2026-01-01':1,'2026-02-16':1,'2026-02-17':1,'2026-04-03':1,'2026-04-21':1,'2026-05-01':1,'2026-06-04':1,'2026-09-07':1,'2026-10-12':1,'2026-11-02':1,'2026-11-15':1,'2026-11-20':1,'2026-12-25':1,
@@ -181,7 +183,16 @@
     if(!/^\d{4}-\d{2}$/.test(abertura||'')){ aviso('Informe o mês de abertura do CNPJ novo.','error'); return; }
     if(!confirm('Trocar o CNPJ de '+nomeCurto(c.nome)+'\n\nde: '+(fmtCnpj(c.cnpj)||'(vazio)')+'\npara: '+fmtCnpj(dg)+'\naberto em '+rot(abertura)+'\n\nO CNPJ antigo fica guardado no histórico. O nome do cliente não muda.')) return;
     var hist=(c.cnpjHistorico||[]).slice(); if(c.cnpj) hist.push({cnpj:fmtCnpj(c.cnpj), abertura:c.aberturaMei||'', trocadoEm:new Date().toISOString(), ate:abertura});
-    return upd(c, {cnpj:fmtCnpj(dg), aberturaMei:abertura, cnpjHistorico:hist, cnpjTrocadoEm:new Date().toISOString()}, 'CNPJ trocado. O limite agora conta a partir de '+rot(abertura)+'.');
+    return upd(c, {cnpj:fmtCnpj(dg), aberturaMei:abertura, cnpjHistorico:hist, cnpjTrocadoEm:new Date().toISOString()}, 'CNPJ trocado. O limite agora conta a partir de '+rot(abertura)+'.').then(function(ok){ if(ok) espalharCnpj(c, fmtCnpj(dg), abertura); return ok; });
+  }
+  /* leva o CNPJ novo para as outras telas do app */
+  async function espalharCnpj(c, cnpj, abertura){
+    var d=db(); if(!d) return;
+    try{ var s=await d.collection('dados').where('cliente','==',c.nome).get(); var ps=[]; s.forEach(function(x){ ps.push(x.ref.update({cnpj:cnpj, abertura:'01/'+abertura.slice(5,7)+'/'+abertura.slice(0,4), regime:'MEI', cnpjAnterior:(x.data().cnpj||''), atualizadoEm:new Date().toISOString()})); }); await Promise.all(ps); if(ps.length) aviso('Dados Cadastrais atualizados com o CNPJ novo.','success'); }catch(e){ console.warn('[mei2] dados',e); }
+    try{ if(typeof carregarClientes==='function') carregarClientes(); }catch(e){}
+    try{ if(typeof carregarDados==='function') carregarDados(); }catch(e){}
+    try{ if(window.__FICHA__ && typeof __FICHA__.carregar==='function') __FICHA__.carregar(true); }catch(e){}
+    try{ if(window.__FATMEI__ && typeof __FATMEI__.tick==='function') __FATMEI__.tick(); }catch(e){}
   }
   function waLink(c, das, valor){
     var tel=soDig(c.whatsapp||c.telefone||c.celular||''); if(tel && tel.length<=11) tel='55'+tel;
