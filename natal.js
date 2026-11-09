@@ -1,13 +1,13 @@
-/* APARAT - TEMA DE NATAL (v1, 09/11/2026) - liga sozinho de 01/11/2026 ate 06/01/2027
+/* APARAT - TEMA DE NATAL (v2, 09/11/2026 - musica em loop) - liga sozinho de 01/11/2026 ate 06/01/2027
    - logo do app com gorro (imagens na tela; o icone instalado vem do manifest)
    - arvore de Natal no fundo da tela inicial (painel: Inicio/Dashboard; cliente: area do cliente),
      atras de tudo (z-index:-1, fundos do .pmain/#view-cliente ficam transparentes e a cor vai p/ o <html>)
    - neve leve por cima (pointer-events:none) - botao de neve liga/desliga (localStorage apNatalNeve)
    - faixa "Boas festas" na tela inicial (fecha no X, volta no dia seguinte)
    - assistente vira Papai Noel
-   - som de abertura (caixinha de musica + guizos, ~6 s, gerado no aparelho): so na tela inicial,
-     1 vez por dia por aparelho (apNatalSomDia), depois do primeiro toque (regra dos navegadores);
-     botao do sino desliga (apNatalSom=off)
+   - musica de Natal (caixinha de musica + guizos, gerada no aparelho) em LOOP enquanto a tela
+     inicial estiver aberta; para ao mudar de tela, ao minimizar o app ou no sino (apNatalSom=off).
+     Comeca depois do primeiro toque (regra dos navegadores)
    - nada grava no Firebase; nada aparece fora do periodo */
 ;(function(){
   if(window.__APARAT_NATAL__) return; window.__APARAT_NATAL__=1;
@@ -135,7 +135,7 @@
       bn.onclick=function(){ var off=ls('apNatalNeve')==='off'; lsSet('apNatalNeve', off?'on':'off'); neve(); botoes(); };
       document.body.appendChild(bn);
       bs=document.createElement('button'); bs.id='apnt-som'; bs.className='apnt-bt';
-      bs.onclick=function(){ var off=ls('apNatalSom')==='off'; lsSet('apNatalSom', off?'on':'off'); botoes(); if(off){ prepara(); tocar(); } };
+      bs.onclick=function(){ var off=ls('apNatalSom')==='off'; lsSet('apNatalSom', off?'on':'off'); botoes(); if(off){ prepara(); } else { parar(); } };
       document.body.appendChild(bs);
     }
     var nOff=ls('apNatalNeve')==='off', sOff=ls('apNatalSom')==='off';
@@ -179,20 +179,32 @@
     if(!falou){ var m=el('sync-msg'); if(m){ falou=true; setTimeout(function(){ m.textContent='Ho ho ho! \u{1F385} Feliz Natal! Toque em mim se precisar de ajuda.'; },6000); } }
   }
 
-  /* ---------- som de abertura ---------- */
-  var AC=null, tocou=false;
+  /* ---------- musica de Natal (fica tocando em loop na tela inicial) ---------- */
+  var AC=null, bus=null, loopT=null;
   function prepara(){
     try{ if(!AC){ var C=window.AudioContext||window.webkitAudioContext; if(!C) return; AC=new C(); } if(AC.state==='suspended') AC.resume(); }catch(e){}
+    setTimeout(talvezTocar,60);
   }
   ['pointerdown','touchstart','keydown','click'].forEach(function(ev){ document.addEventListener(ev, prepara, {capture:true, passive:true}); });
-  function tocar(){ try{ if(AC) apNatalTocar(AC,0.30); }catch(e){} }
-  function talvezTocar(){
-    if(tocou || ls('apNatalSom')==='off' || ls('apNatalSomDia')===hoje()) return;
-    if(!telaInicial() || travado() || !AC || AC.state!=='running') return;
-    tocou=true; lsSet('apNatalSomDia', hoje()); tocar();
+  function tocando(){ return !!bus; }
+  function volta(){ if(!bus) return; try{ apNatalTocar(AC,0.26,bus); }catch(e){} loopT=setTimeout(volta,7600); }
+  function tocar(){
+    if(bus || !AC) return;
+    try{ bus=AC.createGain(); bus.gain.value=1; bus.connect(AC.destination); }catch(e){ bus=null; return; }
+    volta();
   }
+  function parar(){
+    if(!bus) return; clearTimeout(loopT); loopT=null;
+    var b=bus; bus=null;
+    try{ var t=AC.currentTime; b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(b.gain.value,t); b.gain.linearRampToValueAtTime(0.0001,t+0.5); }catch(e){}
+    setTimeout(function(){ try{ b.disconnect(); }catch(e){} },700);
+  }
+  function podeTocar(){ return ls('apNatalSom')!=='off' && !document.hidden && telaInicial() && !travado() && AC && AC.state==='running'; }
+  function talvezTocar(){ try{ if(podeTocar()) tocar(); else parar(); }catch(e){} }
+  document.addEventListener('visibilitychange', talvezTocar);
 /* som natalino suave: caixinha de musica + guizos, ~6 s, gerado no proprio aparelho (sem arquivo) */
-function apNatalTocar(ctx, vol){
+function apNatalTocar(ctx, vol, dest){
+  dest = dest || ctx.destination;
   vol = vol==null ? 0.35 : vol;
   var t0 = ctx.currentTime + 0.05;
   var master = ctx.createGain(); master.gain.value = vol;
@@ -201,7 +213,7 @@ function apNatalTocar(ctx, vol){
   for(var ch=0; ch<2; ch++){ var d=ir.getChannelData(ch); for(var i=0;i<len;i++){ d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3); } }
   rev.buffer = ir;
   var wet = ctx.createGain(); wet.gain.value = 0.45;
-  master.connect(ctx.destination); master.connect(rev); rev.connect(wet); wet.connect(ctx.destination);
+  master.connect(dest); master.connect(rev); rev.connect(wet); wet.connect(dest);
   function hz(n){ return 440*Math.pow(2,(n-69)/12); }
   /* caixinha de musica: seno + harmonicos com decaimento */
   function sino(n, t, dur, g){
@@ -243,5 +255,5 @@ function apNatalTocar(ctx, vol){
   }
   [300,1200,3000].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,1000);
-  window.__NATAL__={tick:tick, tocar:function(){ prepara(); tocar(); }, ativo:ativo};
+  window.__NATAL__={tick:tick, tocar:function(){ prepara(); }, parar:parar, tocando:tocando, ativo:ativo};
 })();
