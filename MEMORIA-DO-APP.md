@@ -88,3 +88,4 @@ PT-BR sem erros de ortografia; cálculos corretos; MOSTRAR PRÉVIA antes de publ
 letras grandes (comandos ≥16px); layout limpo; logo A em destaque; nunca apagar dados sem autorização;
 nunca digitar senhas/chaves (Daniel cola os VALORES dos segredos).
 - 09/11/2026: Tema de Natal (natal.js v2) — música de Natal em loop na tela inicial; para ao trocar de tela, minimizar o app ou tocar no sino 🔔.
+- 09/11/2026: novo build do Pages (os builds #410/#411 falharam no incidente do GitHub Actions).
