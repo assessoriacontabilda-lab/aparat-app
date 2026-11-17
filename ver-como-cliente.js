@@ -1,4 +1,5 @@
-/* APARAT - VER O APP DO CLIENTE POR DENTRO (v3, 17/11/2026)
+/* APARAT - VER O APP DO CLIENTE POR DENTRO (v4, 17/11/2026)
+   v4: so troca para a area do cliente depois que o login do escritorio termina de carregar (antes o painel voltava por cima).
    v3: a trava por digital/PIN nao aparece durante a visualizacao.
    v2: o login do cliente so era assumido se o Firebase ja estivesse iniciado quando este arquivo carregava; agora tenta ate conseguir.
    Pedido do Daniel: "cria um acesso que eu possa entrar no app dos clientes, assim eu mesmo consigo ver como esta o app deles por dentro".
@@ -150,7 +151,15 @@
   function sairVisualizacao(){ grava(null); try{ sessionStorage.removeItem('apMultiOk'); }catch(e){} location.reload(); }
 
   /* ---------- VISUALIZACAO: troca o painel pela area do cliente ---------- */
-  var montado=false;
+  var montado=false, adminPronto=false, t0=Date.now();
+  function vigiaFimDoLogin(){
+    try{
+      var velho=window.initPush;
+      if(typeof velho!=='function' || velho.__vc) return;
+      var novo=function(role){ if(role==='admin'){ adminPronto=true; setTimeout(montar,50); return Promise.resolve(); } return velho.apply(this,arguments); };
+      novo.__vc=1; window.initPush=novo;
+    }catch(e){}
+  }
   function faixa(){
     if(el('vc-faixa')) return; css();
     var f=document.createElement('div'); f.id='vc-faixa';
@@ -166,8 +175,12 @@
     if(!fingirUsuario()) return;
     var u=null; try{ u=firebase.auth().currentUser; }catch(e){}
     if(!u) return;
-    /* espera o handleAuth do escritorio terminar (painel ativo) */
-    var vp=el('view-painel'); if(!vp || !vp.classList.contains('active')) return;
+    /* espera o handleAuth do escritorio TERMINAR (ele carrega o painel inteiro e so no fim chama initPush);
+       trocar a tela antes disso faz o proprio handleAuth devolver o painel logo depois */
+    var vp=el('view-painel'); if(!vp) return;
+    var papelAgora=null; try{ papelAgora=CURRENT_ROLE; }catch(e){}
+    if(papelAgora!=='admin') return;
+    if(!adminPronto && (Date.now()-t0)<25000) return;
     montado=true;
     try{
       CURRENT_ROLE='cliente'; CURRENT_CLIENTE=V.nome;
@@ -192,7 +205,14 @@
   if(V){
     window.__APARAT_VERCOMO__=V; semTrava();
     fingirUsuario(); travaGravacao();
-    var voltas=0, t=setInterval(function(){ voltas++; if(montado || voltas>120){ clearInterval(t); return; } montar(); },250);
+    vigiaFimDoLogin();
+    /* fica de olho: se o painel voltar a aparecer por qualquer motivo, mostra de novo a area do cliente */
+    setInterval(function(){
+      vigiaFimDoLogin();
+      var papelAgora=null; try{ papelAgora=CURRENT_ROLE; }catch(e){}
+      if(montado && papelAgora==='admin'){ montado=false; adminPronto=true; }
+      if(!montado) montar();
+    },300);
   } else {
     setInterval(function(){ if(ehAdminReal()) menu(); },1500);
     setTimeout(function(){ if(ehAdminReal()) menu(); },800);
