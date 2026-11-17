@@ -1,4 +1,5 @@
-/* APARAT - UM LOGIN, VARIAS EMPRESAS (v1, 17/11/2026)
+/* APARAT - UM LOGIN, VARIAS EMPRESAS (v2, 17/11/2026)
+   v2: no computador a faixa "Voce esta na empresa" ficava de lado, ocupando meia tela; agora fica em cima.
    Pedido do Daniel: o cliente Keseler e responsavel por 5 CNPJ (e a Debora tambem). Eles entram com UMA conta
    e escolhem em qual empresa vao mexer.
    COMO FUNCIONA
@@ -83,7 +84,9 @@
     if(!f){
       f=document.createElement('div'); f.id='me-faixa';
       f.innerHTML='<div class="me-t"><small>Você está na empresa</small><b id="me-faixa-n"></b></div><button type="button" id="me-faixa-b">\u{1F501} Trocar</button>';
-      vc.parentNode.insertBefore(f,vc);
+      /* #view-cliente mora dentro de .layout, que no computador e uma linha (flex): a faixa vai ANTES do .layout para ficar em cima, na largura toda */
+      var ancora=(vc.closest && vc.closest('.layout')) || vc;
+      ancora.parentNode.insertBefore(f,ancora);
       el('me-faixa-b').onclick=function(){ abrirEscolha(false); };
     }
     f.style.display='flex';
