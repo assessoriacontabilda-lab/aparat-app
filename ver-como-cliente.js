@@ -1,4 +1,5 @@
-/* APARAT - VER O APP DO CLIENTE POR DENTRO (v4, 17/11/2026)
+/* APARAT - VER O APP DO CLIENTE POR DENTRO (v5, 17/11/2026)
+   v5: nao espera mais o painel inteiro carregar (demorava ~25 s); troca assim que o login do escritorio e reconhecido e fica vigiando.
    v4: so troca para a area do cliente depois que o login do escritorio termina de carregar (antes o painel voltava por cima).
    v3: a trava por digital/PIN nao aparece durante a visualizacao.
    v2: o login do cliente so era assumido se o Firebase ja estivesse iniciado quando este arquivo carregava; agora tenta ate conseguir.
@@ -179,8 +180,7 @@
        trocar a tela antes disso faz o proprio handleAuth devolver o painel logo depois */
     var vp=el('view-painel'); if(!vp) return;
     var papelAgora=null; try{ papelAgora=CURRENT_ROLE; }catch(e){}
-    if(papelAgora!=='admin') return;
-    if(!adminPronto && (Date.now()-t0)<25000) return;
+    if(papelAgora!=='admin') return;   /* o handleAuth do escritorio ja passou (ele marca o papel e mostra o painel na mesma hora) */
     montado=true;
     try{
       CURRENT_ROLE='cliente'; CURRENT_CLIENTE=V.nome;
@@ -210,8 +210,11 @@
     setInterval(function(){
       vigiaFimDoLogin();
       var papelAgora=null; try{ papelAgora=CURRENT_ROLE; }catch(e){}
-      if(montado && papelAgora==='admin'){ montado=false; adminPronto=true; }
-      if(!montado) montar();
+      if(montado && papelAgora==='admin'){ montado=false; }
+      if(!montado){ montar(); return; }
+      /* painel reapareceu sem trocar o papel: so devolve a area do cliente */
+      var vp=el('view-painel'), vc=el('view-cliente');
+      if(vp && vp.classList.contains('active')){ vp.classList.remove('active'); if(vc) vc.style.display=''; }
     },300);
   } else {
     setInterval(function(){ if(ehAdminReal()) menu(); },1500);
