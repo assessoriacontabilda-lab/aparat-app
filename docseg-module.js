@@ -78,6 +78,7 @@
         var x=d.data()||{};
         if(!x.clienteNome || x.role==='admin' || x.email===ADMIN_EMAIL) return;
         if(/deslig|inativ|bloq/i.test(String(x.role||'')+' '+String(x.status||''))) return;
+        if(Array.isArray(x.empresas) && x.empresas.length>1) return; /* login de varias empresas (multi-empresa.js): nao recebe copia, senao o documento de uma apareceria na outra */
         var e=acha(x.clienteNome);
         if(!e){ e={id:'', nome:String(x.clienteNome).trim(), cnpj:'', regime:'', logins:[], docs:{}, donos:{}, semCadastro:true}; lista.push(e); }
         e.logins.push({uid:d.id, email:x.email||''});
