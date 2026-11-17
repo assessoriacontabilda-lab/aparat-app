@@ -1,4 +1,5 @@
-/* APARAT - VER O APP DO CLIENTE POR DENTRO (v2, 17/11/2026)
+/* APARAT - VER O APP DO CLIENTE POR DENTRO (v3, 17/11/2026)
+   v3: a trava por digital/PIN nao aparece durante a visualizacao.
    v2: o login do cliente so era assumido se o Firebase ja estivesse iniciado quando este arquivo carregava; agora tenta ate conseguir.
    Pedido do Daniel: "cria um acesso que eu possa entrar no app dos clientes, assim eu mesmo consigo ver como esta o app deles por dentro".
    Em vez de criar um login com senha, o Daniel usa o PROPRIO login do escritorio:
@@ -181,8 +182,15 @@
     }catch(e){ console.error('ver-como-cliente',e); }
   }
 
+  /* a trava por digital/PIN e do aparelho de cada cliente: na visualizacao ela nao deve pedir para criar PIN */
+  function semTrava(){
+    try{
+      var g=Storage.prototype.getItem;
+      Storage.prototype.getItem=function(k){ if(k==='apTravaOff' && this===window.localStorage) return '1'; return g.apply(this,arguments); };
+    }catch(e){}
+  }
   if(V){
-    window.__APARAT_VERCOMO__=V;
+    window.__APARAT_VERCOMO__=V; semTrava();
     fingirUsuario(); travaGravacao();
     var voltas=0, t=setInterval(function(){ voltas++; if(montado || voltas>120){ clearInterval(t); return; } montar(); },250);
   } else {
