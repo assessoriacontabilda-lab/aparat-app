@@ -1,4 +1,5 @@
-/* APARAT - VER O APP DO CLIENTE POR DENTRO (v1, 17/11/2026)
+/* APARAT - VER O APP DO CLIENTE POR DENTRO (v2, 17/11/2026)
+   v2: o login do cliente so era assumido se o Firebase ja estivesse iniciado quando este arquivo carregava; agora tenta ate conseguir.
    Pedido do Daniel: "cria um acesso que eu possa entrar no app dos clientes, assim eu mesmo consigo ver como esta o app deles por dentro".
    Em vez de criar um login com senha, o Daniel usa o PROPRIO login do escritorio:
    - Menu do painel "Ver app do cliente" -> escolhe o cliente -> o app recarrega e mostra a area do cliente exatamente
@@ -46,8 +47,11 @@
   }
 
   /* ---------- o app passa a "ser" o cliente ---------- */
+  var fingido=false;
   function fingirUsuario(){
+    if(fingido) return true;
     try{
+      if(!(window.firebase && firebase.apps && firebase.apps.length)) return false;   /* o app ainda nao iniciou o Firebase */
       var a=firebase.auth(), real=null;
       try{ real=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(a),'currentUser'); }catch(e){}
       var proprio=Object.getOwnPropertyDescriptor(a,'currentUser');
@@ -58,7 +62,9 @@
         return { uid:V.uid||u.uid, email:V.email||'visualizacao@aparat.app', displayName:'', emailVerified:true, isAnonymous:false,
                  getIdToken:function(){ return u.getIdToken.apply(u,arguments); }, reload:function(){ return Promise.resolve(); }, __visualizacao:true };
       }});
+      fingido=true;
     }catch(e){}
+    return fingido;
   }
 
   function css(){
@@ -156,6 +162,7 @@
   }
   async function montar(){
     if(montado) return;
+    if(!fingirUsuario()) return;
     var u=null; try{ u=firebase.auth().currentUser; }catch(e){}
     if(!u) return;
     /* espera o handleAuth do escritorio terminar (painel ativo) */
