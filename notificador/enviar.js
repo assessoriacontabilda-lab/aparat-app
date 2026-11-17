@@ -107,7 +107,7 @@ async function tokensPorRole(db, role) {
   const out = [];
   snap.forEach(function (doc) {
     const t = doc.data().token;
-    if (t) out.push({ id: doc.id, token: t, cliente: doc.data().cliente || "" });
+    if (t) out.push({ id: doc.id, token: t, cliente: doc.data().cliente || "", email: String(doc.data().email || "").trim().toLowerCase() });
   });
   return out;
 }
@@ -162,6 +162,20 @@ async function main() {
   const tokensCliente = await tokensPorRole(db, "cliente");
   console.log("Tokens admin:", tokensAdmin.length, " Tokens cliente:", tokensCliente.length);
 
+  // Login que cuida de VARIAS empresas (multi-empresa.js): usuarios/<uid>.empresas = lista de nomes.
+  // O aparelho guarda no token so a empresa aberta na hora; aqui o aviso vale para todas as da lista.
+  const empresasPorEmail = {};
+  try {
+    const us = await db.collection("usuarios").get();
+    us.forEach(function (doc) {
+      const u = doc.data() || {};
+      const em = String(u.email || "").trim().toLowerCase();
+      if (!em || !Array.isArray(u.empresas) || u.empresas.length < 2) return;
+      empresasPorEmail[em] = u.empresas.map(function (n) { return String(n || "").trim().toLowerCase(); });
+    });
+  } catch (e) { console.log("usuarios (varias empresas): erro", (e.message || e).slice(0, 40)); }
+  console.log("Logins com varias empresas:", Object.keys(empresasPorEmail).length);
+
   async function processar(coll, alvo) {
     let snap;
     try {
@@ -194,13 +208,20 @@ async function main() {
         // senao, so para o cliente destino (por nome)
         const alvoTxt = String(d.dest || d.cliente || d.publico || "").trim();
         let destinos = tokensCliente;
+        let destinosVarias = [];
         if (!ehTodos(alvoTxt)) {
           const alvoNome = alvoTxt.toLowerCase();
+          // quem cuida de varias empresas recebe o aviso com o nome da empresa na frente
+          destinosVarias = tokensCliente.filter(function (x) {
+            const lista = empresasPorEmail[x.email];
+            return !!lista && lista.indexOf(alvoNome) !== -1;
+          });
           destinos = tokensCliente.filter(function (x) {
-            return String(x.cliente || "").trim().toLowerCase() === alvoNome;
+            return destinosVarias.indexOf(x) === -1 && String(x.cliente || "").trim().toLowerCase() === alvoNome;
           });
         }
         await enviar(destinos, info.t, info.b, db);
+        if (destinosVarias.length) await enviar(destinosVarias, info.t, alvoTxt + ": " + info.b, db);
       }
     }
   }
