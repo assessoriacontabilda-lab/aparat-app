@@ -1,5 +1,10 @@
 
-/* APARAT v72 - PAINEL SEGURO DAS/PGDAS (uso exclusivo do escritorio)
+/* APARAT - PAINEL SEGURO DAS/PGDAS v2 (18/11/2026) - uso exclusivo do escritorio
+   v2: caixas separadas (Simples com movimento / Simples sem movimento = PGDAS-D zerada / MEI / Concluido),
+       placar Falta fazer + filtros, fluxo da zerada (obrigCnpj ..__PGDAS com zerada:true; conclusao grava
+       ..__DAS status ok + zerada:true e manda o recibo para a colecao docs do cliente) e trava na aba Guias:
+       DAS novo so pelo painel (corrigir guia antiga continua liberado). Nao cria colecao nova.
+   v1 (v72):
    - item de menu "Sistema -> Painel Seguro DAS" (#ap-nav-pseg) e pagina #pp-pseg
    - NAO cria colecao nova: le clientes/perfilFiscal, grava em obrigCnpj
      (mesmo documento da grade Obrigacoes CNPJ -> Mensais: sigla DAS ou SIMEI)
@@ -140,7 +145,7 @@
         var o=x.data()||{};
         if(!/DAS/i.test(String(o.tipo||''))) return;
         var c=compISO(o.competencia); if(!c) return;
-        gu[limpo(o.cliente)+'__'+c]={id:x.id, valor:Number(o.valor)||0, venc:o.vencimento||'', status:o.status||''};
+        gu[limpo(o.cliente)+'__'+c]={id:x.id, valor:Number(o.valor)||0, venc:o.vencimento||'', status:o.status||'', temAnexo:!!(o.arquivoData||o.arquivoUrl||o.arquivoPath||o.arquivoPartes)};
       });
       cGuias=gu;
     }catch(e){}
@@ -214,15 +219,15 @@
       +'#pp-pseg .ps-bt.vd{background:#0e9f6e;border-color:#0e9f6e;color:#fff}'
       +'#pp-pseg .ps-bt:disabled{opacity:.45;cursor:not-allowed}'
       +'#pp-pseg .ps-lista{display:flex;flex-direction:column;gap:9px}'
-      +'#pp-pseg .ps-cli{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:grid;grid-template-columns:minmax(180px,1.4fr) 90px 1fr 1fr minmax(260px,1.8fr);gap:10px;align-items:center}'
+      +'#pp-pseg .ps-cli{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:8px}'
       +'#pp-pseg .ps-cli.pend{border-left:4px solid #d92d20}#pp-pseg .ps-cli.okk{border-left:4px solid #0e9f6e}'
       +'#pp-pseg .ps-nome b{font-size:14px;display:block}#pp-pseg .ps-nome small{font-size:11.5px;color:var(--cinza)}'
       +'#pp-pseg .ps-reg{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;text-align:center;letter-spacing:.3px}'
       +'#pp-pseg .ps-reg.MEI{background:rgba(14,159,110,.16);color:#0e9f6e}#pp-pseg .ps-reg.Simples{background:rgba(51,85,255,.16);color:var(--azul-light)}'
       +'#pp-pseg .ps-st{font-size:12.5px;line-height:1.3}#pp-pseg .ps-st small{display:block;font-size:10.5px;color:var(--cinza)}'
       +'#pp-pseg .ps-st.ok{color:#0e9f6e;font-weight:700}#pp-pseg .ps-st.pd{color:#d92d20;font-weight:700}#pp-pseg .ps-st.na{color:var(--cinza)}'
-      +'#pp-pseg .ps-btns{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}'
-      +'#pp-pseg .ps-b{font-size:12px;font-weight:700;padding:7px 10px;border-radius:9px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;line-height:1;white-space:nowrap}'
+      +'#pp-pseg .ps-btns{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-start}'
+      +'#pp-pseg .ps-b{font-size:12px;font-weight:700;padding:9px 10px;min-height:36px;border-radius:9px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;line-height:1;white-space:nowrap}'
       +'#pp-pseg .ps-b.az{border-color:rgba(51,85,255,.55);color:var(--azul-light)}#pp-pseg .ps-b.vd{border-color:rgba(14,159,110,.55);color:#0e9f6e}#pp-pseg .ps-b.zap{border-color:rgba(37,211,102,.55);color:#25d366}'
       +'#pp-pseg .ps-b:disabled{opacity:.4;cursor:not-allowed}'
       +'#pp-pseg .ps-vazio{background:var(--card);border:1px dashed var(--border);border-radius:14px;padding:22px;text-align:center;color:var(--cinza);font-size:14px}'
@@ -247,8 +252,35 @@
       +'#ap-pseg-modal .gtab{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}#ap-pseg-modal .gtab button{font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--cinza);cursor:pointer}#ap-pseg-modal .gtab button.on{background:var(--azul);border-color:var(--azul);color:#fff}'
       +'#ap-pseg-modal .nota{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:10px;line-height:1.5}'
       +'body.ap-esc-claro #ap-pseg-modal .cx{background:#fff;color:#0f172a}'
-      +'@media(max-width:900px){#pp-pseg .ps-cli{grid-template-columns:1fr 1fr}#pp-pseg .ps-btns{grid-column:1/-1;justify-content:flex-start}}'
-      +'@media(max-width:640px){#pp-pseg .ps-kpis{grid-template-columns:1fr 1fr}#pp-pseg .ps-cli{grid-template-columns:1fr}}';
+            +'@media(max-width:640px){#pp-pseg .ps-kpis{grid-template-columns:1fr 1fr}#pp-pseg .ps-placar{grid-template-columns:1fr}}'
+      +'#pp-pseg .ps-placar{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px}'
+      +'#pp-pseg .ps-falta{border-radius:12px;padding:10px 14px;border:2px solid #d92d20;background:rgba(217,45,32,.1)}'
+      +'#pp-pseg .ps-placar.vd .ps-falta{border-color:#0e9f6e;background:rgba(14,159,110,.12)}'
+      +'#pp-pseg .ps-falta small{display:block;font-size:11px;font-weight:800;letter-spacing:.8px}#pp-pseg .ps-falta b{display:block;font-size:44px;line-height:1;color:#d92d20}#pp-pseg .ps-placar.vd .ps-falta b{color:#0e9f6e}#pp-pseg .ps-falta span{font-size:12px;color:var(--cinza)}'
+      +'#pp-pseg .ps-progt{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;margin-bottom:6px}#pp-pseg .ps-progt span{color:var(--cinza);font-size:12.5px}'
+      +'#pp-pseg .ps-barra{height:16px;border-radius:999px;background:rgba(127,140,165,.25);overflow:hidden;margin-bottom:10px}#pp-pseg .ps-barra i{display:block;height:100%;background:#0e9f6e;border-radius:999px}'
+      +'#pp-pseg .ps-placar .ps-filtros{margin-bottom:0}'
+      +'#pp-pseg .ps-caixas{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start;margin-bottom:12px}'
+      +'#pp-pseg .ps-caixas.uma{grid-template-columns:1fr}'
+      +'#pp-pseg .ps-cx{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:rgba(127,140,165,.06)}'
+      +'#pp-pseg .ps-cxh{padding:12px 14px;color:#fff}#pp-pseg .ps-cxh small{display:block;font-size:10.5px;font-weight:800;letter-spacing:1px;opacity:.9}'
+      +'#pp-pseg .ps-cxh b{display:flex;align-items:center;gap:8px;font-size:17px;margin:2px 0}#pp-pseg .ps-cxh b i{font-style:normal;font-size:13px;font-weight:800;background:#fff;border-radius:999px;padding:2px 9px}'
+      +'#pp-pseg .ps-cxh span{font-size:12.5px;opacity:.95}'
+      +'#pp-pseg .ps-cx.mov .ps-cxh{background:#1d4ed8}#pp-pseg .ps-cx.mov .ps-cxh b i{color:#1d4ed8}'
+      +'#pp-pseg .ps-cx.zer .ps-cxh{background:#9a4a06}#pp-pseg .ps-cx.zer .ps-cxh b i{color:#9a4a06}'
+      +'#pp-pseg .ps-cx.mei .ps-cxh{background:#0f766e}#pp-pseg .ps-cx.mei .ps-cxh b i{color:#0f766e}'
+      +'#pp-pseg .ps-cx.ok .ps-cxh{background:#166534}#pp-pseg .ps-cx.ok .ps-cxh b i{color:#166534}'
+      +'#pp-pseg .ps-cxp{padding:8px 14px;font-size:12px;font-weight:700;border-bottom:1px solid var(--border);color:var(--cinza)}'
+      +'#pp-pseg .ps-cxl{padding:10px;display:flex;flex-direction:column;gap:8px}'
+      +'#pp-pseg .ps-cx.ok .ps-cxl{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}'
+      +'#pp-pseg .ps-nada{padding:16px;text-align:center;font-size:13px;color:var(--cinza);border:1px dashed var(--border);border-radius:10px}'
+      +'#pp-pseg .ps-pils{display:flex;gap:5px;flex-wrap:wrap}'
+      +'#pp-pseg .ps-pil{font-size:11.5px;font-weight:800;padding:5px 9px;border-radius:999px;line-height:1.2}'
+      +'#pp-pseg .ps-pil.ok{background:#dcfce7;color:#14532d}#pp-pseg .ps-pil.nx{background:#fef0c7;color:#7a2e0e}#pp-pseg .ps-pil.ag{background:rgba(127,140,165,.22);color:var(--cinza)}'
+      +'#pp-pseg .ps-info{font-size:12.5px;line-height:1.4}#pp-pseg .ps-info .pg{color:#0e9f6e;font-weight:800}#pp-pseg .ps-info .ag{color:#d97706;font-weight:800}'
+      +'#pp-pseg .ps-b.lj{border-color:rgba(217,119,6,.6);color:#d97706}'
+      +'#pp-pseg .ps-b.prox.vd{background:#0e9f6e;border-color:#0e9f6e;color:#fff}#pp-pseg .ps-b.prox.lj{background:#b45309;border-color:#b45309;color:#fff}'
+      +'#pp-pseg .ps-b.prox:disabled{background:transparent;color:#0e9f6e}';
     document.head.appendChild(s);
   }
 
@@ -277,6 +309,12 @@
     base.parentNode.insertBefore(p, base.nextSibling);
   }
 
+  /* ================= caixas (v2) ================= */
+  function ehZerada(n,c){ var r=regPgdas(n,c); return tipo(n)==='Simples' && !!(r && r.zerada) && !guia(n,c); }
+  function zeradaOk(n,c){ var r=regDas(n,c); return tipo(n)==='Simples' && !!(r && r.zerada && r.status==='ok') && !guia(n,c); }
+  function caixaDe(n,c){ if(!pendente(n,c)) return 'ok'; if(tipo(n)==='MEI') return 'mei'; return ehZerada(n,c) ? 'zer' : 'mov'; }
+  function pil(cls,txt){ return '<span class="ps-pil '+cls+'">'+txt+'</span>'; }
+
   /* ================= render ================= */
   function render(carregandoAinda){
     var c=el('ps-corpo'); if(!c) return;
@@ -285,52 +323,85 @@
     var nPg=me.filter(function(n){ return temPgdas(n,cp); }).length;
     var nDas=cli.filter(function(n){ return temDas(n,cp); }).length;
     var nPend=cli.filter(function(n){ return pendente(n,cp); }).length;
-    var lista=cli.filter(function(n){
-      if(filtro==='pend') return pendente(n,cp);
-      if(filtro==='mei') return tipo(n)==='MEI';
-      if(filtro==='me') return tipo(n)==='Simples';
-      return true;
-    });
+    var nOk=cli.length-nPend, pct=cli.length ? Math.round(nOk*100/cli.length) : 0;
+    var grp={mov:[],zer:[],mei:[],ok:[]};
+    cli.forEach(function(n){ grp[caixaDe(n,cp)].push(n); });
+    var nZerOk=grp.ok.filter(function(n){ return zeradaOk(n,cp); }).length;
     var h='<div class="ps-top">'
       +'<div class="ps-comp"><button id="ps-ant" title="Mês anterior">\u{25C0}</button><b>'+esc(compNome(cp))+'</b><button id="ps-prox" title="Próximo mês">\u{25B6}</button></div>'
       +(f ? '<span class="ps-selo">\u{1F512} Competência fechada em '+esc(dataBR(f.fechadoEm))+'</span>' : '')
       +'<div class="ps-acoes"><button class="ps-bt" id="ps-verif">\u{1F50D} Verificador de DAS</button><button class="ps-bt" id="ps-guia">\u{1F4D6} Guia de emissão</button>'
-      +(f ? '' : '<button class="ps-bt vd" id="ps-fechar" '+(nPend?'disabled title="Só libera quando todos estiverem com DAS enviado"':'')+'>\u{1F512} Fechar competência</button>')
+      +(f ? '' : '<button class="ps-bt vd" id="ps-fechar" '+(nPend?'disabled title="Só libera quando o Falta fazer chegar a zero"':'')+'>\u{1F512} Fechar competência</button>')
       +'</div></div>'
+      +'<div class="ps-placar '+(nPend?'vm':'vd')+'">'
+      +'<div class="ps-falta"><small>FALTA FAZER</small><b>'+nPend+'</b><span>de '+cli.length+' clientes</span></div>'
+      +'<div class="ps-prog"><div class="ps-progt"><b>'+nOk+' de '+cli.length+' concluídos</b><span>'+pct+'% · vence '+txtData(vencDAS(cp))+'</span></div>'
+      +'<div class="ps-barra"><i style="width:'+pct+'%"></i></div>'
+      +'<div class="ps-filtros">'
+      +[['pend','\u{26A0}\u{FE0F} Só o que falta ('+nPend+')'],['todos','Todos ('+cli.length+')'],['ok','\u{2705} Só concluídos ('+nOk+')']].map(function(x){ return '<button class="ps-f'+(filtro===x[0]?' on':'')+'" data-f="'+x[0]+'">'+x[1]+'</button>'; }).join('')
+      +'</div></div></div>'
       +'<div class="ps-kpis">'
       +'<div class="ps-kpi az"><b>'+cli.length+'</b><span>clientes ativos · '+mei.length+' MEI · '+me.length+' Simples</span></div>'
-      +'<div class="ps-kpi"><b>'+nPg+'/'+me.length+'</b><span>PGDAS-D transmitidos (ME)</span></div>'
-      +'<div class="ps-kpi vd"><b>'+nDas+'/'+cli.length+'</b><span>DAS enviados ao cliente</span></div>'
-      +'<div class="ps-kpi '+(nPend?'vm':'vd')+'"><b>'+nPend+'</b><span>'+(nPend===1?'pendência':'pendências')+' · vence '+txtData(vencDAS(cp))+'</span></div>'
-      +'</div>'
-      +'<div class="ps-filtros">'
-      +[['pend','\u{26A0}\u{FE0F} Só pendentes'],['todos','Todos'],['mei','MEI'],['me','Simples']].map(function(x){ return '<button class="ps-f'+(filtro===x[0]?' on':'')+'" data-f="'+x[0]+'">'+x[1]+'</button>'; }).join('')
+      +'<div class="ps-kpi"><b>'+nPg+'/'+me.length+'</b><span>PGDAS-D transmitidas (com e sem movimento)</span></div>'
+      +'<div class="ps-kpi"><b>'+nZerOk+'</b><span>zeradas concluídas (sem DAS)</span></div>'
+      +'<div class="ps-kpi vd"><b>'+(nDas-nZerOk)+'</b><span>DAS enviados ao cliente</span></div>'
       +'</div>';
     if(carregandoAinda && !cli.length) h+='<div class="ps-vazio">Carregando os clientes do app…</div>';
-    else if(!lista.length) h+='<div class="ps-vazio">'+(filtro==='pend' ? '\u{2705} Nenhuma pendência nesta competência. Mês fechado!' : 'Nenhum cliente neste filtro.')+'</div>';
-    else h+='<div class="ps-lista">'+lista.map(linha.bind(null,cp)).join('')+'</div>';
-    h+='<div class="ps-nota"><b>Regra de ouro:</b> DAS verdadeiro tem 48 dígitos, começa com 85, não tem PIX nem QR Code de banco e vence dia 20. A Receita Federal não envia guia por e-mail nem por WhatsApp. Só é confiável a guia que <b>você</b> emite nos portais oficiais e envia pelo app.</div>';
+    else{
+      if(filtro!=='ok'){
+        if(!nPend) h+='<div class="ps-vazio">\u{2705} Nenhuma pendência nesta competência. Pode fechar o mês.</div>';
+        h+='<div class="ps-caixas">'
+          +caixa('mov','CAIXA 1 · AZUL','Simples com movimento','Teve faturamento: transmite a PGDAS-D e lança o DAS.','1 PGDAS-D transmitida \u{2192} 2 DAS com PDF no app do cliente',grp.mov,cp)
+          +caixa('zer','CAIXA 2 · LARANJA','Simples sem movimento','Não faturou: PGDAS-D zerada é obrigatória, mas não gera DAS.','1 PGDAS-D zerada transmitida \u{2192} 2 Recibo no app do cliente',grp.zer,cp)
+          +caixa('mei','CAIXA 3 · VERDE-ÁGUA','MEI','Não tem PGDAS. O DAS-MEI vence todo mês, mesmo sem faturar.','1 DAS-MEI com PDF no app do cliente',grp.mei,cp)
+          +'</div>';
+      }
+      if(filtro!=='pend') h+='<div class="ps-caixas uma">'+caixa('ok','CAIXA 4 · VERDE','Concluído — já está no app do cliente','Nada mais a fazer. Aqui você vê quem já pagou.','',grp.ok,cp)+'</div>';
+    }
+    h+='<div class="ps-nota"><b>Regra de ouro:</b> DAS verdadeiro tem 48 dígitos, começa com 85, não tem PIX nem QR Code de banco e vence dia 20. A Receita Federal não envia guia por e-mail nem por WhatsApp. Só é confiável a guia que <b>você</b> emite nos portais oficiais e envia pelo app.<br><b>Mês sem faturamento:</b> a PGDAS-D continua obrigatória, com receita zero. Desde 01/2026 o atraso gera multa a partir do dia seguinte ao prazo (mínimo de R$ 50,00 por mês).</div>';
     c.innerHTML=h;
     ligar(cp);
   }
+  function caixa(k,rot,tit,sub,passos,nomes,cp){
+    var vazio = k==='ok' ? 'Nenhum cliente concluído ainda.' : '\u{2705} Nada pendente nesta caixa';
+    return '<div class="ps-cx '+k+'"><div class="ps-cxh"><small>'+rot+'</small><b>'+tit+'<i>'+nomes.length+'</i></b><span>'+sub+'</span></div>'
+      +(passos ? '<div class="ps-cxp">Passos: '+passos+'</div>' : '')
+      +'<div class="ps-cxl">'+(nomes.length ? nomes.map(linha.bind(null,cp)).join('') : '<div class="ps-nada">'+vazio+'</div>')+'</div></div>';
+  }
   function linha(cp,n){
-    var t=tipo(n), pg=temPgdas(n,cp), ds=temDas(n,cp), g=guia(n,cp), rp=regPgdas(n,cp), rd=regDas(n,cp), pend=pendente(n,cp);
-    var stPg = t==='MEI' ? '<div class="ps-st na">— <small>MEI não tem PGDAS-D</small></div>'
-             : pg ? '<div class="ps-st ok">\u{2714} Transmitido <small>'+esc(dataBR(rp.entregaEm))+(rp.protocolo?' · recibo '+esc(rp.protocolo):'')+'</small></div>'
-                  : '<div class="ps-st pd">Pendente <small>transmitir no e-CAC</small></div>';
-    var stDs = ds ? '<div class="ps-st ok">\u{2714} '+(g?'Enviado ao cliente':'Emitido')+' <small>'+(g&&g.valor?moeda(g.valor):(rd&&rd.valor?moeda(rd.valor):''))+(g&&g.venc?' · vence '+esc(dataBR(g.venc)):'')+'</small></div>'
-             : (t==='Simples' && !pg) ? '<div class="ps-st na">Bloqueado <small>primeiro o PGDAS-D</small></div>'
-             : '<div class="ps-st pd">Pendente <small>emitir e lançar a guia</small></div>';
-    var portal = t==='MEI' ? '<button class="ps-b az" data-a="portal" data-p="PGMEI" data-n="'+esc(n)+'">\u{1F3DB}\u{FE0F} PGMEI</button>'
-                           : '<button class="ps-b az" data-a="portal" data-p="ECAC" data-n="'+esc(n)+'">\u{1F3DB}\u{FE0F} e-CAC</button>';
-    var b='<button class="ps-b" data-a="cnpj" data-n="'+esc(n)+'" title="Copiar CNPJ">\u{1F4CB} CNPJ</button>'+portal;
-    if(t==='Simples') b+='<button class="ps-b '+(pg?'':'vd')+'" data-a="pgdas" data-n="'+esc(n)+'">'+(pg?'\u{270F}\u{FE0F} PGDAS-D':'\u{2714} PGDAS-D')+'</button>';
-    b+='<button class="ps-b vd" data-a="guia" data-n="'+esc(n)+'" '+((t==='Simples'&&!pg)?'disabled':'')+'>'+(ds?'\u{1F4C4} Ver guia':'\u{1F4C4} Lançar guia')+'</button>';
-    b+='<button class="ps-b zap" data-a="zap" data-n="'+esc(n)+'" '+(fone[n]?'':'disabled title="Sem WhatsApp no cadastro"')+'>\u{1F4AC} Zap</button>';
+    var t=tipo(n), pg=temPgdas(n,cp), ds=temDas(n,cp), g=guia(n,cp), rp=regPgdas(n,cp)||{}, rd=regDas(n,cp)||{}, pend=pendente(n,cp);
+    var zr=ehZerada(n,cp), zok=zeradaOk(n,cp), A=' data-n="'+esc(n)+'"', pills='', b='', info='';
+    b+='<button class="ps-b" data-a="cnpj"'+A+' title="Copiar CNPJ">\u{1F4CB} CNPJ</button>';
+    if(t==='MEI'){
+      pills=pil(ds?'ok':'nx', ds ? '1 · DAS-MEI no app do cliente' : '1 · Falta lançar o DAS-MEI');
+      b+='<button class="ps-b az" data-a="portal" data-p="PGMEI"'+A+'>\u{1F3DB}\u{FE0F} PGMEI</button>';
+      b+='<button class="ps-b vd'+(ds?'':' prox')+'" data-a="guia"'+A+'>'+(ds?'\u{1F4C4} Ver guia':'\u{1F4C4} Lançar guia')+'</button>';
+    } else if(zr || zok){
+      pills=pil(pg?'ok':'nx', pg ? '1 · Zerada transmitida'+(rp.entregaEm?' em '+esc(dataBR(rp.entregaEm)):'') : '1 · Falta transmitir a zerada')
+           +pil(zok?'ok':(pg?'nx':'ag'), zok ? (rd.reciboNoApp ? '2 · Recibo no app do cliente' : '2 · Concluída sem recibo') : (pg ? '2 · Falta o recibo para o cliente' : '2 · Recibo para o cliente'));
+      b+='<button class="ps-b az" data-a="portal" data-p="ECAC"'+A+'>\u{1F3DB}\u{FE0F} e-CAC</button>';
+      b+='<button class="ps-b lj'+(zok?'':' prox')+'" data-a="zerm"'+A+'>'+(zok ? '\u{1F4C4} Ver zerada' : (pg ? '\u{1F4CE} Anexar recibo e concluir' : '\u{2714} Marcar zerada transmitida'))+'</button>';
+      if(!pg) b+='<button class="ps-b" data-a="fat"'+A+' title="Voltar para a caixa azul">Faturou \u{2192} caixa 1</button>';
+    } else {
+      pills=pil(pg?'ok':'nx', pg ? '1 · PGDAS-D transmitida'+(rp.entregaEm?' em '+esc(dataBR(rp.entregaEm)):'') : '1 · Falta transmitir a PGDAS-D')
+           +pil(ds?'ok':(pg?'nx':'ag'), ds ? '2 · DAS no app do cliente' : (pg ? '2 · Falta lançar o DAS' : '2 · DAS (depois da PGDAS-D)'));
+      b+='<button class="ps-b az" data-a="portal" data-p="ECAC"'+A+'>\u{1F3DB}\u{FE0F} e-CAC</button>';
+      b+='<button class="ps-b vd'+(pg?'':' prox')+'" data-a="pgdas"'+A+'>'+(pg?'\u{270F}\u{FE0F} PGDAS-D':'\u{2714} PGDAS-D transmitida')+'</button>';
+      b+='<button class="ps-b vd'+((pg&&!ds)?' prox':'')+'" data-a="guia"'+A+' '+((pg||ds)?'':'disabled title="Primeiro a PGDAS-D"')+'>'+(ds?'\u{1F4C4} Ver guia':'\u{1F4C4} Lançar guia')+'</button>';
+      if(!pg && !ds) b+='<button class="ps-b lj" data-a="zer"'+A+' title="Mover para a caixa laranja">Não faturou \u{2192} zerada</button>';
+    }
+    b+='<button class="ps-b zap" data-a="zap"'+A+' '+(fone[n]?'':'disabled title="Sem WhatsApp no cadastro"')+'>\u{1F4AC} Zap</button>';
+    if(g){
+      var pago=/pag[oa]|quitad/i.test(String(g.status||'')) && !/a\s*pagar/i.test(String(g.status||''));
+      info='<b>'+moeda(g.valor)+'</b>'+(g.venc?' · vence '+esc(dataBR(g.venc)):'')
+          +' · <span class="'+(pago?'pg':'ag')+'">'+(pago?'\u{2714} Pago':'Aguardando pagamento')+'</span>'
+          +(g.temAnexo?'':' · <span class="ag">\u{26A0}\u{FE0F} guia sem PDF</span>');
+    } else if(zok){ info='<b>R$ 0,00</b> · sem imposto a pagar neste mês'; }
+    else if(ds && rd.valor){ info='<b>'+moeda(rd.valor)+'</b> · marcado como emitido'; }
     return '<div class="ps-cli '+(pend?'pend':'okk')+'">'
-      +'<div class="ps-nome"><b>'+esc(n)+'</b><small>'+esc(cnpjFmt(cnpj[n]))+'</small></div>'
-      +'<div class="ps-reg '+t+'">'+(t==='MEI'?'MEI':'SIMPLES')+'</div>'
-      +stPg+stDs
+      +'<div class="ps-nome"><b>'+esc(n)+'</b><small>'+esc(cnpjFmt(cnpj[n]))+' · '+(t==='MEI'?'MEI':'Simples')+'</small></div>'
+      +'<div class="ps-pils">'+pills+'</div>'
+      +(info?'<div class="ps-info">'+info+'</div>':'')
       +'<div class="ps-btns">'+b+'</div></div>';
   }
 
@@ -348,6 +419,9 @@
         if(ac==='cnpj') copiar(cnpj[n]||'', 'CNPJ de '+n+' copiado.');
         else if(ac==='portal'){ if(cnpj[n]) copiar(cnpj[n], 'CNPJ copiado. Abrindo o portal oficial…'); window.open(PORTAIS[b.getAttribute('data-p')],'_blank','noopener'); }
         else if(ac==='pgdas') modalPgdas(n,cp);
+        else if(ac==='zer') moverZerada(n,cp,true);
+        else if(ac==='fat') moverZerada(n,cp,false);
+        else if(ac==='zerm') modalZerada(n,cp);
         else if(ac==='guia') lancarGuia(n,cp);
         else if(ac==='zap') zap(n,cp);
       };
@@ -394,7 +468,7 @@
       modal('<h3>Guia DAS — '+esc(n)+'</h3><div class="h4">Competência '+esc(compNome(cp))+'</div>'
         +'<div class="ln"><span>Valor</span><b>'+moeda(g.valor)+'</b></div><div class="ln"><span>Vencimento</span><b>'+esc(dataBR(g.venc))+'</b></div><div class="ln"><span>Status no app do cliente</span><b>'+esc(g.status||'—')+'</b></div>'
         +'<div class="bts"><button class="bt az" id="gu-ver">\u{1F4CB} Abrir na aba Guias</button><button class="bt" id="gu-zap">\u{1F4AC} Avisar no WhatsApp</button><button class="bt" id="gu-chk">\u{1F50D} Conferir linha digitável</button></div>');
-      el('gu-ver').onclick=function(){ fecharModal(); if(typeof window.apLancarGuia==='function') window.apLancarGuia(n,'','', 'Guia de '+n+' já lançada — veja a lista abaixo do formulário.'); };
+      el('gu-ver').onclick=function(){ fecharModal(); window.__PSEG_LIBERA__=0; if(typeof window.apLancarGuia==='function') window.apLancarGuia(n,'','', 'Guia de '+n+' já lançada — veja a lista abaixo do formulário.'); };
       el('gu-zap').onclick=function(){ fecharModal(); zap(n,cp); };
       el('gu-chk').onclick=function(){ modalVerificador(n,cp); };
       return;
@@ -413,7 +487,7 @@
       if(v.ok && v.valor!=null) el('lg-val').value=v.valor.toFixed(2);
     };
     el('lg-ok').onclick=function(){
-      var val=el('lg-val').value; fecharModal();
+      var val=el('lg-val').value; fecharModal(); window.__PSEG_LIBERA__=Date.now();
       if(typeof window.apLancarGuia!=='function'){ aviso('A função de lançar guia não carregou. Use a aba Guias.','erro'); return; }
       window.apLancarGuia(n, TIPO_GUIA, val, '\u{1F4CB} Lançando o DAS de '+n+' — competência '+compNome(cp)+'. Confira e salve.');
       setTimeout(function(){
@@ -426,12 +500,81 @@
     };
   }
 
+  /* ---- PGDAS-D zerada (v2) ---- */
+  function lerArq(file){
+    try{ if(typeof window.lerArquivoBase64==='function') return window.lerArquivoBase64(file); }catch(e){}
+    return new Promise(function(ok,erro){ var fr=new FileReader(); fr.onload=function(){ ok(String(fr.result)); }; fr.onerror=function(){ erro(new Error('Não consegui ler o arquivo')); }; fr.readAsDataURL(file); });
+  }
+  async function addCol(col,dados){
+    if(typeof window.dbAdd==='function') return await window.dbAdd(col,dados);
+    var d=db(); if(!d) throw new Error('Sem conexão com o banco'); return await d.collection(col).add(dados);
+  }
+  async function moverZerada(n,cp,sim){
+    var id=limpo(n)+'__'+cp+'__PGDAS', r=cOb[id]||{};
+    try{
+      if(sim) await salvar(id,{cliente:n, competencia:cp, sigla:'PGDAS', status:(r.status||''), zerada:true, responsavel:'Daniel'});
+      else if(r.status==='ok') await salvar(id,{zerada:false});
+      else await apagar(id);
+      render(); aviso(sim ? n+' foi para a caixa laranja (sem movimento).' : n+' voltou para a caixa azul (com movimento).','ok');
+    }catch(e){ aviso('Não foi possível mover: '+(e.message||e),'erro'); }
+  }
+  function modalZerada(n,cp){
+    var idP=limpo(n)+'__'+cp+'__PGDAS', idD=limpo(n)+'__'+cp+'__DAS', rp=cOb[idP]||{}, rd=cOb[idD]||{};
+    var feita=rp.status==='ok', conc=!!(rd.status==='ok' && rd.zerada);
+    modal('<h3>PGDAS-D zerada — '+esc(n)+'</h3><div class="h4">Competência '+esc(compNome(cp))+' · CNPJ '+esc(cnpjFmt(cnpj[n]))+' · prazo '+txtData(vencDAS(cp))+'</div>'
+      +'<div class="ln"><span>1 · Transmissão</span><b>'+(feita?'\u{2714} Transmitida em '+esc(dataBR(rp.entregaEm)):'Ainda não transmitida')+'</b></div>'
+      +'<div class="ln"><span>2 · Recibo para o cliente</span><b>'+(conc?(rd.reciboNoApp?'\u{2714} Enviado ao app em '+esc(dataBR(rd.entregaEm)):'\u{2714} Concluída sem recibo'):'Ainda não enviado')+'</b></div>'
+      +'<label>Número do recibo (opcional)</label><input type="text" id="zr-rec" value="'+esc(rp.protocolo||'')+'" placeholder="ex.: 62814545202610001">'
+      +(conc ? '' :
+         '<label>Recibo da PGDAS-D em PDF — vai para o app do cliente, em Documentos</label><input type="file" id="zr-file" accept="application/pdf,image/*" style="margin-top:4px;font-size:13px;width:100%">'
+        +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" id="zr-sem" style="width:18px;height:18px"> Concluir sem anexar o recibo (o cliente não recebe nada no app)</label>')
+      +'<div id="zr-msg"></div>'
+      +'<div class="bts">'
+      +(conc ? '' : '<button class="bt vd" id="zr-ok">\u{2714} Salvar</button>')
+      +'<a class="bt" href="'+PORTAIS.ECAC+'" target="_blank" rel="noopener">\u{1F3DB}\u{FE0F} Abrir e-CAC</a>'
+      +'<button class="bt" id="zr-zap">\u{1F4AC} Avisar no WhatsApp</button>'
+      +((feita||conc)?'<button class="bt vm" id="zr-des">\u{21A9}\u{FE0F} Desfazer</button>':'')+'</div>'
+      +'<div class="nota">No e-CAC: Simples Nacional \u{2192} PGDAS-D e DEFIS \u{2192} Declarar/Retificar \u{2192} período de apuração \u{2192} receita bruta <b>0,00</b> \u{2192} Transmitir. Não gera DAS. '
+      +'Sem o PDF, o painel salva só o passo 1 e o cliente continua na caixa laranja até você anexar o recibo.</div>');
+    var ok=el('zr-ok');
+    if(ok) ok.onclick=async function(){
+      var bt=this, fi=el('zr-file'), file=fi && fi.files && fi.files[0], sem=!!(el('zr-sem') && el('zr-sem').checked), msg=el('zr-msg');
+      bt.disabled=true; if(msg) msg.innerHTML='';
+      try{
+        await salvar(idP,{cliente:n, competencia:cp, sigla:'PGDAS', status:'ok', zerada:true, protocolo:el('zr-rec').value.trim(),
+                          origem:'e-CAC', responsavel:'Daniel', entregaEm:(feita && rp.entregaEm) ? rp.entregaEm : hojeISO(), obs:'Sem movimento: receita zero'});
+        if(file || sem){
+          if(file){
+            var ext=(String(file.name).match(/\.[A-Za-z0-9]{2,5}$/)||['.pdf'])[0];
+            var dado=await lerArq(file);
+            await addCol('docs',{cliente:n, nome:'PGDAS-D '+cp.split('-')[1]+'-'+cp.split('-')[0]+' sem movimento - sem imposto a pagar'+ext, tipo:'Declaração',
+                                 arquivoData:dado, data:new Date().toLocaleDateString('pt-BR'), origem:'Painel Seguro DAS', competencia:compTxt(cp)});
+          }
+          await salvar(idD,{cliente:n, competencia:cp, sigla:'DAS', status:'ok', zerada:true, valor:0, reciboNoApp:!!file, origem:'Painel Seguro DAS',
+                            responsavel:'Daniel', entregaEm:hojeISO(), obs:'Sem movimento: PGDAS-D zerada, sem DAS a pagar'});
+          fecharModal(); render(); aviso('Zerada de '+n+' concluída'+(file?' e recibo enviado ao app do cliente.':' (sem recibo).'),'ok');
+        } else {
+          fecharModal(); render(); aviso('Zerada de '+n+' marcada como transmitida. Falta anexar o recibo.','ok');
+        }
+      }catch(e){ bt.disabled=false; if(msg) msg.innerHTML='<div class="res ko">Não foi possível salvar: '+esc(e.message||e)+'</div>'; }
+    };
+    el('zr-zap').onclick=function(){ zap(n,cp); };
+    var ds=el('zr-des');
+    if(ds) ds.onclick=async function(){
+      if(!confirm('Desfazer a zerada de '+n+' em '+compNome(cp)+'? O cliente volta para a caixa azul. Se o recibo já foi enviado, ele continua na aba Documentos.')) return;
+      try{ if(cOb[idD] && cOb[idD].zerada) await apagar(idD); await apagar(idP); fecharModal(); render(); }
+      catch(e){ aviso('Não foi possível: '+(e.message||e),'erro'); }
+    };
+  }
+
   /* ---- WhatsApp ---- */
   function zap(n,cp){
     var f=fone[n]; if(!f){ aviso('Cliente sem WhatsApp no cadastro.','erro'); return; }
     if(f.length<=11) f='55'+f;
-    var g=guia(n,cp), primeiro=n.split(' ')[0];
-    var msg = g
+    var g=guia(n,cp), primeiro=n.split(' ')[0], rz=regDas(n,cp)||{};
+    var msg = (zeradaOk(n,cp) || (ehZerada(n,cp) && temPgdas(n,cp)))
+      ? 'Olá, '+n+'! Aqui é o Daniel, da APARAT Contabilidade.\nA declaração mensal do Simples Nacional (PGDAS-D) da competência '+compTxt(cp)+' foi transmitida sem movimento. Não há DAS a pagar neste mês.'+(rz.reciboNoApp?'\nO recibo está no seu app APARAT, em Documentos.':'')+'\nLembrete: a Receita Federal não envia guia por e-mail nem por WhatsApp. Se receber qualquer cobrança, me chame antes de pagar.'
+      : g
       ? 'Olá, '+n+'! Aqui é o Daniel, da APARAT Contabilidade.\nA guia DAS da competência '+compTxt(cp)+' já está no seu app APARAT, na aba Minhas Guias. Valor: '+moeda(g.valor)+'. Vencimento: '+dataBR(g.venc||isoData(vencDAS(cp)))+'.\nImportante: a Receita Federal não envia guia por e-mail nem por WhatsApp. Pague somente a guia que está no app. Se receber qualquer outra, me chame antes de pagar.'
       : 'Olá, '+n+'! Aqui é o Daniel, da APARAT Contabilidade.\nEstou emitindo a sua guia DAS da competência '+compTxt(cp)+' (vencimento '+txtData(vencDAS(cp))+'). Assim que estiver no app APARAT eu te aviso.\nLembrete: a Receita Federal não envia guia por e-mail nem por WhatsApp. Pague somente a guia que estiver no app.';
     window.open('https://wa.me/'+f+'?text='+encodeURIComponent(msg),'_blank','noopener');
@@ -507,6 +650,40 @@
     liga();
   }
 
+  /* ================= aba Guias: DAS so pelo Painel Seguro (v2) ================= */
+  function irParaPainel(){ fecharModal(); var it=el('ap-nav-pseg'); if(it) it.click(); }
+  function travaGuias(){
+    if(!window.__PSEG_TRAVA__){
+      window.__PSEG_TRAVA__=1;
+      document.addEventListener('click',function(ev){
+        try{
+          var b=ev.target && ev.target.closest ? ev.target.closest('#ob-btn') : null; if(!b) return;
+          var t=el('ob-tipo'); if(!t || !/DAS/i.test(String(t.value||''))) return;
+          if(typeof editObId!=='undefined' && editObId) return;           /* corrigir guia antiga continua liberado */
+          if(window.__PSEG_LIBERA__ && (Date.now()-window.__PSEG_LIBERA__)<15*60000) return; /* veio do proprio painel */
+          ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          modal('<h3>\u{1F6E1}\u{FE0F} O DAS agora é lançado só no Painel Seguro DAS</h3><div class="h4">Assim a guia não fica duplicada e as outras abas são preenchidas sozinhas.</div>'
+            +'<div class="ln"><span>Simples com movimento</span><b>PGDAS-D \u{2192} DAS com PDF</b></div>'
+            +'<div class="ln"><span>Simples sem movimento</span><b>PGDAS-D zerada, sem guia</b></div>'
+            +'<div class="ln"><span>MEI</span><b>DAS-MEI com PDF</b></div>'
+            +'<div class="bts"><button class="bt az" id="tg-ir">Ir para o Painel Seguro DAS</button><button class="bt" id="tg-fe">Fechar</button></div>'
+            +'<div class="nota">Esta aba continua valendo para as outras guias (INSS, FGTS, DARF) e para consultar ou corrigir os DAS já lançados.</div>');
+          el('tg-ir').onclick=irParaPainel; el('tg-fe').onclick=fecharModal;
+        }catch(e){}
+      },true);
+    }
+    var pg=el('pp-obrig');
+    if(pg && !el('ps-aviso-guias')){
+      var form=el('ob-tipo'); var card=form && form.closest ? (form.closest('.card')||form.closest('.fcard')||null) : null;
+      var a=document.createElement('div'); a.id='ps-aviso-guias';
+      a.style.cssText='margin:0 0 12px;padding:11px 13px;border-radius:12px;border:1px solid rgba(51,85,255,.35);background:rgba(51,85,255,.1);font-size:13px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+      a.innerHTML='<span style="flex:1 1 260px"><b>DAS e PGDAS-D:</b> lance pelo Painel Seguro DAS. Aqui ficam as outras guias e a consulta dos DAS já lançados.</span>'
+        +'<button type="button" id="ps-aviso-ir" style="font-size:13px;font-weight:700;padding:9px 14px;border-radius:10px;border:0;background:var(--azul,#3355ff);color:#fff;cursor:pointer">\u{1F6E1}\u{FE0F} Abrir o Painel Seguro DAS</button>';
+      if(card && card.parentNode) card.parentNode.insertBefore(a, card); else pg.insertBefore(a, pg.firstChild);
+      el('ps-aviso-ir').onclick=irParaPainel;
+    }
+  }
+
   /* ================= bolinha de pendencias ================= */
   function pintarPonto(){
     var d=el('dot-pseg'); if(!d) return;
@@ -523,7 +700,7 @@
       css();
       var painel=el('view-painel');
       if(painel && painel.classList.contains('active') && ehAdmin()){
-        menu(); pagina();
+        menu(); pagina(); travaGuias();
         if(voltas===1 || voltas%12===0){
           await carregar();
           if(el('pp-pseg') && el('pp-pseg').classList.contains('active')){ await sincronizar(compSel||compAtual()); render(); }
@@ -536,5 +713,5 @@
   [2200,4800,9500].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,7000);
 
-  window.__PSEG__={verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
+  window.__PSEG__={versao:2, caixaDe:caixaDe, ehZerada:ehZerada, zeradaOk:zeradaOk, modalZerada:modalZerada, pendente:pendente, estado:function(){ return {cli:cli, comp:compSel, filtro:filtro}; }, verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
 })();
