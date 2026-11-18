@@ -1,5 +1,7 @@
 
-/* APARAT - PAINEL SEGURO DAS/PGDAS v2 (18/11/2026) - uso exclusivo do escritorio
+/* APARAT - PAINEL SEGURO DAS/PGDAS v3 (18/11/2026) - uso exclusivo do escritorio
+   v3: botao Feito de DAS/PGDAS-D na Ficha, no Calendario e na Agenda vira atalho para o painel
+       (nao grava mais obrigCnpj sem guia) e o item Obrigacoes CNPJ sai do menu e do Inicio (a aba continua existindo).
    v2: caixas separadas (Simples com movimento / Simples sem movimento = PGDAS-D zerada / MEI / Concluido),
        placar Falta fazer + filtros, fluxo da zerada (obrigCnpj ..__PGDAS com zerada:true; conclusao grava
        ..__DAS status ok + zerada:true e manda o recibo para a colecao docs do cliente) e trava na aba Guias:
@@ -684,6 +686,38 @@
     }
   }
 
+  /* ================= v3: DAS/PGDAS-D "Feito" fora do painel vira atalho; Obrigacoes CNPJ sai do menu ================= */
+  var RE_SIG=/\|obr\|(DAS|SIMEI|PGDAS)\|/, RE_TXT=/^\s*(PGDAS|DAS\b)/i;
+  function ehBotaoDas(b){
+    var v=b.getAttribute('data-agu-ok')||b.getAttribute('data-cal-ok');
+    if(v) return RE_SIG.test(v);
+    if(b.hasAttribute('data-fc-ok')){ var l=b.closest ? b.closest('.fc-lin') : null, t=l && l.querySelector('.fc-t b'); return !!(t && RE_TXT.test(t.textContent||'')); }
+    return false;
+  }
+  function rotularFeito(){
+    [].forEach.call(document.querySelectorAll('[data-agu-ok],[data-cal-ok],[data-fc-ok]'),function(b){
+      if(b.getAttribute('data-pseg-atalho') || !ehBotaoDas(b)) return;
+      b.setAttribute('data-pseg-atalho','1'); b.textContent='\u{1F6E1}\u{FE0F} Abrir no Painel Seguro'; b.title='DAS e PGDAS-D são marcados só no Painel Seguro DAS';
+    });
+  }
+  function travaFeito(){
+    if(window.__PSEG_TRAVA_FEITO__) return; window.__PSEG_TRAVA_FEITO__=1;
+    document.addEventListener('click',function(ev){
+      try{
+        var b=ev.target && ev.target.closest ? ev.target.closest('[data-agu-ok],[data-cal-ok],[data-fc-ok]') : null; if(!b || !ehBotaoDas(b)) return;
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        aviso('DAS e PGDAS-D são marcados só no Painel Seguro DAS. Abrindo o painel…','info');
+        var it=el('ap-nav-pseg'); if(it) it.click();
+      }catch(e){}
+    },true);
+    setInterval(function(){ try{ rotularFeito(); }catch(e){} },1200);
+  }
+  /* a aba continua existindo (atalhos da Ficha e do Inicio ainda abrem); so sai do menu e dos quadradinhos */
+  function esconderObc(){
+    var o=el('ap-nav-obc'); if(!o || !o.classList.contains('nav-item')) return;
+    o.classList.remove('nav-item'); o.style.display='none'; o.setAttribute('data-pseg-oculto','1');
+  }
+
   /* ================= bolinha de pendencias ================= */
   function pintarPonto(){
     var d=el('dot-pseg'); if(!d) return;
@@ -700,7 +734,7 @@
       css();
       var painel=el('view-painel');
       if(painel && painel.classList.contains('active') && ehAdmin()){
-        menu(); pagina(); travaGuias();
+        menu(); pagina(); travaGuias(); travaFeito(); esconderObc();
         if(voltas===1 || voltas%12===0){
           await carregar();
           if(el('pp-pseg') && el('pp-pseg').classList.contains('active')){ await sincronizar(compSel||compAtual()); render(); }
@@ -713,5 +747,5 @@
   [2200,4800,9500].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,7000);
 
-  window.__PSEG__={versao:2, caixaDe:caixaDe, ehZerada:ehZerada, zeradaOk:zeradaOk, modalZerada:modalZerada, pendente:pendente, estado:function(){ return {cli:cli, comp:compSel, filtro:filtro}; }, verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
+  window.__PSEG__={versao:3, caixaDe:caixaDe, ehZerada:ehZerada, zeradaOk:zeradaOk, modalZerada:modalZerada, pendente:pendente, estado:function(){ return {cli:cli, comp:compSel, filtro:filtro}; }, verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
 })();
