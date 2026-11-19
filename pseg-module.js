@@ -1,5 +1,7 @@
 
-/* APARAT - PAINEL SEGURO DAS/PGDAS v3 (18/11/2026) - uso exclusivo do escritorio
+/* APARAT - PAINEL SEGURO DAS/PGDAS v4 (18/11/2026) - uso exclusivo do escritorio
+   v4: botao Enviei por WhatsApp (DAS e DAS-MEI enviados por fora: obrigCnpj status ok + enviadoFora, sem guia)
+       e Nao faturou -> zerada continua disponivel depois de marcar a PGDAS-D.
    v3: botao Feito de DAS/PGDAS-D na Ficha, no Calendario e na Agenda vira atalho para o painel
        (nao grava mais obrigCnpj sem guia) e o item Obrigacoes CNPJ sai do menu e do Inicio (a aba continua existindo).
    v2: caixas separadas (Simples com movimento / Simples sem movimento = PGDAS-D zerada / MEI / Concluido),
@@ -378,19 +380,21 @@
       pills=pil(ds?'ok':'nx', ds ? '1 · DAS-MEI no app do cliente' : '1 · Falta lançar o DAS-MEI');
       b+='<button class="ps-b az" data-a="portal" data-p="PGMEI"'+A+'>\u{1F3DB}\u{FE0F} PGMEI</button>';
       b+='<button class="ps-b vd'+(ds?'':' prox')+'" data-a="guia"'+A+'>'+(ds?'\u{1F4C4} Ver guia':'\u{1F4C4} Lançar guia')+'</button>';
+      if(!ds) b+='<button class="ps-b" data-a="fora"'+A+' title="Já mandei a guia por fora do app">\u{2714} Enviei por WhatsApp</button>';
     } else if(zr || zok){
       pills=pil(pg?'ok':'nx', pg ? '1 · Zerada transmitida'+(rp.entregaEm?' em '+esc(dataBR(rp.entregaEm)):'') : '1 · Falta transmitir a zerada')
            +pil(zok?'ok':(pg?'nx':'ag'), zok ? (rd.reciboNoApp ? '2 · Recibo no app do cliente' : '2 · Concluída sem recibo') : (pg ? '2 · Falta o recibo para o cliente' : '2 · Recibo para o cliente'));
       b+='<button class="ps-b az" data-a="portal" data-p="ECAC"'+A+'>\u{1F3DB}\u{FE0F} e-CAC</button>';
       b+='<button class="ps-b lj'+(zok?'':' prox')+'" data-a="zerm"'+A+'>'+(zok ? '\u{1F4C4} Ver zerada' : (pg ? '\u{1F4CE} Anexar recibo e concluir' : '\u{2714} Marcar zerada transmitida'))+'</button>';
-      if(!pg) b+='<button class="ps-b" data-a="fat"'+A+' title="Voltar para a caixa azul">Faturou \u{2192} caixa 1</button>';
+      if(!zok) b+='<button class="ps-b" data-a="fat"'+A+' title="Voltar para a caixa azul">Faturou \u{2192} caixa 1</button>';
     } else {
       pills=pil(pg?'ok':'nx', pg ? '1 · PGDAS-D transmitida'+(rp.entregaEm?' em '+esc(dataBR(rp.entregaEm)):'') : '1 · Falta transmitir a PGDAS-D')
            +pil(ds?'ok':(pg?'nx':'ag'), ds ? '2 · DAS no app do cliente' : (pg ? '2 · Falta lançar o DAS' : '2 · DAS (depois da PGDAS-D)'));
       b+='<button class="ps-b az" data-a="portal" data-p="ECAC"'+A+'>\u{1F3DB}\u{FE0F} e-CAC</button>';
       b+='<button class="ps-b vd'+(pg?'':' prox')+'" data-a="pgdas"'+A+'>'+(pg?'\u{270F}\u{FE0F} PGDAS-D':'\u{2714} PGDAS-D transmitida')+'</button>';
       b+='<button class="ps-b vd'+((pg&&!ds)?' prox':'')+'" data-a="guia"'+A+' '+((pg||ds)?'':'disabled title="Primeiro a PGDAS-D"')+'>'+(ds?'\u{1F4C4} Ver guia':'\u{1F4C4} Lançar guia')+'</button>';
-      if(!pg && !ds) b+='<button class="ps-b lj" data-a="zer"'+A+' title="Mover para a caixa laranja">Não faturou \u{2192} zerada</button>';
+      if(pg && !ds) b+='<button class="ps-b" data-a="fora"'+A+' title="Já mandei a guia por fora do app">\u{2714} Enviei por WhatsApp</button>';
+      if(!ds) b+='<button class="ps-b lj" data-a="zer"'+A+' title="Mover para a caixa laranja">Não faturou \u{2192} zerada</button>';
     }
     b+='<button class="ps-b zap" data-a="zap"'+A+' '+(fone[n]?'':'disabled title="Sem WhatsApp no cadastro"')+'>\u{1F4AC} Zap</button>';
     if(g){
@@ -399,6 +403,7 @@
           +' · <span class="'+(pago?'pg':'ag')+'">'+(pago?'\u{2714} Pago':'Aguardando pagamento')+'</span>'
           +(g.temAnexo?'':' · <span class="ag">\u{26A0}\u{FE0F} guia sem PDF</span>');
     } else if(zok){ info='<b>R$ 0,00</b> · sem imposto a pagar neste mês'; }
+    else if(ds && rd.enviadoFora){ info=(rd.valor?'<b>'+moeda(rd.valor)+'</b> · ':'')+'<span class="pg">\u{2714} Enviado por '+esc(rd.enviadoFora)+'</span> · sem guia no app'; b+='<button class="ps-b" data-a="fdes"'+A+'>\u{21A9}\u{FE0F} Desfazer envio</button>'; }
     else if(ds && rd.valor){ info='<b>'+moeda(rd.valor)+'</b> · marcado como emitido'; }
     return '<div class="ps-cli '+(pend?'pend':'okk')+'">'
       +'<div class="ps-nome"><b>'+esc(n)+'</b><small>'+esc(cnpjFmt(cnpj[n]))+' · '+(t==='MEI'?'MEI':'Simples')+'</small></div>'
@@ -424,6 +429,8 @@
         else if(ac==='zer') moverZerada(n,cp,true);
         else if(ac==='fat') moverZerada(n,cp,false);
         else if(ac==='zerm') modalZerada(n,cp);
+        else if(ac==='fora') modalFora(n,cp);
+        else if(ac==='fdes') desfazerFora(n,cp);
         else if(ac==='guia') lancarGuia(n,cp);
         else if(ac==='zap') zap(n,cp);
       };
@@ -529,7 +536,7 @@
       +'<label>Número do recibo (opcional)</label><input type="text" id="zr-rec" value="'+esc(rp.protocolo||'')+'" placeholder="ex.: 62814545202610001">'
       +(conc ? '' :
          '<label>Recibo da PGDAS-D em PDF — vai para o app do cliente, em Documentos</label><input type="file" id="zr-file" accept="application/pdf,image/*" style="margin-top:4px;font-size:13px;width:100%">'
-        +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" id="zr-sem" style="width:18px;height:18px"> Concluir sem anexar o recibo (o cliente não recebe nada no app)</label>')
+        +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" id="zr-sem" style="width:18px;height:18px"> Concluir sem anexar: já enviei o recibo por WhatsApp (o cliente não recebe nada no app)</label>')
       +'<div id="zr-msg"></div>'
       +'<div class="bts">'
       +(conc ? '' : '<button class="bt vd" id="zr-ok">\u{2714} Salvar</button>')
@@ -567,6 +574,34 @@
       try{ if(cOb[idD] && cOb[idD].zerada) await apagar(idD); await apagar(idP); fecharModal(); render(); }
       catch(e){ aviso('Não foi possível: '+(e.message||e),'erro'); }
     };
+  }
+
+  /* ---- DAS enviado por fora do app (v4) ---- */
+  function idDas(n,cp){ return limpo(n)+'__'+cp+'__'+(tipo(n)==='MEI'?'SIMEI':'DAS'); }
+  function modalFora(n,cp){
+    var mei=tipo(n)==='MEI';
+    modal('<h3>'+(mei?'DAS-MEI':'DAS')+' enviado por fora do app — '+esc(n)+'</h3><div class="h4">Competência '+esc(compNome(cp))+' · vencimento '+txtData(vencDAS(cp))+'</div>'
+      +'<label>Por onde você enviou</label><select id="fo-por" style="width:100%;padding:10px;border-radius:10px;margin-top:4px;background:var(--card);color:inherit;border:1px solid var(--border);font-size:14px"><option>WhatsApp</option><option>E-mail</option><option>Em mãos</option></select>'
+      +'<label>Valor do DAS (opcional)</label><input type="text" id="fo-val" inputmode="decimal" placeholder="ex.: 86,05">'
+      +'<div id="fo-msg"></div>'
+      +'<div class="bts"><button class="bt vd" id="fo-ok">\u{2714} Marcar como enviado ao cliente</button><button class="bt" id="fo-fe">Cancelar</button></div>'
+      +'<div class="nota">Use quando a guia já foi para o cliente por fora. O painel marca como concluído, mas <b>não cria guia no app</b>: o cliente não vê o boleto por lá. Para aparecer no app, use "Lançar guia" com o PDF.</div>');
+    el('fo-fe').onclick=fecharModal;
+    el('fo-ok').onclick=async function(){
+      var bt=this, por=el('fo-por').value, v=Number(String(el('fo-val').value||'').replace(/\./g,'').replace(',','.'))||0;
+      bt.disabled=true;
+      try{
+        await salvar(idDas(n,cp),{cliente:n, competencia:cp, sigla:(mei?'SIMEI':'DAS'), status:'ok', enviadoFora:por, valor:v, origem:'Painel Seguro DAS',
+                                  responsavel:'Daniel', entregaEm:hojeISO(), obs:'DAS enviado ao cliente por '+por+' (sem guia no app)'});
+        fecharModal(); render(); aviso('DAS de '+n+' marcado como enviado por '+por+'.','ok');
+      }catch(e){ bt.disabled=false; el('fo-msg').innerHTML='<div class="res ko">Não foi possível salvar: '+esc(e.message||e)+'</div>'; }
+    };
+  }
+  async function desfazerFora(n,cp){
+    var id=idDas(n,cp), r=cOb[id]||{};
+    if(!r.enviadoFora) return;
+    if(!confirm('Desfazer o envio de '+n+' em '+compNome(cp)+'? O cliente volta para a lista do que falta.')) return;
+    try{ await apagar(id); render(); }catch(e){ aviso('Não foi possível: '+(e.message||e),'erro'); }
   }
 
   /* ---- WhatsApp ---- */
@@ -747,5 +782,5 @@
   [2200,4800,9500].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,7000);
 
-  window.__PSEG__={versao:3, caixaDe:caixaDe, ehZerada:ehZerada, zeradaOk:zeradaOk, modalZerada:modalZerada, pendente:pendente, estado:function(){ return {cli:cli, comp:compSel, filtro:filtro}; }, verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
+  window.__PSEG__={versao:4, caixaDe:caixaDe, ehZerada:ehZerada, zeradaOk:zeradaOk, modalZerada:modalZerada, pendente:pendente, estado:function(){ return {cli:cli, comp:compSel, filtro:filtro}; }, verificarDAS:verificarDAS, mod10:mod10, mod11:mod11, vencDAS:vencDAS, render:render, carregar:carregar, compISO:compISO};
 })();
