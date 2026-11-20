@@ -14,13 +14,13 @@
      NAO marca Pago: quem da baixa e o Daniel (o toque nao prova que o dinheiro entrou). */
 ;(function(){
   if(window.__HONV2__) return;
-  window.__HONV2__={versao:1};
+  window.__HONV2__={versao:2};
 
   var CHAVE='e140ad9c-8e55-4fa4-853c-ebbc3a18c3c3', FAVORECIDO='APARAT CONTABILIDADE LTDA', CIDADE='FRANCA';
   var MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var MABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-  var H=[], C=[], MES=null, HCLI='', assinado=false, tCli=0, assinatura='', fechados={};
+  var H=[], C=[], DESL={}, MES=null, HCLI='', assinado=false, tCli=0, assinatura='', fechados={};
 
   /* ---------------- utilitarios ---------------- */
   function el(id){ return document.getElementById(id); }
@@ -191,11 +191,16 @@
   async function carregarClientes(){
     if(Date.now()-tCli<60000 && C.length) return; tCli=Date.now();
     try{ var d=db(); var s=await d.collection('clientes').get(); var a=[]; s.forEach(function(x){ var o=x.data()||{}; o.id=x.id; a.push(o); }); C=a; }catch(e){}
+    /* login desligado (Acessos): clienteAntigo preenchido e nenhum login ativo com esse nome -> cliente removido do app */
+    try{ var u=await db().collection('usuarios').get(), ant={}, ativos={};
+      u.forEach(function(x){ var o=x.data()||{}; if(o.clienteNome) ativos[o.clienteNome]=1; else if(o.clienteAntigo) ant[o.clienteAntigo]=1; });
+      var dd={}; Object.keys(ant).forEach(function(n){ if(!ativos[n]) dd[n]=1; }); DESL=dd; }catch(e){}
   }
   function cadastro(nome){ for(var i=0;i<C.length;i++){ if(C[i].nome===nome) return C[i]; } return null; }
   function ativo(c){ return !c.status || !/inativ|desativ|encerr|baix|cancel|suspens/i.test(String(c.status)); }
-  function nomesClientes(){
-    var m={}; C.forEach(function(c){ if(c.nome && ativo(c)) m[c.nome]=1; }); H.forEach(function(h){ if(h.cliente) m[h.cliente]=1; });
+  function removido(nome){ var c=cadastro(nome); return (c && !ativo(c)) || (!c && !!DESL[nome]); }
+  function nomesClientes(todos){
+    var m={}; C.forEach(function(c){ if(c.nome && ativo(c)) m[c.nome]=1; }); H.forEach(function(h){ if(h.cliente && (todos || !removido(h.cliente))) m[h.cliente]=1; });
     return Object.keys(m).sort(function(a,b){ return sem(a).localeCompare(sem(b)); });
   }
   function ms(h){ var c=h.criadoEm; if(!c) return 0; if(typeof c.toMillis==='function') return c.toMillis(); if(c.seconds) return c.seconds*1000; var t=Date.parse(c); return isNaN(t)?0:t; }
@@ -238,11 +243,11 @@
     var ant={}; [compMais(mes,-1),compMais(mes,-2)].forEach(function(c){ H.forEach(function(h){ if(compDe(h)===c) ant[h.cliente]=h; }); });
     var falta=[];
     C.forEach(function(c){ if(c.nome && ativo(c) && !tem[c.nome]) falta.push(c.nome); });
-    Object.keys(ant).forEach(function(n){ var c=cadastro(n); if(!tem[n] && falta.indexOf(n)<0 && (!c || ativo(c))) falta.push(n); });
-    falta.forEach(function(n){ var k='falta|'+n+'|'+mes; if(!ocultos[k]) a.push({k:k, tipo:'falta', cliente:n, t:curto(n)+' sem honorário em '+compTxt(mes), s:'Cliente ativo sem honorário lançado neste mês', bt:'Lançar'}); });
+    Object.keys(ant).forEach(function(n){ if(!tem[n] && falta.indexOf(n)<0 && !removido(n)) falta.push(n); });
+    falta.forEach(function(n){ var k='falta|'+n+'|'+mes; if(!ocultos[k]) a.push({k:k, tipo:'falta', cliente:n, t:n+' sem honorário em '+compTxt(mes), s:'Cliente ativo sem honorário lançado neste mês', bt:'Lançar'}); });
     suspeitos().grupos.forEach(function(g){
       var k='dup|'+g[0].cliente+'|'+compDe(g[0]); if(ocultos[k]) return;
-      a.push({k:k, tipo:'dup', cliente:g[0].cliente, t:curto(g[0].cliente)+' · '+compTxt(compDe(g[0]))+' lançado '+g.length+' vezes',
+      a.push({k:k, tipo:'dup', cliente:g[0].cliente, t:g[0].cliente+' · '+compTxt(compDe(g[0]))+' lançado '+g.length+' vezes',
         s:g.map(function(h){ return '"'+(h.referencia||'')+'" '+money(num(h.valor))+(pago(h)?' (pago)':''); }).join(' e '), bt:'Ver'});
     });
     var fora=H.filter(function(h){ return !padrao(h) && compDe(h); });
@@ -360,7 +365,7 @@
   }
 
   function historico(){
-    var nomes=nomesClientes();
+    var nomes=nomesClientes(true);
     var hc=el('hon-cli'); if(hc && !hc.__hv2){ hc.__hv2=1; hc.addEventListener('change',function(){ if(hc.value){ HCLI=hc.value; desenhar(true); } }); }
     var h='<div class="cx"><h3>\u{1F50E} Histórico por cliente</h3><div class="busca"><select id="hv2-hcli"><option value="">— escolha o cliente —</option>'
       +nomes.map(function(n){ return '<option'+(n===HCLI?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select>'
