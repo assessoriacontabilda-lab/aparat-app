@@ -69,6 +69,8 @@ async function main() {
   cliSnap.forEach(function (d) {
     const n = String(d.data().nome || "").trim();
     if (!n) return;
+    /* cliente Inativo (removido do app) nao recebe honorario novo */
+    if (/inativ|desativ|encerr|baix|cancel|suspens/i.test(String(d.data().status || ""))) { console.log("  - " + n + " : cliente inativo - pulando."); return; }
     const chave = n.toLowerCase();
     if (vistos[chave]) { console.log("  - " + n + " : cadastrado em duplicidade - considerando so uma vez."); return; }
     vistos[chave] = 1;
